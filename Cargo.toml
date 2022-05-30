@@ -1,0 +1,20 @@
+[package]
+description = "KardiaChain Network"
+name = "kardiachain"
+version = "1.0.0"
+license = "GPL-3.0, LGPL-3.0"
+authors = ["KardiaChain Contributors"]
+
+[workspace]
+members = ["source/chainspec", "source/vm"]
+
+[dependencies]
+# internal packages
+kai-core = { path = "packages/core" }
+kai-accounts = { path = "packages/accounts" }
+kai-consensus = { path = "packages/consensus" }
+kai-db = { path = "packages/db" }
+kai-rpc = { path = "packages/rpc" }
+kai-txpool = { path = "packages/txpool" }
+kai-utils = { path = "packages/utils" }
+kai-vm = { path = "packages/vm" }
