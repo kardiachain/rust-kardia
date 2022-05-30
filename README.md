@@ -1,6 +1,4 @@
 # KardiaChain Network
 Implementation of KardiaChain Core with BFT-DPOS Consensus
 
-[![GPL licensed][license-badge]][license-url]
-[license-badge]: https://img.shields.io/badge/license-GPL_v3-green.svg
-[license-url]: LICENSE
+[![License: LGPL-3.0, GLP-3.0](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
