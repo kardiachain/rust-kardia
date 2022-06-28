@@ -18,3 +18,15 @@ kai-rpc = { path = "packages/rpc" }
 kai-txpool = { path = "packages/txpool" }
 kai-utils = { path = "packages/utils" }
 kai-vm = { path = "packages/vm" }
+
+[[bin]]
+name = "chainspec"
+path = "source/chainspec/src/main.rs"
+
+[[bin]]
+name = "client"
+path = "source/client/src/main.rs"
+
+[[bin]]
+name = "vm"
+path = "source/vm/src/main.rs"
