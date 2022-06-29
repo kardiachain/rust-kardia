@@ -6,7 +6,7 @@ license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
 
 [workspace]
-members = ["source/chainspec", "source/vm"]
+members = ["source/chainspec", "source/vm", "source/client"]
 
 [dependencies]
 # internal packages
