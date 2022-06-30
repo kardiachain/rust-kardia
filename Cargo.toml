@@ -6,7 +6,7 @@ license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
 
 [workspace]
-members = ["source/chainspec", "source/vm", "source/client"]
+members = ["source/chainspec", "source/vm", "source/client", "cmd"]
 
 [dependencies]
 # internal packages
@@ -14,19 +14,17 @@ kai-core = { path = "packages/core" }
 kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
 kai-db = { path = "packages/db" }
+kai-dualchain = { path = "packages/dualchain" }
+kai-dualnode = { path = "packages/dualnode" }
+kai-ksml = { path = "packages/ksml" }
+kai-net = { path = "packages/net" }
+kai-node = { path = "packages/node" }
+kai-proto = { path = "packages/proto" }
 kai-rpc = { path = "packages/rpc" }
 kai-txpool = { path = "packages/txpool" }
 kai-utils = { path = "packages/utils" }
 kai-vm = { path = "packages/vm" }
 
 [[bin]]
-name = "chainspec"
-path = "source/chainspec/src/main.rs"
-
-[[bin]]
-name = "client"
-path = "source/client/src/main.rs"
-
-[[bin]]
-name = "vm"
-path = "source/vm/src/main.rs"
+name = "cmd"
+path = "cmd/src/main.rs"
