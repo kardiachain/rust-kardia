@@ -14,9 +14,6 @@ kai-core = { path = "packages/core" }
 kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
 kai-db = { path = "packages/db" }
-kai-dualchain = { path = "packages/dualchain" }
-kai-dualnode = { path = "packages/dualnode" }
-kai-ksml = { path = "packages/ksml" }
 kai-net = { path = "packages/net" }
 kai-node = { path = "packages/node" }
 kai-proto = { path = "packages/proto" }
