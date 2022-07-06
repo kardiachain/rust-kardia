@@ -6,6 +6,7 @@ This package contains 3 binaries:
   - Inits db
   - Init consensus engine
   - It adds all `kardia-sentry` in the configuration to the node instance (defined in `p2p/node`).
+    - Node `start_sync()`: start syncing via `sentry`. Read more about [p2p/node](../packages/sentry/README.md)
   - Set up staged sync queues
     - Add stages
     - Run stagedsync process
