@@ -79,7 +79,7 @@ TODO
 ### Stage `TotalTxIndex`
 TODO
 
-### Stage 7: [Execute Blocks Stage](/eth/stagedsync/stage_execute.go)
+### Stage `Execution`
 
 During this stage, we execute block-by-block everything that we downloaded before.
 
