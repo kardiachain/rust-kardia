@@ -2,7 +2,7 @@
 It contains:
 - p2p implementation on exchanging data (votes, proposal, blocks...) between peers
 
-This package heavily learned from `akula/p2p`. Its functionalities could be described as follow:
+Its functionalities could be described as follow:
 
 # p2p/node.rs
 ## Node.start_sync()

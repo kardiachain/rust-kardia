@@ -5,4 +5,4 @@ This package contains KVM, KardiaChain Virtual Machine (EVM-liked). It implement
 - Expose `call()` method to execute smart contract code
 - ...
 
-This KVM should preserve the functionalities of the existing KVM in `go-kardia` and then simplify as `akula` doing. Please read more at `akula/execution` for further reading their EVM.
+This KVM should preserve the functionalities of the existing KVM in `go-kardia`.
