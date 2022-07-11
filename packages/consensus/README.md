@@ -58,19 +58,64 @@ func (t *timeoutTicker) ScheduleTimeout(ti timeoutInfo) {
 ## Consensus reactor
 Methods:
 ```
+OnStart()
 updateRoundStateRoutine()
 gossipDataRoutine()
 gossipVotesRoutine()
 queryMaj23Routine()
 ```
+### OnStart()
+OnStart starts separate go routines for each p2p Channel and listens for envelopes on each. In addition, it also listens for peer updates and handles messages on that p2p channel accordingly. The caller must be sure to execute OnStop to ensure the outbound p2p Channels are closed.
+
+### OnStop()
+OnStop stops the reactor by signaling to all spawned goroutines to exit and blocking until they all exit, as well as unsubscribing from events and stopping state.
 
 ## Consensus state
-Methods:
+State handles execution of the consensus algorithm.
+It processes votes and proposals, and upon reaching agreement, commits blocks to the chain and executes them against the application.
+The internal state machine receives input from peers, the internal validator, and from a timer.
+
+Bootstrapping Methods:
 ```
+OnStart()
+OnStop()
 receiveRoutine()
+updateToState(state)
 ```
 
+Public interface for passing messages into the consensus state (mostly Consensus Reactor), possibly causing a state transition:
+```
+AddVote()
+SetProposal()
+AddProposalBlockPart()
+SetProposalAndBlock()
+```
+
+Internal functions for managing the state:
+```
+updateHeight()
+updateRoundStep()
+scheduleRound0()
+scheduleTimeout()
+sendInternalMessage()
+reconstructLastCommit()
+votesFromExtendedCommit()
+votesFromSeenCommit()
+updateToState()
+newStep()
+```
+
+### OnStart()
+OnStart loads the latest state via the WAL, and starts the timeout and receive routines. If peerID == "", the msg is considered internal. Messages are added to the appropriate queue (peer or internal). If the queue is full, the function may block.
+
+### updateToState()
+Updates State and increments height to match that of state. It is called inside SwitchToConsensus() of Reactor, finalizeCommit() and updateStateFromStore() of the state ifself.
+
 ### receiveRoutine()
+receiveRoutine handles messages which may cause state transitions.
+It's argument (n) is the number of messages to process before exiting - use 0 to run forever
+It keeps the RoundState and is the only thing that updates it.
+Updates (state transitions) happen on timeouts, complete proposals, and 2/3 majorities.
 It does as follows:
 - Listen on `txNotifier.TxsAvailable()`, it handles `handleTxsAvailable()`
 - Listen on `cs.peerMsgQueue`, it handles proposals, block parts, votes
