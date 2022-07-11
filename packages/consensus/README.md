@@ -71,8 +71,12 @@ queryMaj23Routine()
 OnStart starts separate go routines for each p2p Channel and listens for envelopes on each. In addition, it also listens for peer updates and handles messages on that p2p channel accordingly. The caller must be sure to execute OnStop to ensure the outbound p2p Channels are closed.
 Go routines invokes by OnStart():
 ```
+updateRoundStateRoutine()
+processStateCh()
+processDataCh()
+processVoteCh()
+processVoteSetBitsCh()
 processPeerUpdates(): it listens on "peerUpdates.Updates()", then invoke processPeerUpdate()
-processPeerUpdate()
 ```
 ### processPeerUpdate()
 processPeerUpdate process a peer update message. For new or reconnected peers,
