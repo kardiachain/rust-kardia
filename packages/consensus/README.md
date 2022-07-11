@@ -59,6 +59,9 @@ func (t *timeoutTicker) ScheduleTimeout(ti timeoutInfo) {
 Methods:
 ```
 OnStart()
+OnStop()
+SwitchToConsensus()
+subscribeToBroadcastEvents()
 updateRoundStateRoutine()
 gossipDataRoutine()
 gossipVotesRoutine()
@@ -66,9 +69,24 @@ queryMaj23Routine()
 ```
 ### OnStart()
 OnStart starts separate go routines for each p2p Channel and listens for envelopes on each. In addition, it also listens for peer updates and handles messages on that p2p channel accordingly. The caller must be sure to execute OnStop to ensure the outbound p2p Channels are closed.
+Go routines invokes by OnStart():
+```
+processPeerUpdates(): it listens on "peerUpdates.Updates()", then invoke processPeerUpdate()
+processPeerUpdate()
+```
+### processPeerUpdate()
+processPeerUpdate process a peer update message. For new or reconnected peers,
+we create a peer state if one does not exist for the peer, which should always
+be the case, and we spawn all the relevant goroutine to broadcast messages to
+the peer. During peer removal, we remove the peer for our set of peers and
+signal to all spawned goroutines to gracefully exit in a non-blocking manner.
 
 ### OnStop()
 OnStop stops the reactor by signaling to all spawned goroutines to exit and blocking until they all exit, as well as unsubscribing from events and stopping state.
+
+### subscribeToBroadcastEvents()
+Reactor and State use `state.evsw`: EventSwitch, synchronous pubsub between consensus state and reactor. state only emits EventNewRoundStep, EventValidBlock, and EventVote
+It routes message to `state.broadcastNewRoundStepMessage()`, `state.broadcastNewValidBlockMessage()` and `state.broadcastHasVoteMessage()`
 
 ## Consensus state
 State handles execution of the consensus algorithm.
