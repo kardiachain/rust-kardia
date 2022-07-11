@@ -61,11 +61,11 @@ Methods:
 OnStart()
 OnStop()
 SwitchToConsensus()
-subscribeToBroadcastEvents()
+handleMessage(): listens from P2P connection and handle corresponding message.
+subscribeToBroadcastEvents(): communication between react and state
+// routines
 updateRoundStateRoutine()
-gossipDataRoutine()
-gossipVotesRoutine()
-queryMaj23Routine()
+gossipDataRoutine(), gossipVotesRoutine(), queryMaj23Routine(): routines for every new P2P connection.
 ```
 ### OnStart()
 OnStart starts separate go routines for each p2p Channel and listens for envelopes on each. In addition, it also listens for peer updates and handles messages on that p2p channel accordingly. The caller must be sure to execute OnStop to ensure the outbound p2p Channels are closed.
@@ -78,15 +78,21 @@ processVoteCh()
 processVoteSetBitsCh()
 processPeerUpdates(): it listens on "peerUpdates.Updates()", then invoke processPeerUpdate()
 ```
+`processStateCh(), processDataCh(), processVoteCh(), processVoteSetBitsCh()` are channel for P2P communications, they invoke `handleMessage()`.
+### OnStop()
+OnStop stops the reactor by signaling to all spawned goroutines to exit and blocking until they all exit, as well as unsubscribing from events and stopping state.
+### SwitchToConsensus()
+SwitchToConsensus switches from block-sync mode to consensus mode. It resets the state, turns off block-sync, and starts the consensus state-machine.
+### handleMessage()
+handleMessage handles an Envelope sent from a peer on a specific p2p Channel.
+It will handle errors and any possible panics gracefully. A caller can handle
+any error returned by sending a PeerError on the respective channel.
 ### processPeerUpdate()
 processPeerUpdate process a peer update message. For new or reconnected peers,
 we create a peer state if one does not exist for the peer, which should always
 be the case, and we spawn all the relevant goroutine to broadcast messages to
 the peer. During peer removal, we remove the peer for our set of peers and
 signal to all spawned goroutines to gracefully exit in a non-blocking manner.
-
-### OnStop()
-OnStop stops the reactor by signaling to all spawned goroutines to exit and blocking until they all exit, as well as unsubscribing from events and stopping state.
 
 ### subscribeToBroadcastEvents()
 Reactor and State use `state.evsw`: EventSwitch, synchronous pubsub between consensus state and reactor. state only emits EventNewRoundStep, EventValidBlock, and EventVote
