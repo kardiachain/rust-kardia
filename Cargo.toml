@@ -14,7 +14,15 @@ kai-core = { path = "packages/core" }
 kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
 kai-db = { path = "packages/db" }
+kai-net = { path = "packages/net" }
+kai-node = { path = "packages/node" }
 kai-rpc = { path = "packages/rpc" }
 kai-txpool = { path = "packages/txpool" }
 kai-utils = { path = "packages/utils" }
 kai-vm = { path = "packages/vm" }
+kai-p2p = { path = "packages/p2p" }
+
+[[bin]]
+name = "client"
+path = "source/client/src/main.rs"
+

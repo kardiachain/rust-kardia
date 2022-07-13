@@ -1,5 +1,5 @@
 [package]
-name = "consensus"
+name = "kai-consensus"
 version = "0.1.0"
 edition = "2021"
 
