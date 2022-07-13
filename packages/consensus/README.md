@@ -30,13 +30,12 @@ trait TimeoutTicker {
     fn timeout_routine() -> ();
 }
 ```
-It has 3 important properties:
-- timer: a thread that sleeps in given duration, when it awakes after sleeping, it will send a message on `timer.C` channel
-- tickChan: for scheduling timouts
-- tockChan: for notifying about them
+It has 2 important channels:
+- `tick_chan`: for scheduling timouts
+- `tock_chan`: for notifying (consensus engine) timeouts with corresponding timeout info.
 ### `start()`
-It starts the timeout routine.
-### `timeout_routine()`
+It initializes `tick_chan` and `tock_chan`, stores them in struct.
+### `timeout_thread()`
 It's an infinite loop (terminatable by listening on a context for graceful shutdown). In particular:
 ```
 Loop:
@@ -47,12 +46,7 @@ Loop:
     Listening on timer.C to send timout info to tockChan
 ```
 ### `schedule_timeout()`
-It schedules a new timeout by sending on the internal tickChan.
-```go
-func (t *timeoutTicker) ScheduleTimeout(ti timeoutInfo) {
-	t.tickChan <- ti
-}
-```
+It schedules a new timeout with `timeoutInfo`. When the timer is out, it sends a signal to ? channel. Consensus engine listens on this channel to handle round and steps.
 ##
 
 ## Consensus reactor
