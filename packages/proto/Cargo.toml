@@ -1,5 +1,5 @@
 [package]
-name = "kai-accounts"
+name = "kai-proto"
 version = "0.1.0"
 edition = "2021"
 
