@@ -27,27 +27,23 @@ trait TimeoutTicker {
     pub fn stop() -> ();
     pub fn is_running -> Result<bool>;
     pub fn schedule_timeout(ti: TimeoutInfo) -> Result<()>;
-    fn timeout_routine() -> ();
+}
+struct TimeoutInfo {
+    duration
+    height,round,step
 }
 ```
 It has 2 important channels:
-- `tick_chan`: for scheduling timouts
+- `tick_chan`: for scheduling timeouts
 - `tock_chan`: for notifying (consensus engine) timeouts with corresponding timeout info.
 ### `start()`
-It initializes `tick_chan` and `tock_chan`, stores them in struct.
-### `timeout_thread()`
-It's an infinite loop (terminatable by listening on a context for graceful shutdown). In particular:
-```
-Loop:
-    Listening on tickChan to start a new timer:
-        - If old height/round/step, then skip
-        - Stop the last timer
-        - Update to new timeout info and reset timer
-    Listening on timer.C to send timout info to tockChan
-```
+It initializes `tick_chan`, `tock_chan`, stores them in struct. Setup the timer.
 ### `schedule_timeout()`
-It schedules a new timeout with `timeoutInfo`. When the timer is out, it sends a signal to ? channel. Consensus engine listens on this channel to handle round and steps.
-##
+It fires a new `timout_info` on `tick_chan`.
+Whenever a new tick comes it sets the timer with duration specified in `timeout_info`. When the timer is out, it sends `timeount_info` to `tock_chan`. Consensus engine listens on this channel in `receiveRoutine`.
+The timer is interupted and replaced by new tick, tickers for old height/round/step are ignored.
+### `stop()`
+It stops the timer and drain if necessary.
 
 ## Consensus reactor
 Methods:
