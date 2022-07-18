@@ -1,26 +1,14 @@
 # consensus package
 This package implements the DPoS-BFT consensus engine. It maintains internal state and peer state via transporting messages via `kardia-sentry` service.
 Its main components are:
-- ticker for processing data in round and steps
-- consensus reactor: handle messages from peer or internal state changes via channels (state, data, vote, votebit)
-- models: state, peer state, message
+- `TimeoutTicker`: for processing data in round and steps
+- `State`: for storing internal state of the consensus engine
+- `Reactor`: handle messages from peer or internal state changes via channels (state, data, vote, votebit)
+- WAL (write-ahead-log): a canonical WAL to recover from any crashes.
 
-
-## Models
-```rust
-struct TimeoutInfo {
-    duration
-    height uint64
-    round uint32
-    step: RoundStepType
-}
-```
-
-## Message types
-
-## Ticker
+## Timeout Ticker
 TimeoutTicker is a timer that schedules timeouts conditional on the height/round/step in the timeoutInfo.
-`TimeoutTicker` trait: 
+### Models
 ```rust
 trait TimeoutTicker {
     pub fn start() -> Result<()>;
@@ -29,8 +17,21 @@ trait TimeoutTicker {
     pub fn schedule_timeout(ti: TimeoutInfo) -> Result<()>;
 }
 struct TimeoutInfo {
-    duration
-    height,round,step
+    duration: int64;
+    height: uint64;
+    round: uint32;
+    step: RoundStepType;
+}
+enum RoundStepType {
+    RoundStepNewHeight = 1, // Wait til CommitTime + timeoutCommit
+    RoundStepNewRound, // Setup new round and go to RoundStepPropose
+    RoundStepPropose, // Did propose, gossip proposal
+    RoundStepPrevote, // Did prevote, gossip prevotes
+    RoundStepPrevoteWait, // Did receive any +2/3 prevotes, start timeout
+    RoundStepPrecommit, // Did precommit, gossip precommits
+    RoundStepPrecommitWait, // Did receive any +2/3 precommits, start timeout
+    RoundStepCommit, // Entered commit state machine
+    // NOTE: RoundStepNewHeight acts as RoundStepCommitWait.
 }
 ```
 It has 2 important channels:
@@ -39,8 +40,7 @@ It has 2 important channels:
 ### `start()`
 It initializes `tick_chan`, `tock_chan`, stores them in struct. Setup the timer.
 ### `schedule_timeout()`
-It fires a new `timout_info` on `tick_chan`.
-Whenever a new tick comes it sets the timer with duration specified in `timeout_info`. When the timer is out, it sends `timeount_info` to `tock_chan`. Consensus engine listens on this channel in `receiveRoutine`.
+It fires a new `timout_info` on `tick_chan`. Whenever a new tick comes it sets the timer with duration specified in `timeout_info`. When the timer is out, it sends `timeount_info` to `tock_chan`. `ConsensusState` listens on this channel and handle in `ConsensusState.handle_timeout()`.
 The timer is interupted and replaced by new tick, tickers for old height/round/step are ignored.
 ### `stop()`
 It stops the timer and drain if necessary.
@@ -124,7 +124,8 @@ newStep()
 ```
 
 ### OnStart()
-OnStart loads the latest state via the WAL, and starts the timeout and receive routines. If peerID == "", the msg is considered internal. Messages are added to the appropriate queue (peer or internal). If the queue is full, the function may block.
+OnStart loads the latest state via the WAL, starts the timeout ticker (schedules first round) and receive routines.
+If peerID == "", the msg is considered internal. Messages are added to the appropriate queue (peer or internal). If the queue is full, the function may block.
 
 ### updateToState()
 Updates State and increments height to match that of state. It is called inside SwitchToConsensus() of Reactor, finalizeCommit() and updateStateFromStore() of the state ifself.
@@ -141,9 +142,25 @@ It does as follows:
 - Listen on `tockChan`, it handles timeouts.
 
 ### handleTimout()
-It checks `timeout.Step`, in case the step is:
-- *RoundStepNewHeight*: `cs.enterNewRound()`,
-- *RoundStepNewRound*: `cs.enterPropose()`,
-- *RoundStepPropose*: `cs.enterPrevote()`,
-- *RoundStepPrevoteWait*: `cs.enterPrecommit()`,
-- *RoundStepPrecommitWait*: `cs.enterPrecommit()` `cs.enterNewRound()`.
+It listens for `timeout_info` on the `tock_chan` of the `TimeoutTicker`. 
+It checks `timeout_info.step`, in case the step is:
+- *RoundStepNewHeight*: invokes
+  - `cs.enterNewRound()`
+- *RoundStepNewRound*: invokes
+  - `cs.enterPropose()`,
+- *RoundStepPropose*: invokes
+  - PublishEventTimeoutPropose
+  - `cs.enterPrevote()`,
+- *RoundStepPrevoteWait*: invokes
+  - PublishEventTimeoutWait
+  - `cs.enterPrecommit()`,
+- *RoundStepPrecommitWait*: invokes
+  - PublishEventTimeoutWait
+  - `cs.enterPrecommit()`
+  - `cs.enterNewRound()`.
+
+### state functions
+#### `enterNewRound()`
+
+
+### finalizeCommit()
