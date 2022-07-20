@@ -164,3 +164,39 @@ It checks `timeout_info.step`, in case the step is:
 
 
 ### finalizeCommit()
+
+
+## Kardia consensus algorithm
+Keynotes:
+- There is a bound `delta` and an instant `GST` (Global Stabilization Time) such that all communication among validators after GST is reliable and delta-timely.
+- `v`: value, aka. block; `id(v)`: hash of block `v`; `h_p`: height of process
+- `upon` rule is triggered once the condition is satisfied. 
+  - The condition `+2/3 <PRECOMMIT, h_p, r, id(v)>` is evaluated to `true` once there is two third of majority `PRECOMMIT` on block `v` at height `h_p` and round `r`.
+  - Some of the rules ends with ”for the ﬁrst time” constraint to denote that it is triggered only the ﬁrst time a corresponding condition evaluates to true.
+- The variables with index `p` are process local state variables, while variables without index p are value placeholders.
+- Algorithm proceeds in rounds, where each round has a decicated *proposer*. Function `proposer(h, r)` returns the proposer for the round `r` at height `h`.
+- There are three timouts: `timeoutPropose`, `timeoutPrevote` and `timeoutPrecommit`. The timeouts prevent the algorithm from blocking (waiting for some condition to be true). Timeouts are increased every new round `r`: `timeoutX(r) = initTimeoutX + r*timoutDelta` where `X` could be `Propose`, `Prevote` or `Precommit`, they are reset for every new height.
+- Apart from those variables, a process also stores the current consensus instance (h_p , called height in Tendermint), and the current round number (round_p ) and attaches them to every message. Finally, a process also stores an array of decisions, decision p (Tendermint assumes a sequence of consensus instances, one for each height).
+
+### State transitions
+- `PROPOSAL` message that carries value, `PREVOTE` and `PRECOMMIT` messages carry value id.
+- States: `NEWHEIGHT` -> (`PROPOSAL` -> `PREVOTE` -> `PRECOMMIT`)+ -> `COMMIT`
+  - A validator sends `PREVOTE(id(v))` when it evaluates `PROPOSAL(v)` is valid, otherwise `PREVOTE(nil)`.
+  - A validator sends `PRECOMMIT(id(v))` when it receives +2/3 `PREVOTE(id(v))`, otherwise `PRECOMMIT(nil)`.
+  - A validator proceeds to `COMMIT` when it receives +2/3 `PRECOMMIT(id(v))`
+- A validator also "locks" on the most recent value `v` that has +2/3 `PREVOTE` (or before sending `PRECOMMIT(id(v))`). The lock is reset every new height. `validValue` is used to store forementioned value and `validRound` is the round `r` when `validValue` gets assigned.
+
+
+TODO: 
+- Enter `PROPOSE`: the process enters to this state either proposes a proposal or waits for a complete proposal. Then sends its prevote.
+  - A proposal timeout is scheduled with `height` and `round`, function `OnTimeoutPropose(height, round)` will be executed when timeout.
+  - Transition to `PREVOTE` is guaranteed by either `upon` rules (lines 22, 28) or above timeout. The transition happens RIGHTAWAY.
+  - Sending prevote is carried by either a `upon` rule (line 28) or above timeout.
+- Enter `PREVOTE`: the process enters to this state listens for +2/3 prevotes to send its precommit vote. Listening for prevotes is run separately and it informs the process when +2/3 prevotes of current proposal is reached.
+  - A prevote timeout is scheduled with `height` and `round`, function `OnTimeoutPrevote(height, round)` will be executed when timeout.
+  - Transition to `PRECOMMIT` is guaranteed by either `upon` rules (line 36, 44) rightaway or after above timeout scheduled in `upon` rule (line 34).
+    - `upon` rule 34: +2/3 of any prevotes received => schedule timeout prevote.
+    - `upon` rule 36: +2/3 of prevotes on `id(v)` => send our precommit vote for `id(v)` and transition to `PRECOMMIT` state.
+    - `upon` rule 44: +2/3 of prevotes on nil => send our precommit vote for nil and transition to `PRECOMMIT` state.
+  - Sending precommit vote is carried by either a `upon` rule (line 44) or above timeout.
+- Enter `PRECOMMIT`: the process enters to this state listens for +2/3 precommits
