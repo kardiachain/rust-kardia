@@ -21,7 +21,8 @@ Its main components are:
 - A validator sends `PREVOTE(id(v))` when it evaluates `PROPOSAL(v)` is valid, otherwise `PREVOTE(nil)`.
 - A validator sends `PRECOMMIT(id(v))` when it receives +2/3 `PREVOTE(id(v))`, otherwise `PRECOMMIT(nil)`.
 - A validator proceeds to `COMMIT` when it receives +2/3 `PRECOMMIT(id(v))`
-- A validator also "locks" on the most recent value `v` that has +2/3 `PREVOTE` (or before sending `PRECOMMIT(id(v))`). The lock is reset every new height. `validValue` is used to store forementioned value and `validRound` is the round `r` when `validValue` gets assigned.
+- During the prevote step, a validator "locks" value `v` iff it has +2/3 `PREVOTE` (or before sending `PRECOMMIT(id(v))`). If there is another proposal has +2/3 prevotes, the process moves to lock that new proposal. The lock is reset every new height. `lockedValue` is used to store forementioned value and `lockedRound` is the round `r` when `validValue` gets assigned. Locking mechanism prevents proposing 2 different proposals for the same height. (upon rule 5)
+- Whenever the consensus receives +2/3 prevotes of a proposal for the first time, the process considers that is a valid proposal. `validValue` is used to store forementioned value and `validRound` is the round `r` when `validValue` gets assigned. This is considered as a valid proposal caching method which helps to reduce the time to propose a new proposal.
 
 ### Pseudocode
 ```go
@@ -111,7 +112,7 @@ Function OnTimeoutPrecommit(height, round):
 ```
 
 The above consensus algorithm could be explained in more detail:
-- The process starts by executing `StartRound(0)`. The `upon` rule 9 helps it catching up the latest round of other processes.
+- The process starts by executing `StartRound(0)`.
 - Enter `PROPOSE`: the process enters to this state either proposes a proposal or waits for a completed proposal. Then sends its prevote.
   - A proposal timeout is scheduled with `height` and `round`, function `OnTimeoutPropose(height, round)` will be executed when timeout.
   - Transition to `PREVOTE` is guaranteed by either `upon` rules (2, 3) rightaway or after above timeout.
@@ -123,19 +124,62 @@ The above consensus algorithm could be explained in more detail:
     - `upon` rule 5: +2/3 of prevotes on `id(v)` => send our precommit vote for `id(v)` and transition to `PRECOMMIT` state.
     - `upon` rule 6: +2/3 of prevotes on nil => send our precommit vote for nil and transition to `PRECOMMIT` state.
   - Sending precommit vote is carried by either a `upon` rule 6 or above timeout.
-- Enter `PRECOMMIT`: the process enters to this state listens for +2/3 precommits of `id(v)` to commit `v`.
+- Enter `PRECOMMIT`: the process enters to this state listens for +2/3 precommits of `id(v)` to commit `v` (TODO: finalizing commit).
   - A precommit timeout is scheduled in `upon` rule 7 with `height` and `round`, function `OnTimeoutPrecommit(hieght, round)` will be executed when timeout.
     - `upon` rule 7: +2/3 of any precommits received => schedule timeout precommit.
   - The execution of `StartRound()` (which enter `PROPOSE` state) is guaranteed by either `upon` rule 8 rightaway or after above timeout.
+- The `upon` rule 9 helps it catching up the latest round of other processes.
 
-## Messages processing
+## Processing messages 
 This section discusses about processes which digest messages (proposal or votes) that came both from peers and consensus engine itself.
 
 Every message type has its own way to process. The difference is described as below.
+
+When received f+1 messages (proposal or votes) of `round` that is later `round_p`, this shows that current process is late, skip to `round` (upon rule 9). 
+
 ### Processing proposal message
+Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
+The consensus received a proposal message (either from a peer or the consensus engine itself).
+Only the proposal that satisfies following validations is accepted:
+- `proposal.height = height_p`, `proposal.round == round_p`
+- `-1 <= POLRound < round_p`
+- `proposal` must be proposed by `proposer(height, round)`
+- `signature` is valid
+
+Note that the proposal does not include the content of the proposal block. There is another process to receive part of the block.
+
+#### Processing proposal block part message
+Proposal block are splitted into parts. They are sent part by part. 
+This process receives block part message.
+Until the process receives complete proposal, it:
+- broadcast event complete proposal (for gossiping)
+- do check for `upon` rules and executes.
 
 ### Processing vote message
+Vote messages are added into vote set. They are checked for validity, an evidence will be thrown for peer violation. 
+Vote messages are categorized into by round `r`, block hash `id(v)` and type.
+Finally, the process performs the check for `upon` rules and triggers rule's execution as soon as the rule is satisfied.
 
-### Proposal message
-### Vote message
+Vote validations:
+- 
+Terms:
+- `VoteSet[r][id(v)]`: stores votes of all rounds of current height.
+
+Special cases, must be checked before normal case is run:
+- Late precommit from last height (`height_p - 1`) should be add in `LastCommit`.
+
+TODO:
+- There's a new polka (+2/3 prevotes) for new block, but we've already locked on a block. We unlocks
+
 #### Evidence
+
+## Process deciding proposal
+The process decides a proposal. It is triggered by the consensus engine.
+- If the consensus engine already knew a valid block (+2/3 prevotes), use that valid block. 
+- Otherwise, it proposes a new block by collecting txs from txpool. If the txpool isn't ready yet, it keeps waiting. The consensus engine will automatically move to new round if the proposing process is timeout.
+
+## Process finalizing commit
+This process is seperated from the consensus engine. It creates commit and apply block.
+Applying block:
+- block operation, save block with commit
+- block executor, apply block
