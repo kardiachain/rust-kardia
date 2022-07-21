@@ -9,7 +9,6 @@ Its main components are:
 
 ## Kardia consensus algorithm
 ### Terminologies
-- There is a bound `delta` and an instant `GST` (Global Stabilization Time) such that all communication among validators after GST is reliable and delta-timely.
 - `v`: value, aka. block; `id(v)`: hash of block `v`; `h_p`: height of process
 - `upon` rule is triggered once the condition is satisfied. 
   - The condition `+2/3 <PRECOMMIT, h_p, r, id(v)>` is evaluated to `true` once there is two third of majority `PRECOMMIT` on block `v` at height `h_p` and round `r`.
@@ -69,7 +68,7 @@ while step_p= prevote for the ﬁrst time do
 
 upon 5: <PROPOSAL, h_p, round_p, v, *> from proposer(h_p, round_p) AND 2f+1 <PREVOTE, h_p, round_p, id(v)> 
 while valid(v) and step_p >= prevote for the ﬁrst time do
-  if step p= prevote then
+  if step_p= prevote then
     lockedValue_p := v
     lockedRound_p := round_p
     broadcast <PRECOMMIT, h_p, round_p, id(v)>
@@ -104,7 +103,7 @@ Function OnTimeoutPropose(height, round):
 Function OnTimeoutPrevote(height, round):
   if height = h_p and round = round_p and step_p = prevote then
     broadcast <PRECOMMIT, h_p, round_p, nil>
-  step p ← precommit
+  step_p ← precommit
 
 Function OnTimeoutPrecommit(height, round):
   if height = h_p and round = round_p then 
@@ -129,8 +128,13 @@ The above consensus algorithm could be explained in more detail:
     - `upon` rule 7: +2/3 of any precommits received => schedule timeout precommit.
   - The execution of `StartRound()` (which enter `PROPOSE` state) is guaranteed by either `upon` rule 8 rightaway or after above timeout.
 
-## Outbound messages processing
-This section discusses about the process to digest messages (proposal, votes) that came from outside, ie. P2P package forwards messages (proposal, votes) from outside to the consensus engine.
+## Messages processing
+This section discusses about processes which digest messages (proposal or votes) that came both from peers and consensus engine itself.
+
+Every message type has its own way to process. The difference is described as below.
+### Processing proposal message
+
+### Processing vote message
 
 ### Proposal message
 ### Vote message
