@@ -1,0 +1,1118 @@
+Last login: Thu Jul 14 17:59:58 on ttys000
+phatluu@Stevens-MacBook-Pro ~ % 
+phatluu@Stevens-MacBook-Pro ~ % ssh pi@192.168.0.105
+phatluu@Stevens-MacBook-Pro ~ % 
+phatluu@Stevens-MacBook-Pro ~ % ssh root@10.10.0.232
+root@10.10.0.232's password: 
+Last login: Thu Jul 14 18:00:27 2022 from 10.10.0.57
+[root@localhost ~]# exit
+logout
+Connection to 10.10.0.232 closed.
+phatluu@Stevens-MacBook-Pro ~ % ssh root@10.10.0.232
+root@10.10.0.232's password: 
+Last login: Thu Jul 14 18:02:22 2022 from 10.10.0.57
+[root@localhost ~]# docker logs -f --tail 1000
+"docker logs" requires exactly 1 argument.
+See 'docker logs --help'.
+
+Usage:  docker logs [OPTIONS] CONTAINER
+
+Fetch the logs of a container
+[root@localhost ~]# docker logs -f --tail 1000 node1
+INFO [07-14|11:01:05.846] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916533/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1FD7D6814A16:C6249A442799 , 156B824B26E5 @2022-07-14 11:01:05.845687276 +0000 UTC}" precommits="VoteSet{H:7916533 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:1FD7D6814A16:C6249A442799(1) BA{1:x} map[]}"
+INFO [07-14|11:01:05.847] enterCommit(7916533/1). Current: 7916533/1/RoundStepPrecommit height=7916533 commitRound=1
+INFO [07-14|11:01:05.847] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916533 commitRound=1 blockHash=1FD7D6814A16:C6249A442799
+INFO [07-14|11:01:05.847] Finalizing commit of block               tx number=0  height=7916533 hash=0x1fd7d6814a16a89024ba521e73c94dba7d672d3d85ac2ecfcd245b6dde5b4307
+INFO [07-14|11:01:05.848]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:05.865]KARDIA Updating evidence pool                   last_block_height=7916533 last_block_time=2022-07-14T11:01:01+0000
+INFO [07-14|11:01:05.865] scheduleRound0                           now=2022-07-14T11:01:05+0000 startTime=2022-07-14T11:01:06+0000
+INFO [07-14|11:01:06.847]KARDIA Timed out                                dur=981.402697ms  height=7916534 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:06.847] enterNewRound(7916534/1). Current: 7916534/1/RoundStepNewHeight height=7916534 round=1
+WARN [07-14|11:01:08.961] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:01:09.847]KARDIA Timed out                                dur=3s            height=7916534 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:09.847] enterPropose(7916534/1). Current: 7916534/1/RoundStepNewRound height=7916534 round=1
+INFO [07-14|11:01:09.847]KARDIA Creates new header                       header="Header{Height:7916534  Time:2022-07-14 11:01:05.845687276 +0000 UTC  NumTxs:0  LastBlockID:1FD7D6814A16:C6249A442799  LastCommitHash:000000000000  TxHash:000000000000  AppHash:45C0C4E98203  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#9081D555C45A"
+INFO [07-14|11:01:09.849] Signed proposal                          height=7916534 round=1 proposal="Proposal{7916534/1 0 (FA48CA24AF03:00983FE7F4B4) 907CDFF06682 @1657796469}"
+INFO [07-14|11:01:09.854] Received proposal                        proposal="Proposal{7916534/1 0 (FA48CA24AF03:00983FE7F4B4) 907CDFF06682 @1657796469}"
+INFO [07-14|11:01:09.854] Received complete proposal block         height=7916534 hash="fa48ca…5fbabd"
+INFO [07-14|11:01:09.854] enterPrevote(7916534/1). Current: 7916534/1/RoundStepPropose 
+INFO [07-14|11:01:09.855] enterPrevote: ProposalBlock is valid     height=7916534 round=1
+INFO [07-14|11:01:09.855] Signed and pushed vote                   height=7916534 round=1 vote="Vote{0:FBD5E2AFB7C0 7916534/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) FA48CA24AF03:00983FE7F4B4 , 524EE13754CB @2022-07-14 11:01:09.855319854 +0000 UTC}" err=nil
+INFO [07-14|11:01:09.856] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916534/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) FA48CA24AF03:00983FE7F4B4 , 524EE13754CB @2022-07-14 11:01:09.855319854 +0000 UTC}" prevotes="VoteSet{H:7916534 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:FA48CA24AF03:00983FE7F4B4(1) BA{1:x} map[]}"
+INFO [07-14|11:01:09.856] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:09.856] enterPrecommit(7916534/1). Current: 7916534/1/RoundStepPrevote height=7916534 round=1
+INFO [07-14|11:01:09.856] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916534 round=1 hash=FA48CA24AF03:00983FE7F4B4
+INFO [07-14|11:01:09.857] Signed and pushed vote                   height=7916534 round=1 vote="Vote{0:FBD5E2AFB7C0 7916534/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) FA48CA24AF03:00983FE7F4B4 , 2109DCD8A8A5 @2022-07-14 11:01:09.856836634 +0000 UTC}" err=nil
+INFO [07-14|11:01:09.858] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916534/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) FA48CA24AF03:00983FE7F4B4 , 2109DCD8A8A5 @2022-07-14 11:01:09.856836634 +0000 UTC}" precommits="VoteSet{H:7916534 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:FA48CA24AF03:00983FE7F4B4(1) BA{1:x} map[]}"
+INFO [07-14|11:01:09.858] enterCommit(7916534/1). Current: 7916534/1/RoundStepPrecommit height=7916534 commitRound=1
+INFO [07-14|11:01:09.858] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916534 commitRound=1 blockHash=FA48CA24AF03:00983FE7F4B4
+INFO [07-14|11:01:09.858] Finalizing commit of block               tx number=0  height=7916534 hash=0xfa48ca24af035b1d521af3fa4e885c06dce1d45f85d2bb099c5df240825fbabd
+INFO [07-14|11:01:09.860]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:09.878]KARDIA Updating evidence pool                   last_block_height=7916534 last_block_time=2022-07-14T11:01:05+0000
+INFO [07-14|11:01:09.878] scheduleRound0                           now=2022-07-14T11:01:09+0000 startTime=2022-07-14T11:01:10+0000
+INFO [07-14|11:01:10.858]KARDIA Timed out                                dur=980.074875ms  height=7916535 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:10.858] enterNewRound(7916535/1). Current: 7916535/1/RoundStepNewHeight height=7916535 round=1
+INFO [07-14|11:01:13.858]KARDIA Timed out                                dur=3s            height=7916535 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:13.859] enterPropose(7916535/1). Current: 7916535/1/RoundStepNewRound height=7916535 round=1
+INFO [07-14|11:01:13.859]KARDIA Creates new header                       header="Header{Height:7916535  Time:2022-07-14 11:01:09.856836634 +0000 UTC  NumTxs:0  LastBlockID:FA48CA24AF03:00983FE7F4B4  LastCommitHash:000000000000  TxHash:000000000000  AppHash:62E4ED21B11D  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#E5C7E96AABE1"
+INFO [07-14|11:01:13.860] Signed proposal                          height=7916535 round=1 proposal="Proposal{7916535/1 0 (AA8DA47091FB:63B37820DFB7) 60C9CBDB097A @1657796473}"
+INFO [07-14|11:01:13.861] Received proposal                        proposal="Proposal{7916535/1 0 (AA8DA47091FB:63B37820DFB7) 60C9CBDB097A @1657796473}"
+INFO [07-14|11:01:13.861] Received complete proposal block         height=7916535 hash="aa8da4…4343fe"
+INFO [07-14|11:01:13.861] enterPrevote(7916535/1). Current: 7916535/1/RoundStepPropose 
+INFO [07-14|11:01:13.861] enterPrevote: ProposalBlock is valid     height=7916535 round=1
+INFO [07-14|11:01:13.862] Signed and pushed vote                   height=7916535 round=1 vote="Vote{0:FBD5E2AFB7C0 7916535/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) AA8DA47091FB:63B37820DFB7 , 9FE4396FDF60 @2022-07-14 11:01:13.861941976 +0000 UTC}" err=nil
+INFO [07-14|11:01:13.863] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916535/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) AA8DA47091FB:63B37820DFB7 , 9FE4396FDF60 @2022-07-14 11:01:13.861941976 +0000 UTC}" prevotes="VoteSet{H:7916535 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:AA8DA47091FB:63B37820DFB7(1) BA{1:x} map[]}"
+INFO [07-14|11:01:13.863] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:13.863] enterPrecommit(7916535/1). Current: 7916535/1/RoundStepPrevote height=7916535 round=1
+INFO [07-14|11:01:13.863] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916535 round=1 hash=AA8DA47091FB:63B37820DFB7
+INFO [07-14|11:01:13.864] Signed and pushed vote                   height=7916535 round=1 vote="Vote{0:FBD5E2AFB7C0 7916535/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) AA8DA47091FB:63B37820DFB7 , 1B59042E0EE4 @2022-07-14 11:01:13.863643141 +0000 UTC}" err=nil
+INFO [07-14|11:01:13.865] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916535/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) AA8DA47091FB:63B37820DFB7 , 1B59042E0EE4 @2022-07-14 11:01:13.863643141 +0000 UTC}" precommits="VoteSet{H:7916535 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:AA8DA47091FB:63B37820DFB7(1) BA{1:x} map[]}"
+INFO [07-14|11:01:13.865] enterCommit(7916535/1). Current: 7916535/1/RoundStepPrecommit height=7916535 commitRound=1
+INFO [07-14|11:01:13.865] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916535 commitRound=1 blockHash=AA8DA47091FB:63B37820DFB7
+INFO [07-14|11:01:13.865] Finalizing commit of block               tx number=0  height=7916535 hash=0xaa8da47091fb4ca29feb41af76e0f4c96d5b4cb25d1ad5a2c8d7f0d78c4343fe
+INFO [07-14|11:01:13.866]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:13.880]KARDIA Updating evidence pool                   last_block_height=7916535 last_block_time=2022-07-14T11:01:09+0000
+INFO [07-14|11:01:13.880] scheduleRound0                           now=2022-07-14T11:01:13+0000 startTime=2022-07-14T11:01:14+0000
+INFO [07-14|11:01:14.865]KARDIA Timed out                                dur=985.147156ms  height=7916536 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:14.865] enterNewRound(7916536/1). Current: 7916536/1/RoundStepNewHeight height=7916536 round=1
+INFO [07-14|11:01:17.865]KARDIA Timed out                                dur=3s            height=7916536 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:17.865] enterPropose(7916536/1). Current: 7916536/1/RoundStepNewRound height=7916536 round=1
+INFO [07-14|11:01:17.866]KARDIA Creates new header                       header="Header{Height:7916536  Time:2022-07-14 11:01:13.863643141 +0000 UTC  NumTxs:0  LastBlockID:AA8DA47091FB:63B37820DFB7  LastCommitHash:000000000000  TxHash:000000000000  AppHash:5E33D20026FA  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#D5DE62F8E88B"
+INFO [07-14|11:01:17.867] Signed proposal                          height=7916536 round=1 proposal="Proposal{7916536/1 0 (EC1B960BA851:5DE4C569AD40) 14FE7D501A29 @1657796477}"
+INFO [07-14|11:01:17.868] Received proposal                        proposal="Proposal{7916536/1 0 (EC1B960BA851:5DE4C569AD40) 14FE7D501A29 @1657796477}"
+INFO [07-14|11:01:17.868] Received complete proposal block         height=7916536 hash="ec1b96…e00982"
+INFO [07-14|11:01:17.868] enterPrevote(7916536/1). Current: 7916536/1/RoundStepPropose 
+INFO [07-14|11:01:17.869] enterPrevote: ProposalBlock is valid     height=7916536 round=1
+INFO [07-14|11:01:17.869] Signed and pushed vote                   height=7916536 round=1 vote="Vote{0:FBD5E2AFB7C0 7916536/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) EC1B960BA851:5DE4C569AD40 , 49036FA29676 @2022-07-14 11:01:17.869183762 +0000 UTC}" err=nil
+INFO [07-14|11:01:17.871] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916536/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) EC1B960BA851:5DE4C569AD40 , 49036FA29676 @2022-07-14 11:01:17.869183762 +0000 UTC}" prevotes="VoteSet{H:7916536 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:EC1B960BA851:5DE4C569AD40(1) BA{1:x} map[]}"
+INFO [07-14|11:01:17.871] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:17.871] enterPrecommit(7916536/1). Current: 7916536/1/RoundStepPrevote height=7916536 round=1
+INFO [07-14|11:01:17.871] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916536 round=1 hash=EC1B960BA851:5DE4C569AD40
+INFO [07-14|11:01:17.872] Signed and pushed vote                   height=7916536 round=1 vote="Vote{0:FBD5E2AFB7C0 7916536/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) EC1B960BA851:5DE4C569AD40 , 41DA11B014C2 @2022-07-14 11:01:17.871864909 +0000 UTC}" err=nil
+INFO [07-14|11:01:17.873] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916536/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) EC1B960BA851:5DE4C569AD40 , 41DA11B014C2 @2022-07-14 11:01:17.871864909 +0000 UTC}" precommits="VoteSet{H:7916536 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:EC1B960BA851:5DE4C569AD40(1) BA{1:x} map[]}"
+INFO [07-14|11:01:17.873] enterCommit(7916536/1). Current: 7916536/1/RoundStepPrecommit height=7916536 commitRound=1
+INFO [07-14|11:01:17.873] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916536 commitRound=1 blockHash=EC1B960BA851:5DE4C569AD40
+INFO [07-14|11:01:17.873] Finalizing commit of block               tx number=0  height=7916536 hash=0xec1b960ba85145597e6e97ff3c5f9eb8acf0a02fcb495dd6c88d1292bae00982
+INFO [07-14|11:01:17.874]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:17.888]KARDIA Updating evidence pool                   last_block_height=7916536 last_block_time=2022-07-14T11:01:13+0000
+INFO [07-14|11:01:17.888] scheduleRound0                           now=2022-07-14T11:01:17+0000 startTime=2022-07-14T11:01:18+0000
+INFO [07-14|11:01:18.873]KARDIA Timed out                                dur=984.676078ms  height=7916537 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:18.874] enterNewRound(7916537/1). Current: 7916537/1/RoundStepNewHeight height=7916537 round=1
+WARN [07-14|11:01:19.212] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:01:21.875]KARDIA Timed out                                dur=3s            height=7916537 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:21.875] enterPropose(7916537/1). Current: 7916537/1/RoundStepNewRound height=7916537 round=1
+INFO [07-14|11:01:21.875]KARDIA Creates new header                       header="Header{Height:7916537  Time:2022-07-14 11:01:17.871864909 +0000 UTC  NumTxs:0  LastBlockID:EC1B960BA851:5DE4C569AD40  LastCommitHash:000000000000  TxHash:000000000000  AppHash:7FCF021398D7  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#B19A48924227"
+INFO [07-14|11:01:21.877] Signed proposal                          height=7916537 round=1 proposal="Proposal{7916537/1 0 (34DE00CAE591:A0A272CF0778) 42C857C8D804 @1657796481}"
+INFO [07-14|11:01:21.878] Received proposal                        proposal="Proposal{7916537/1 0 (34DE00CAE591:A0A272CF0778) 42C857C8D804 @1657796481}"
+INFO [07-14|11:01:21.878] Received complete proposal block         height=7916537 hash="34de00…7fb71a"
+INFO [07-14|11:01:21.878] enterPrevote(7916537/1). Current: 7916537/1/RoundStepPropose 
+INFO [07-14|11:01:21.879] enterPrevote: ProposalBlock is valid     height=7916537 round=1
+INFO [07-14|11:01:21.879] Signed and pushed vote                   height=7916537 round=1 vote="Vote{0:FBD5E2AFB7C0 7916537/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 34DE00CAE591:A0A272CF0778 , F5B87B96BA7D @2022-07-14 11:01:21.879128879 +0000 UTC}" err=nil
+INFO [07-14|11:01:21.880] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916537/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 34DE00CAE591:A0A272CF0778 , F5B87B96BA7D @2022-07-14 11:01:21.879128879 +0000 UTC}" prevotes="VoteSet{H:7916537 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:34DE00CAE591:A0A272CF0778(1) BA{1:x} map[]}"
+INFO [07-14|11:01:21.880] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:21.880] enterPrecommit(7916537/1). Current: 7916537/1/RoundStepPrevote height=7916537 round=1
+INFO [07-14|11:01:21.880] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916537 round=1 hash=34DE00CAE591:A0A272CF0778
+INFO [07-14|11:01:21.881] Signed and pushed vote                   height=7916537 round=1 vote="Vote{0:FBD5E2AFB7C0 7916537/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 34DE00CAE591:A0A272CF0778 , A8A65A8E77F8 @2022-07-14 11:01:21.880940486 +0000 UTC}" err=nil
+INFO [07-14|11:01:21.882] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916537/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 34DE00CAE591:A0A272CF0778 , A8A65A8E77F8 @2022-07-14 11:01:21.880940486 +0000 UTC}" precommits="VoteSet{H:7916537 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:34DE00CAE591:A0A272CF0778(1) BA{1:x} map[]}"
+INFO [07-14|11:01:21.882] enterCommit(7916537/1). Current: 7916537/1/RoundStepPrecommit height=7916537 commitRound=1
+INFO [07-14|11:01:21.882] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916537 commitRound=1 blockHash=34DE00CAE591:A0A272CF0778
+INFO [07-14|11:01:21.882] Finalizing commit of block               tx number=0  height=7916537 hash=0x34de00cae591c839198e8899ebb2f95081834a602479398e90f747dc417fb71a
+INFO [07-14|11:01:21.884]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:21.895]KARDIA Updating evidence pool                   last_block_height=7916537 last_block_time=2022-07-14T11:01:17+0000
+INFO [07-14|11:01:21.895] scheduleRound0                           now=2022-07-14T11:01:21+0000 startTime=2022-07-14T11:01:22+0000
+INFO [07-14|11:01:22.882]KARDIA Timed out                                dur=987.379653ms  height=7916538 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:22.882] enterNewRound(7916538/1). Current: 7916538/1/RoundStepNewHeight height=7916538 round=1
+INFO [07-14|11:01:25.883]KARDIA Timed out                                dur=3s            height=7916538 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:25.883] enterPropose(7916538/1). Current: 7916538/1/RoundStepNewRound height=7916538 round=1
+INFO [07-14|11:01:25.883]KARDIA Creates new header                       header="Header{Height:7916538  Time:2022-07-14 11:01:21.880940486 +0000 UTC  NumTxs:0  LastBlockID:34DE00CAE591:A0A272CF0778  LastCommitHash:000000000000  TxHash:000000000000  AppHash:703EC674EF7D  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#A8B6F3309B45"
+INFO [07-14|11:01:25.884] Signed proposal                          height=7916538 round=1 proposal="Proposal{7916538/1 0 (64CABE4A9625:A7B0D61F171F) 983E7908E82A @1657796485}"
+INFO [07-14|11:01:25.885] Received proposal                        proposal="Proposal{7916538/1 0 (64CABE4A9625:A7B0D61F171F) 983E7908E82A @1657796485}"
+INFO [07-14|11:01:25.886] Received complete proposal block         height=7916538 hash="64cabe…8ac165"
+INFO [07-14|11:01:25.886] enterPrevote(7916538/1). Current: 7916538/1/RoundStepPropose 
+INFO [07-14|11:01:25.886] enterPrevote: ProposalBlock is valid     height=7916538 round=1
+INFO [07-14|11:01:25.887] Signed and pushed vote                   height=7916538 round=1 vote="Vote{0:FBD5E2AFB7C0 7916538/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 64CABE4A9625:A7B0D61F171F , 8C7F23C9AEA3 @2022-07-14 11:01:25.886500831 +0000 UTC}" err=nil
+INFO [07-14|11:01:25.888] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916538/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 64CABE4A9625:A7B0D61F171F , 8C7F23C9AEA3 @2022-07-14 11:01:25.886500831 +0000 UTC}" prevotes="VoteSet{H:7916538 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:64CABE4A9625:A7B0D61F171F(1) BA{1:x} map[]}"
+INFO [07-14|11:01:25.888] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:25.888] enterPrecommit(7916538/1). Current: 7916538/1/RoundStepPrevote height=7916538 round=1
+INFO [07-14|11:01:25.888] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916538 round=1 hash=64CABE4A9625:A7B0D61F171F
+INFO [07-14|11:01:25.888] Signed and pushed vote                   height=7916538 round=1 vote="Vote{0:FBD5E2AFB7C0 7916538/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 64CABE4A9625:A7B0D61F171F , 29B58EB92F29 @2022-07-14 11:01:25.888267046 +0000 UTC}" err=nil
+INFO [07-14|11:01:25.889] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916538/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 64CABE4A9625:A7B0D61F171F , 29B58EB92F29 @2022-07-14 11:01:25.888267046 +0000 UTC}" precommits="VoteSet{H:7916538 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:64CABE4A9625:A7B0D61F171F(1) BA{1:x} map[]}"
+INFO [07-14|11:01:25.889] enterCommit(7916538/1). Current: 7916538/1/RoundStepPrecommit height=7916538 commitRound=1
+INFO [07-14|11:01:25.889] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916538 commitRound=1 blockHash=64CABE4A9625:A7B0D61F171F
+INFO [07-14|11:01:25.889] Finalizing commit of block               tx number=0  height=7916538 hash=0x64cabe4a9625f5373d22a3503b9398cb0f2716d5a0e9db53a9f44c42648ac165
+INFO [07-14|11:01:25.890]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:25.903]KARDIA Updating evidence pool                   last_block_height=7916538 last_block_time=2022-07-14T11:01:21+0000
+INFO [07-14|11:01:25.903] scheduleRound0                           now=2022-07-14T11:01:25+0000 startTime=2022-07-14T11:01:26+0000
+INFO [07-14|11:01:26.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:01:26.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.236:34652} cc3b3f0eeb55ea5185c45ea3c00a9576601a5c75 in}"
+INFO [07-14|11:01:26.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:01:26.890]KARDIA Timed out                                dur=985.907393ms  height=7916539 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:26.890] enterNewRound(7916539/1). Current: 7916539/1/RoundStepNewHeight height=7916539 round=1
+WARN [07-14|11:01:29.483] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:01:29.891]KARDIA Timed out                                dur=3s            height=7916539 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:29.892] enterPropose(7916539/1). Current: 7916539/1/RoundStepNewRound height=7916539 round=1
+INFO [07-14|11:01:29.892]KARDIA Creates new header                       header="Header{Height:7916539  Time:2022-07-14 11:01:25.888267046 +0000 UTC  NumTxs:0  LastBlockID:64CABE4A9625:A7B0D61F171F  LastCommitHash:000000000000  TxHash:000000000000  AppHash:916B0F358E17  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#59DBF8F01251"
+INFO [07-14|11:01:29.893] Signed proposal                          height=7916539 round=1 proposal="Proposal{7916539/1 0 (0C091BA33257:604A5327F626) 65D4F9AE81F1 @1657796489}"
+INFO [07-14|11:01:29.894] Received proposal                        proposal="Proposal{7916539/1 0 (0C091BA33257:604A5327F626) 65D4F9AE81F1 @1657796489}"
+INFO [07-14|11:01:29.895] Received complete proposal block         height=7916539 hash="0c091b…aec53e"
+INFO [07-14|11:01:29.895] enterPrevote(7916539/1). Current: 7916539/1/RoundStepPropose 
+INFO [07-14|11:01:29.895] enterPrevote: ProposalBlock is valid     height=7916539 round=1
+INFO [07-14|11:01:29.896] Signed and pushed vote                   height=7916539 round=1 vote="Vote{0:FBD5E2AFB7C0 7916539/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 0C091BA33257:604A5327F626 , B8D0F424FE35 @2022-07-14 11:01:29.895633058 +0000 UTC}" err=nil
+INFO [07-14|11:01:29.897] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916539/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 0C091BA33257:604A5327F626 , B8D0F424FE35 @2022-07-14 11:01:29.895633058 +0000 UTC}" prevotes="VoteSet{H:7916539 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:0C091BA33257:604A5327F626(1) BA{1:x} map[]}"
+INFO [07-14|11:01:29.897] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:29.897] enterPrecommit(7916539/1). Current: 7916539/1/RoundStepPrevote height=7916539 round=1
+INFO [07-14|11:01:29.897] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916539 round=1 hash=0C091BA33257:604A5327F626
+INFO [07-14|11:01:29.897] Signed and pushed vote                   height=7916539 round=1 vote="Vote{0:FBD5E2AFB7C0 7916539/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 0C091BA33257:604A5327F626 , B999EE637667 @2022-07-14 11:01:29.897461251 +0000 UTC}" err=nil
+INFO [07-14|11:01:29.898] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916539/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 0C091BA33257:604A5327F626 , B999EE637667 @2022-07-14 11:01:29.897461251 +0000 UTC}" precommits="VoteSet{H:7916539 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:0C091BA33257:604A5327F626(1) BA{1:x} map[]}"
+INFO [07-14|11:01:29.898] enterCommit(7916539/1). Current: 7916539/1/RoundStepPrecommit height=7916539 commitRound=1
+INFO [07-14|11:01:29.898] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916539 commitRound=1 blockHash=0C091BA33257:604A5327F626
+INFO [07-14|11:01:29.898] Finalizing commit of block               tx number=0  height=7916539 hash=0x0c091ba33257a91d0820c7409e532e5de9a8dd7640171d76138cf2871aaec53e
+INFO [07-14|11:01:29.899]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:29.913]KARDIA Updating evidence pool                   last_block_height=7916539 last_block_time=2022-07-14T11:01:25+0000
+INFO [07-14|11:01:29.913] scheduleRound0                           now=2022-07-14T11:01:29+0000 startTime=2022-07-14T11:01:30+0000
+ERROR[07-14|11:01:30.582] Failed to derive block receipts fields   hash="978d14…728ed8"           height=3428022 err="transaction and receipt count mismatch"
+INFO [07-14|11:01:30.917]KARDIA Timed out                                dur=985.61094ms   height=7916540 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:30.917] enterNewRound(7916540/1). Current: 7916540/1/RoundStepNewHeight height=7916540 round=1
+INFO [07-14|11:01:33.918]KARDIA Timed out                                dur=3s            height=7916540 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:33.918] enterPropose(7916540/1). Current: 7916540/1/RoundStepNewRound height=7916540 round=1
+INFO [07-14|11:01:33.918]KARDIA Creates new header                       header="Header{Height:7916540  Time:2022-07-14 11:01:29.897461251 +0000 UTC  NumTxs:0  LastBlockID:0C091BA33257:604A5327F626  LastCommitHash:000000000000  TxHash:000000000000  AppHash:0F0D4D3430E3  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#280F075F1B62"
+INFO [07-14|11:01:33.919] Signed proposal                          height=7916540 round=1 proposal="Proposal{7916540/1 0 (0AD63888E84F:77D097146FCC) 256191BAE546 @1657796493}"
+INFO [07-14|11:01:33.920] Received proposal                        proposal="Proposal{7916540/1 0 (0AD63888E84F:77D097146FCC) 256191BAE546 @1657796493}"
+INFO [07-14|11:01:33.920] Received complete proposal block         height=7916540 hash="0ad638…5fa22e"
+INFO [07-14|11:01:33.920] enterPrevote(7916540/1). Current: 7916540/1/RoundStepPropose 
+INFO [07-14|11:01:33.921] enterPrevote: ProposalBlock is valid     height=7916540 round=1
+INFO [07-14|11:01:33.922] Signed and pushed vote                   height=7916540 round=1 vote="Vote{0:FBD5E2AFB7C0 7916540/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 0AD63888E84F:77D097146FCC , F55491ABFE4C @2022-07-14 11:01:33.921324792 +0000 UTC}" err=nil
+INFO [07-14|11:01:33.922] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916540/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 0AD63888E84F:77D097146FCC , F55491ABFE4C @2022-07-14 11:01:33.921324792 +0000 UTC}" prevotes="VoteSet{H:7916540 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:0AD63888E84F:77D097146FCC(1) BA{1:x} map[]}"
+INFO [07-14|11:01:33.922] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:33.923] enterPrecommit(7916540/1). Current: 7916540/1/RoundStepPrevote height=7916540 round=1
+INFO [07-14|11:01:33.923] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916540 round=1 hash=0AD63888E84F:77D097146FCC
+INFO [07-14|11:01:33.923] Signed and pushed vote                   height=7916540 round=1 vote="Vote{0:FBD5E2AFB7C0 7916540/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 0AD63888E84F:77D097146FCC , 808FDC44A59D @2022-07-14 11:01:33.923053223 +0000 UTC}" err=nil
+INFO [07-14|11:01:33.924] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916540/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 0AD63888E84F:77D097146FCC , 808FDC44A59D @2022-07-14 11:01:33.923053223 +0000 UTC}" precommits="VoteSet{H:7916540 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:0AD63888E84F:77D097146FCC(1) BA{1:x} map[]}"
+INFO [07-14|11:01:33.924] enterCommit(7916540/1). Current: 7916540/1/RoundStepPrecommit height=7916540 commitRound=1
+INFO [07-14|11:01:33.924] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916540 commitRound=1 blockHash=0AD63888E84F:77D097146FCC
+INFO [07-14|11:01:33.924] Finalizing commit of block               tx number=0  height=7916540 hash=0x0ad63888e84f8cea8d43102898b67963f05077be80766408038093d0ab5fa22e
+INFO [07-14|11:01:33.925]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:33.938]KARDIA Updating evidence pool                   last_block_height=7916540 last_block_time=2022-07-14T11:01:29+0000
+INFO [07-14|11:01:33.939] scheduleRound0                           now=2022-07-14T11:01:33+0000 startTime=2022-07-14T11:01:34+0000
+INFO [07-14|11:01:34.924]KARDIA Timed out                                dur=985.258947ms  height=7916541 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:34.924] enterNewRound(7916541/1). Current: 7916541/1/RoundStepNewHeight height=7916541 round=1
+ERROR[07-14|11:01:35.242] Failed to derive block receipts fields   hash="dd63fd…09384f"           height=3440819 err="transaction and receipt count mismatch"
+INFO [07-14|11:01:37.924]KARDIA Timed out                                dur=3s            height=7916541 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:37.924] enterPropose(7916541/1). Current: 7916541/1/RoundStepNewRound height=7916541 round=1
+INFO [07-14|11:01:37.924]KARDIA Creates new header                       header="Header{Height:7916541  Time:2022-07-14 11:01:33.923053223 +0000 UTC  NumTxs:0  LastBlockID:0AD63888E84F:77D097146FCC  LastCommitHash:000000000000  TxHash:000000000000  AppHash:BADC84F6B866  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#8B7A0D3582C6"
+INFO [07-14|11:01:37.927] Signed proposal                          height=7916541 round=1 proposal="Proposal{7916541/1 0 (7B00B17874D9:E6ECC1A8F3DE) B01CAA3A8C23 @1657796497}"
+INFO [07-14|11:01:37.928] Received proposal                        proposal="Proposal{7916541/1 0 (7B00B17874D9:E6ECC1A8F3DE) B01CAA3A8C23 @1657796497}"
+INFO [07-14|11:01:37.929] Received complete proposal block         height=7916541 hash="7b00b1…4de19b"
+INFO [07-14|11:01:37.929] enterPrevote(7916541/1). Current: 7916541/1/RoundStepPropose 
+INFO [07-14|11:01:37.929] enterPrevote: ProposalBlock is valid     height=7916541 round=1
+INFO [07-14|11:01:37.930] Signed and pushed vote                   height=7916541 round=1 vote="Vote{0:FBD5E2AFB7C0 7916541/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 7B00B17874D9:E6ECC1A8F3DE , 7383769E170C @2022-07-14 11:01:37.929472777 +0000 UTC}" err=nil
+INFO [07-14|11:01:37.931] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916541/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 7B00B17874D9:E6ECC1A8F3DE , 7383769E170C @2022-07-14 11:01:37.929472777 +0000 UTC}" prevotes="VoteSet{H:7916541 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:7B00B17874D9:E6ECC1A8F3DE(1) BA{1:x} map[]}"
+INFO [07-14|11:01:37.931] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:37.931] enterPrecommit(7916541/1). Current: 7916541/1/RoundStepPrevote height=7916541 round=1
+INFO [07-14|11:01:37.931] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916541 round=1 hash=7B00B17874D9:E6ECC1A8F3DE
+INFO [07-14|11:01:37.931] Signed and pushed vote                   height=7916541 round=1 vote="Vote{0:FBD5E2AFB7C0 7916541/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 7B00B17874D9:E6ECC1A8F3DE , 5FE894A2180A @2022-07-14 11:01:37.93115181 +0000 UTC}" err=nil
+INFO [07-14|11:01:37.932] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916541/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 7B00B17874D9:E6ECC1A8F3DE , 5FE894A2180A @2022-07-14 11:01:37.93115181 +0000 UTC}" precommits="VoteSet{H:7916541 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:7B00B17874D9:E6ECC1A8F3DE(1) BA{1:x} map[]}"
+INFO [07-14|11:01:37.932] enterCommit(7916541/1). Current: 7916541/1/RoundStepPrecommit height=7916541 commitRound=1
+INFO [07-14|11:01:37.932] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916541 commitRound=1 blockHash=7B00B17874D9:E6ECC1A8F3DE
+INFO [07-14|11:01:37.932] Finalizing commit of block               tx number=0  height=7916541 hash=0x7b00b17874d9ba193966d6b388c5a8965330b8bb6a44ed3f3a50f9e0004de19b
+INFO [07-14|11:01:37.933]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:37.947]KARDIA Updating evidence pool                   last_block_height=7916541 last_block_time=2022-07-14T11:01:33+0000
+INFO [07-14|11:01:37.947] scheduleRound0                           now=2022-07-14T11:01:37+0000 startTime=2022-07-14T11:01:38+0000
+INFO [07-14|11:01:38.932]KARDIA Timed out                                dur=984.911046ms  height=7916542 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:38.932] enterNewRound(7916542/1). Current: 7916542/1/RoundStepNewHeight height=7916542 round=1
+WARN [07-14|11:01:39.717] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:01:41.933]KARDIA Timed out                                dur=3s            height=7916542 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:41.933] enterPropose(7916542/1). Current: 7916542/1/RoundStepNewRound height=7916542 round=1
+INFO [07-14|11:01:41.933]KARDIA Creates new header                       header="Header{Height:7916542  Time:2022-07-14 11:01:37.93115181 +0000 UTC  NumTxs:0  LastBlockID:7B00B17874D9:E6ECC1A8F3DE  LastCommitHash:000000000000  TxHash:000000000000  AppHash:52D5E877593C  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#6C565FF14481"
+INFO [07-14|11:01:41.961] Signed proposal                          height=7916542 round=1 proposal="Proposal{7916542/1 0 (5A744A7EF502:693FED7EF35A) D62C250CCA25 @1657796501}"
+INFO [07-14|11:01:41.962] Received proposal                        proposal="Proposal{7916542/1 0 (5A744A7EF502:693FED7EF35A) D62C250CCA25 @1657796501}"
+INFO [07-14|11:01:41.982] Received complete proposal block         height=7916542 hash="5a744a…ddff0b"
+INFO [07-14|11:01:41.983] enterPrevote(7916542/1). Current: 7916542/1/RoundStepPropose 
+INFO [07-14|11:01:41.983] enterPrevote: ProposalBlock is valid     height=7916542 round=1
+INFO [07-14|11:01:41.984] Signed and pushed vote                   height=7916542 round=1 vote="Vote{0:FBD5E2AFB7C0 7916542/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 5A744A7EF502:693FED7EF35A , EC089F5115FA @2022-07-14 11:01:41.983473422 +0000 UTC}" err=nil
+INFO [07-14|11:01:42.000] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916542/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 5A744A7EF502:693FED7EF35A , EC089F5115FA @2022-07-14 11:01:41.983473422 +0000 UTC}" prevotes="VoteSet{H:7916542 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:5A744A7EF502:693FED7EF35A(1) BA{1:x} map[]}"
+INFO [07-14|11:01:42.000] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:42.000] enterPrecommit(7916542/1). Current: 7916542/1/RoundStepPrevote height=7916542 round=1
+INFO [07-14|11:01:42.000] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916542 round=1 hash=5A744A7EF502:693FED7EF35A
+INFO [07-14|11:01:42.001] Signed and pushed vote                   height=7916542 round=1 vote="Vote{0:FBD5E2AFB7C0 7916542/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 5A744A7EF502:693FED7EF35A , 17870B1DB1E3 @2022-07-14 11:01:42.000634869 +0000 UTC}" err=nil
+INFO [07-14|11:01:42.007] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916542/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 5A744A7EF502:693FED7EF35A , 17870B1DB1E3 @2022-07-14 11:01:42.000634869 +0000 UTC}" precommits="VoteSet{H:7916542 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:5A744A7EF502:693FED7EF35A(1) BA{1:x} map[]}"
+INFO [07-14|11:01:42.007] enterCommit(7916542/1). Current: 7916542/1/RoundStepPrecommit height=7916542 commitRound=1
+INFO [07-14|11:01:42.007] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916542 commitRound=1 blockHash=5A744A7EF502:693FED7EF35A
+INFO [07-14|11:01:42.007] Finalizing commit of block               tx number=0  height=7916542 hash=0x5a744a7ef502019a39106f7353ba3e390ab00e2a8e3d78ea30fba7954bddff0b
+INFO [07-14|11:01:42.019]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:42.033]KARDIA Updating evidence pool                   last_block_height=7916542 last_block_time=2022-07-14T11:01:37+0000
+INFO [07-14|11:01:42.033] scheduleRound0                           now=2022-07-14T11:01:42+0000 startTime=2022-07-14T11:01:43+0000
+INFO [07-14|11:01:43.008]KARDIA Timed out                                dur=973.713306ms  height=7916543 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:43.008] enterNewRound(7916543/1). Current: 7916543/1/RoundStepNewHeight height=7916543 round=1
+ERROR[07-14|11:01:43.069] Failed to derive block receipts fields   hash="79861f…693e0b"           height=3440821 err="transaction and receipt count mismatch"
+INFO [07-14|11:01:46.008]KARDIA Timed out                                dur=3s            height=7916543 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:46.008] enterPropose(7916543/1). Current: 7916543/1/RoundStepNewRound height=7916543 round=1
+INFO [07-14|11:01:46.008]KARDIA Creates new header                       header="Header{Height:7916543  Time:2022-07-14 11:01:42.000634869 +0000 UTC  NumTxs:0  LastBlockID:5A744A7EF502:693FED7EF35A  LastCommitHash:000000000000  TxHash:000000000000  AppHash:0DB3B47B4E02  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#CA7D79A726E4"
+INFO [07-14|11:01:46.010] Signed proposal                          height=7916543 round=1 proposal="Proposal{7916543/1 0 (3CCEA6F9172C:B9B52644671F) EED9793AB910 @1657796506}"
+INFO [07-14|11:01:46.011] Received proposal                        proposal="Proposal{7916543/1 0 (3CCEA6F9172C:B9B52644671F) EED9793AB910 @1657796506}"
+INFO [07-14|11:01:46.011] Received complete proposal block         height=7916543 hash="3ccea6…c04e02"
+INFO [07-14|11:01:46.011] enterPrevote(7916543/1). Current: 7916543/1/RoundStepPropose 
+INFO [07-14|11:01:46.011] enterPrevote: ProposalBlock is valid     height=7916543 round=1
+INFO [07-14|11:01:46.012] Signed and pushed vote                   height=7916543 round=1 vote="Vote{0:FBD5E2AFB7C0 7916543/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3CCEA6F9172C:B9B52644671F , 79AF3D775B3D @2022-07-14 11:01:46.0119838 +0000 UTC}" err=nil
+INFO [07-14|11:01:46.034] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916543/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3CCEA6F9172C:B9B52644671F , 79AF3D775B3D @2022-07-14 11:01:46.0119838 +0000 UTC}" prevotes="VoteSet{H:7916543 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:3CCEA6F9172C:B9B52644671F(1) BA{1:x} map[]}"
+INFO [07-14|11:01:46.034] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:46.034] enterPrecommit(7916543/1). Current: 7916543/1/RoundStepPrevote height=7916543 round=1
+INFO [07-14|11:01:46.034] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916543 round=1 hash=3CCEA6F9172C:B9B52644671F
+INFO [07-14|11:01:46.035] Signed and pushed vote                   height=7916543 round=1 vote="Vote{0:FBD5E2AFB7C0 7916543/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3CCEA6F9172C:B9B52644671F , D876C882FD16 @2022-07-14 11:01:46.034773416 +0000 UTC}" err=nil
+INFO [07-14|11:01:46.053] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916543/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3CCEA6F9172C:B9B52644671F , D876C882FD16 @2022-07-14 11:01:46.034773416 +0000 UTC}" precommits="VoteSet{H:7916543 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:3CCEA6F9172C:B9B52644671F(1) BA{1:x} map[]}"
+INFO [07-14|11:01:46.053] enterCommit(7916543/1). Current: 7916543/1/RoundStepPrecommit height=7916543 commitRound=1
+INFO [07-14|11:01:46.053] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916543 commitRound=1 blockHash=3CCEA6F9172C:B9B52644671F
+INFO [07-14|11:01:46.053] Finalizing commit of block               tx number=0  height=7916543 hash=0x3ccea6f9172c356251a9b3ebe605008148d999bbb198714b13e5cfd8f7c04e02
+INFO [07-14|11:01:46.075]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:46.089]KARDIA Updating evidence pool                   last_block_height=7916543 last_block_time=2022-07-14T11:01:42+0000
+INFO [07-14|11:01:46.089] scheduleRound0                           now=2022-07-14T11:01:46+0000 startTime=2022-07-14T11:01:47+0000
+INFO [07-14|11:01:47.053]KARDIA Timed out                                dur=963.999018ms  height=7916544 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:47.053] enterNewRound(7916544/1). Current: 7916544/1/RoundStepNewHeight height=7916544 round=1
+WARN [07-14|11:01:49.970] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:01:50.053]KARDIA Timed out                                dur=3s            height=7916544 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:50.053] enterPropose(7916544/1). Current: 7916544/1/RoundStepNewRound height=7916544 round=1
+INFO [07-14|11:01:50.053]KARDIA Creates new header                       header="Header{Height:7916544  Time:2022-07-14 11:01:46.034773416 +0000 UTC  NumTxs:0  LastBlockID:3CCEA6F9172C:B9B52644671F  LastCommitHash:000000000000  TxHash:000000000000  AppHash:3DE8C95273BF  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#D6DBB93A2BCF"
+INFO [07-14|11:01:50.056] Signed proposal                          height=7916544 round=1 proposal="Proposal{7916544/1 0 (2C1D0B49CE2A:F77EE4FFF09A) 2BB5255F4148 @1657796510}"
+INFO [07-14|11:01:50.074] Received proposal                        proposal="Proposal{7916544/1 0 (2C1D0B49CE2A:F77EE4FFF09A) 2BB5255F4148 @1657796510}"
+INFO [07-14|11:01:50.081] Received complete proposal block         height=7916544 hash="2c1d0b…3831bf"
+INFO [07-14|11:01:50.081] enterPrevote(7916544/1). Current: 7916544/1/RoundStepPropose 
+INFO [07-14|11:01:50.081] enterPrevote: ProposalBlock is valid     height=7916544 round=1
+INFO [07-14|11:01:50.082] Signed and pushed vote                   height=7916544 round=1 vote="Vote{0:FBD5E2AFB7C0 7916544/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 2C1D0B49CE2A:F77EE4FFF09A , 21A4C22A0373 @2022-07-14 11:01:50.081626696 +0000 UTC}" err=nil
+INFO [07-14|11:01:50.083] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916544/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 2C1D0B49CE2A:F77EE4FFF09A , 21A4C22A0373 @2022-07-14 11:01:50.081626696 +0000 UTC}" prevotes="VoteSet{H:7916544 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:2C1D0B49CE2A:F77EE4FFF09A(1) BA{1:x} map[]}"
+INFO [07-14|11:01:50.083] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:50.083] enterPrecommit(7916544/1). Current: 7916544/1/RoundStepPrevote height=7916544 round=1
+INFO [07-14|11:01:50.083] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916544 round=1 hash=2C1D0B49CE2A:F77EE4FFF09A
+INFO [07-14|11:01:50.084] Signed and pushed vote                   height=7916544 round=1 vote="Vote{0:FBD5E2AFB7C0 7916544/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 2C1D0B49CE2A:F77EE4FFF09A , 4FC42A9CD461 @2022-07-14 11:01:50.083470239 +0000 UTC}" err=nil
+INFO [07-14|11:01:50.085] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916544/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 2C1D0B49CE2A:F77EE4FFF09A , 4FC42A9CD461 @2022-07-14 11:01:50.083470239 +0000 UTC}" precommits="VoteSet{H:7916544 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:2C1D0B49CE2A:F77EE4FFF09A(1) BA{1:x} map[]}"
+INFO [07-14|11:01:50.085] enterCommit(7916544/1). Current: 7916544/1/RoundStepPrecommit height=7916544 commitRound=1
+INFO [07-14|11:01:50.085] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916544 commitRound=1 blockHash=2C1D0B49CE2A:F77EE4FFF09A
+INFO [07-14|11:01:50.085] Finalizing commit of block               tx number=0  height=7916544 hash=0x2c1d0b49ce2af2630833293ac728bf378c4a3ba24ce49657f836e0ce893831bf
+INFO [07-14|11:01:50.086]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:50.100]KARDIA Updating evidence pool                   last_block_height=7916544 last_block_time=2022-07-14T11:01:46+0000
+INFO [07-14|11:01:50.100] scheduleRound0                           now=2022-07-14T11:01:50+0000 startTime=2022-07-14T11:01:51+0000
+INFO [07-14|11:01:51.085]KARDIA Timed out                                dur=984.221734ms  height=7916545 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:51.085] enterNewRound(7916545/1). Current: 7916545/1/RoundStepNewHeight height=7916545 round=1
+INFO [07-14|11:01:54.085]KARDIA Timed out                                dur=3s            height=7916545 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:54.085] enterPropose(7916545/1). Current: 7916545/1/RoundStepNewRound height=7916545 round=1
+INFO [07-14|11:01:54.085]KARDIA Creates new header                       header="Header{Height:7916545  Time:2022-07-14 11:01:50.083470239 +0000 UTC  NumTxs:0  LastBlockID:2C1D0B49CE2A:F77EE4FFF09A  LastCommitHash:000000000000  TxHash:000000000000  AppHash:B989493CD54C  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#07121711526F"
+INFO [07-14|11:01:54.087] Signed proposal                          height=7916545 round=1 proposal="Proposal{7916545/1 0 (63AFBB132D83:21EAADE93E1C) 81B2622E78B7 @1657796514}"
+INFO [07-14|11:01:54.103] Received proposal                        proposal="Proposal{7916545/1 0 (63AFBB132D83:21EAADE93E1C) 81B2622E78B7 @1657796514}"
+INFO [07-14|11:01:54.110] Received complete proposal block         height=7916545 hash="63afbb…fba8b2"
+INFO [07-14|11:01:54.110] enterPrevote(7916545/1). Current: 7916545/1/RoundStepPropose 
+INFO [07-14|11:01:54.110] enterPrevote: ProposalBlock is valid     height=7916545 round=1
+INFO [07-14|11:01:54.111] Signed and pushed vote                   height=7916545 round=1 vote="Vote{0:FBD5E2AFB7C0 7916545/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 63AFBB132D83:21EAADE93E1C , 094F1136F120 @2022-07-14 11:01:54.110565103 +0000 UTC}" err=nil
+INFO [07-14|11:01:54.116] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916545/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 63AFBB132D83:21EAADE93E1C , 094F1136F120 @2022-07-14 11:01:54.110565103 +0000 UTC}" prevotes="VoteSet{H:7916545 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:63AFBB132D83:21EAADE93E1C(1) BA{1:x} map[]}"
+INFO [07-14|11:01:54.116] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:54.116] enterPrecommit(7916545/1). Current: 7916545/1/RoundStepPrevote height=7916545 round=1
+INFO [07-14|11:01:54.116] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916545 round=1 hash=63AFBB132D83:21EAADE93E1C
+INFO [07-14|11:01:54.117] Signed and pushed vote                   height=7916545 round=1 vote="Vote{0:FBD5E2AFB7C0 7916545/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 63AFBB132D83:21EAADE93E1C , 842AFA9B1839 @2022-07-14 11:01:54.116347806 +0000 UTC}" err=nil
+INFO [07-14|11:01:54.121] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916545/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 63AFBB132D83:21EAADE93E1C , 842AFA9B1839 @2022-07-14 11:01:54.116347806 +0000 UTC}" precommits="VoteSet{H:7916545 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:63AFBB132D83:21EAADE93E1C(1) BA{1:x} map[]}"
+INFO [07-14|11:01:54.121] enterCommit(7916545/1). Current: 7916545/1/RoundStepPrecommit height=7916545 commitRound=1
+INFO [07-14|11:01:54.121] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916545 commitRound=1 blockHash=63AFBB132D83:21EAADE93E1C
+INFO [07-14|11:01:54.121] Finalizing commit of block               tx number=0  height=7916545 hash=0x63afbb132d83698247764a53262dd8c5ef31d2123fcdcacdcb8ab8bddafba8b2
+INFO [07-14|11:01:54.127]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:54.143]KARDIA Updating evidence pool                   last_block_height=7916545 last_block_time=2022-07-14T11:01:50+0000
+INFO [07-14|11:01:54.143] scheduleRound0                           now=2022-07-14T11:01:54+0000 startTime=2022-07-14T11:01:55+0000
+INFO [07-14|11:01:55.122]KARDIA Timed out                                dur=978.304628ms  height=7916546 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:55.122] enterNewRound(7916546/1). Current: 7916546/1/RoundStepNewHeight height=7916546 round=1
+INFO [07-14|11:01:56.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:01:56.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.233:3000} d97e7bce3fc1c0f248cd5f87479e173dfec7d2b1 out}"
+INFO [07-14|11:01:56.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:01:56.700] Dialing peer                             address=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+INFO [07-14|11:01:56.702] Add our address to book                  addr=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+ERROR[07-14|11:01:56.702] Error dialing seed                       err="self ID<fbd5e2afb7c0a7862b06964e29e676bf02183256>" seed=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+INFO [07-14|11:01:56.703] Add our address to book                  addr=fbd5e2afb7c0a7862b06964e29e676bf02183256@172.17.0.1:44376
+INFO [07-14|11:01:56.703] Inbound Peer rejected                    err="self ID<fbd5e2afb7c0a7862b06964e29e676bf02183256>" numPeers=4
+INFO [07-14|11:01:58.132]KARDIA Timed out                                dur=3s            height=7916546 round=1 step=RoundStepNewRound
+INFO [07-14|11:01:58.134] enterPropose(7916546/1). Current: 7916546/1/RoundStepNewRound height=7916546 round=1
+INFO [07-14|11:01:58.134]KARDIA Creates new header                       header="Header{Height:7916546  Time:2022-07-14 11:01:54.116347806 +0000 UTC  NumTxs:0  LastBlockID:63AFBB132D83:21EAADE93E1C  LastCommitHash:000000000000  TxHash:000000000000  AppHash:AE604BBC6AC8  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#17E6DD19C3AE"
+INFO [07-14|11:01:58.136] Signed proposal                          height=7916546 round=1 proposal="Proposal{7916546/1 0 (8BB8B649BF59:EFCC8419DAC0) C8B52C7F0EA4 @1657796518}"
+INFO [07-14|11:01:58.137] Received proposal                        proposal="Proposal{7916546/1 0 (8BB8B649BF59:EFCC8419DAC0) C8B52C7F0EA4 @1657796518}"
+INFO [07-14|11:01:58.141] Received complete proposal block         height=7916546 hash="8bb8b6…0c3bc0"
+INFO [07-14|11:01:58.141] enterPrevote(7916546/1). Current: 7916546/1/RoundStepPropose 
+INFO [07-14|11:01:58.142] enterPrevote: ProposalBlock is valid     height=7916546 round=1
+INFO [07-14|11:01:58.143] Signed and pushed vote                   height=7916546 round=1 vote="Vote{0:FBD5E2AFB7C0 7916546/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 8BB8B649BF59:EFCC8419DAC0 , 9CE4404E7102 @2022-07-14 11:01:58.142262407 +0000 UTC}" err=nil
+INFO [07-14|11:01:58.144] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916546/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 8BB8B649BF59:EFCC8419DAC0 , 9CE4404E7102 @2022-07-14 11:01:58.142262407 +0000 UTC}" prevotes="VoteSet{H:7916546 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:8BB8B649BF59:EFCC8419DAC0(1) BA{1:x} map[]}"
+INFO [07-14|11:01:58.144] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:01:58.144] enterPrecommit(7916546/1). Current: 7916546/1/RoundStepPrevote height=7916546 round=1
+INFO [07-14|11:01:58.144] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916546 round=1 hash=8BB8B649BF59:EFCC8419DAC0
+INFO [07-14|11:01:58.145] Signed and pushed vote                   height=7916546 round=1 vote="Vote{0:FBD5E2AFB7C0 7916546/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 8BB8B649BF59:EFCC8419DAC0 , 428D4EA3068C @2022-07-14 11:01:58.1448188 +0000 UTC}" err=nil
+INFO [07-14|11:01:58.146] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916546/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 8BB8B649BF59:EFCC8419DAC0 , 428D4EA3068C @2022-07-14 11:01:58.1448188 +0000 UTC}" precommits="VoteSet{H:7916546 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:8BB8B649BF59:EFCC8419DAC0(1) BA{1:x} map[]}"
+INFO [07-14|11:01:58.146] enterCommit(7916546/1). Current: 7916546/1/RoundStepPrecommit height=7916546 commitRound=1
+INFO [07-14|11:01:58.146] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916546 commitRound=1 blockHash=8BB8B649BF59:EFCC8419DAC0
+INFO [07-14|11:01:58.146] Finalizing commit of block               tx number=0  height=7916546 hash=0x8bb8b649bf59b1d88040757581e36ca3e12ffcc26b36326e98fa716b190c3bc0
+INFO [07-14|11:01:58.148]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:01:58.199]KARDIA Updating evidence pool                   last_block_height=7916546 last_block_time=2022-07-14T11:01:54+0000
+INFO [07-14|11:01:58.199] scheduleRound0                           now=2022-07-14T11:01:58+0000 startTime=2022-07-14T11:01:59+0000
+INFO [07-14|11:01:59.146]KARDIA Timed out                                dur=947.125096ms  height=7916547 round=1 step=RoundStepNewHeight
+INFO [07-14|11:01:59.146] enterNewRound(7916547/1). Current: 7916547/1/RoundStepNewHeight height=7916547 round=1
+WARN [07-14|11:02:00.221] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:02.147]KARDIA Timed out                                dur=3s            height=7916547 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:02.147] enterPropose(7916547/1). Current: 7916547/1/RoundStepNewRound height=7916547 round=1
+INFO [07-14|11:02:02.147]KARDIA Creates new header                       header="Header{Height:7916547  Time:2022-07-14 11:01:58.1448188 +0000 UTC  NumTxs:0  LastBlockID:8BB8B649BF59:EFCC8419DAC0  LastCommitHash:000000000000  TxHash:000000000000  AppHash:77845932B2DE  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#FCFEF115AF6C"
+INFO [07-14|11:02:02.157] Signed proposal                          height=7916547 round=1 proposal="Proposal{7916547/1 0 (4AB52F67C1D2:8D6705750DB6) 40AC781DDF37 @1657796522}"
+INFO [07-14|11:02:02.168] Received proposal                        proposal="Proposal{7916547/1 0 (4AB52F67C1D2:8D6705750DB6) 40AC781DDF37 @1657796522}"
+INFO [07-14|11:02:02.173] Received complete proposal block         height=7916547 hash="4ab52f…b4d5f7"
+INFO [07-14|11:02:02.174] enterPrevote(7916547/1). Current: 7916547/1/RoundStepPropose 
+INFO [07-14|11:02:02.174] enterPrevote: ProposalBlock is valid     height=7916547 round=1
+INFO [07-14|11:02:02.174] Signed and pushed vote                   height=7916547 round=1 vote="Vote{0:FBD5E2AFB7C0 7916547/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 4AB52F67C1D2:8D6705750DB6 , 28D1073F7260 @2022-07-14 11:02:02.174364156 +0000 UTC}" err=nil
+INFO [07-14|11:02:02.179] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916547/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 4AB52F67C1D2:8D6705750DB6 , 28D1073F7260 @2022-07-14 11:02:02.174364156 +0000 UTC}" prevotes="VoteSet{H:7916547 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:4AB52F67C1D2:8D6705750DB6(1) BA{1:x} map[]}"
+INFO [07-14|11:02:02.180] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:02.180] enterPrecommit(7916547/1). Current: 7916547/1/RoundStepPrevote height=7916547 round=1
+INFO [07-14|11:02:02.180] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916547 round=1 hash=4AB52F67C1D2:8D6705750DB6
+INFO [07-14|11:02:02.180] Signed and pushed vote                   height=7916547 round=1 vote="Vote{0:FBD5E2AFB7C0 7916547/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 4AB52F67C1D2:8D6705750DB6 , 387C52F2F77E @2022-07-14 11:02:02.180108717 +0000 UTC}" err=nil
+INFO [07-14|11:02:02.185] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916547/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 4AB52F67C1D2:8D6705750DB6 , 387C52F2F77E @2022-07-14 11:02:02.180108717 +0000 UTC}" precommits="VoteSet{H:7916547 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:4AB52F67C1D2:8D6705750DB6(1) BA{1:x} map[]}"
+INFO [07-14|11:02:02.185] enterCommit(7916547/1). Current: 7916547/1/RoundStepPrecommit height=7916547 commitRound=1
+INFO [07-14|11:02:02.185] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916547 commitRound=1 blockHash=4AB52F67C1D2:8D6705750DB6
+INFO [07-14|11:02:02.185] Finalizing commit of block               tx number=0  height=7916547 hash=0x4ab52f67c1d2199a4eac0374d930905312b916f24a5b2f89759dc4ee8fb4d5f7
+INFO [07-14|11:02:02.191]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:02.209]KARDIA Updating evidence pool                   last_block_height=7916547 last_block_time=2022-07-14T11:01:58+0000
+INFO [07-14|11:02:02.209] scheduleRound0                           now=2022-07-14T11:02:02+0000 startTime=2022-07-14T11:02:03+0000
+INFO [07-14|11:02:03.185]KARDIA Timed out                                dur=976.101354ms  height=7916548 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:03.186] enterNewRound(7916548/1). Current: 7916548/1/RoundStepNewHeight height=7916548 round=1
+INFO [07-14|11:02:06.186]KARDIA Timed out                                dur=3s            height=7916548 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:06.186] enterPropose(7916548/1). Current: 7916548/1/RoundStepNewRound height=7916548 round=1
+INFO [07-14|11:02:06.186]KARDIA Creates new header                       header="Header{Height:7916548  Time:2022-07-14 11:02:02.180108717 +0000 UTC  NumTxs:0  LastBlockID:4AB52F67C1D2:8D6705750DB6  LastCommitHash:000000000000  TxHash:000000000000  AppHash:81A777823C13  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#9E69DB737B76"
+INFO [07-14|11:02:06.209] Signed proposal                          height=7916548 round=1 proposal="Proposal{7916548/1 0 (B26A67E429E1:495402C0A8C5) 0A97E5189732 @1657796526}"
+INFO [07-14|11:02:06.210] Received proposal                        proposal="Proposal{7916548/1 0 (B26A67E429E1:495402C0A8C5) 0A97E5189732 @1657796526}"
+INFO [07-14|11:02:06.239] Received complete proposal block         height=7916548 hash="b26a67…1b6f82"
+INFO [07-14|11:02:06.240] enterPrevote(7916548/1). Current: 7916548/1/RoundStepPropose 
+INFO [07-14|11:02:06.240] enterPrevote: ProposalBlock is valid     height=7916548 round=1
+INFO [07-14|11:02:06.240] Signed and pushed vote                   height=7916548 round=1 vote="Vote{0:FBD5E2AFB7C0 7916548/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B26A67E429E1:495402C0A8C5 , FFD8D1F15D51 @2022-07-14 11:02:06.240435658 +0000 UTC}" err=nil
+INFO [07-14|11:02:06.260] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916548/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B26A67E429E1:495402C0A8C5 , FFD8D1F15D51 @2022-07-14 11:02:06.240435658 +0000 UTC}" prevotes="VoteSet{H:7916548 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:B26A67E429E1:495402C0A8C5(1) BA{1:x} map[]}"
+INFO [07-14|11:02:06.260] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:06.260] enterPrecommit(7916548/1). Current: 7916548/1/RoundStepPrevote height=7916548 round=1
+INFO [07-14|11:02:06.260] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916548 round=1 hash=B26A67E429E1:495402C0A8C5
+INFO [07-14|11:02:06.261] Signed and pushed vote                   height=7916548 round=1 vote="Vote{0:FBD5E2AFB7C0 7916548/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B26A67E429E1:495402C0A8C5 , C2519387D80B @2022-07-14 11:02:06.261019558 +0000 UTC}" err=nil
+INFO [07-14|11:02:06.279] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916548/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B26A67E429E1:495402C0A8C5 , C2519387D80B @2022-07-14 11:02:06.261019558 +0000 UTC}" precommits="VoteSet{H:7916548 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:B26A67E429E1:495402C0A8C5(1) BA{1:x} map[]}"
+INFO [07-14|11:02:06.279] enterCommit(7916548/1). Current: 7916548/1/RoundStepPrecommit height=7916548 commitRound=1
+INFO [07-14|11:02:06.279] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916548 commitRound=1 blockHash=B26A67E429E1:495402C0A8C5
+INFO [07-14|11:02:06.279] Finalizing commit of block               tx number=0  height=7916548 hash=0xb26a67e429e1985f3fe618cc543db1de04c58c65f330587e8601b757ce1b6f82
+INFO [07-14|11:02:06.318]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:06.337]KARDIA Updating evidence pool                   last_block_height=7916548 last_block_time=2022-07-14T11:02:02+0000
+INFO [07-14|11:02:06.337] scheduleRound0                           now=2022-07-14T11:02:06+0000 startTime=2022-07-14T11:02:07+0000
+INFO [07-14|11:02:07.279]KARDIA Timed out                                dur=941.881229ms  height=7916549 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:07.279] enterNewRound(7916549/1). Current: 7916549/1/RoundStepNewHeight height=7916549 round=1
+INFO [07-14|11:02:10.280]KARDIA Timed out                                dur=3s            height=7916549 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:10.280] enterPropose(7916549/1). Current: 7916549/1/RoundStepNewRound height=7916549 round=1
+INFO [07-14|11:02:10.280]KARDIA Creates new header                       header="Header{Height:7916549  Time:2022-07-14 11:02:06.261019558 +0000 UTC  NumTxs:0  LastBlockID:B26A67E429E1:495402C0A8C5  LastCommitHash:000000000000  TxHash:000000000000  AppHash:CE09E85B6E8C  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#8E682B9CB799"
+INFO [07-14|11:02:10.281] Signed proposal                          height=7916549 round=1 proposal="Proposal{7916549/1 0 (A286D1FF1F22:09D32ACD08E6) 6B7F5601E8B2 @1657796530}"
+INFO [07-14|11:02:10.306] Received proposal                        proposal="Proposal{7916549/1 0 (A286D1FF1F22:09D32ACD08E6) 6B7F5601E8B2 @1657796530}"
+INFO [07-14|11:02:10.307] Received complete proposal block         height=7916549 hash="a286d1…2a643e"
+INFO [07-14|11:02:10.307] enterPrevote(7916549/1). Current: 7916549/1/RoundStepPropose 
+INFO [07-14|11:02:10.308] enterPrevote: ProposalBlock is valid     height=7916549 round=1
+INFO [07-14|11:02:10.309] Signed and pushed vote                   height=7916549 round=1 vote="Vote{0:FBD5E2AFB7C0 7916549/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) A286D1FF1F22:09D32ACD08E6 , 5C7CA829FFA6 @2022-07-14 11:02:10.308288243 +0000 UTC}" err=nil
+INFO [07-14|11:02:10.310] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916549/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) A286D1FF1F22:09D32ACD08E6 , 5C7CA829FFA6 @2022-07-14 11:02:10.308288243 +0000 UTC}" prevotes="VoteSet{H:7916549 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:A286D1FF1F22:09D32ACD08E6(1) BA{1:x} map[]}"
+INFO [07-14|11:02:10.310] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:10.310] enterPrecommit(7916549/1). Current: 7916549/1/RoundStepPrevote height=7916549 round=1
+INFO [07-14|11:02:10.310] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916549 round=1 hash=A286D1FF1F22:09D32ACD08E6
+INFO [07-14|11:02:10.311] Signed and pushed vote                   height=7916549 round=1 vote="Vote{0:FBD5E2AFB7C0 7916549/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) A286D1FF1F22:09D32ACD08E6 , C9D85BA066D6 @2022-07-14 11:02:10.31065136 +0000 UTC}" err=nil
+INFO [07-14|11:02:10.312] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916549/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) A286D1FF1F22:09D32ACD08E6 , C9D85BA066D6 @2022-07-14 11:02:10.31065136 +0000 UTC}" precommits="VoteSet{H:7916549 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:A286D1FF1F22:09D32ACD08E6(1) BA{1:x} map[]}"
+INFO [07-14|11:02:10.312] enterCommit(7916549/1). Current: 7916549/1/RoundStepPrecommit height=7916549 commitRound=1
+INFO [07-14|11:02:10.312] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916549 commitRound=1 blockHash=A286D1FF1F22:09D32ACD08E6
+INFO [07-14|11:02:10.312] Finalizing commit of block               tx number=0  height=7916549 hash=0xa286d1ff1f227b88c074a4ef29a3bd7377d29c24a78e1c2c347fe0fdc12a643e
+INFO [07-14|11:02:10.313]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:10.327]KARDIA Updating evidence pool                   last_block_height=7916549 last_block_time=2022-07-14T11:02:06+0000
+INFO [07-14|11:02:10.327] scheduleRound0                           now=2022-07-14T11:02:10+0000 startTime=2022-07-14T11:02:11+0000
+WARN [07-14|11:02:10.460] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:11.313]KARDIA Timed out                                dur=984.760635ms  height=7916550 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:11.313] enterNewRound(7916550/1). Current: 7916550/1/RoundStepNewHeight height=7916550 round=1
+INFO [07-14|11:02:14.332]KARDIA Timed out                                dur=3s            height=7916550 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:14.333] enterPropose(7916550/1). Current: 7916550/1/RoundStepNewRound height=7916550 round=1
+INFO [07-14|11:02:14.333]KARDIA Creates new header                       header="Header{Height:7916550  Time:2022-07-14 11:02:10.31065136 +0000 UTC  NumTxs:0  LastBlockID:A286D1FF1F22:09D32ACD08E6  LastCommitHash:000000000000  TxHash:000000000000  AppHash:4D171AE36CEA  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#55477507594C"
+INFO [07-14|11:02:14.334] Signed proposal                          height=7916550 round=1 proposal="Proposal{7916550/1 0 (51B79F13A3AC:899492663D8D) 02DDA89D969A @1657796534}"
+INFO [07-14|11:02:14.336] Received proposal                        proposal="Proposal{7916550/1 0 (51B79F13A3AC:899492663D8D) 02DDA89D969A @1657796534}"
+INFO [07-14|11:02:14.337] Received complete proposal block         height=7916550 hash="51b79f…4435ee"
+INFO [07-14|11:02:14.337] enterPrevote(7916550/1). Current: 7916550/1/RoundStepPropose 
+INFO [07-14|11:02:14.337] enterPrevote: ProposalBlock is valid     height=7916550 round=1
+INFO [07-14|11:02:14.338] Signed and pushed vote                   height=7916550 round=1 vote="Vote{0:FBD5E2AFB7C0 7916550/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 51B79F13A3AC:899492663D8D , 30D8F3D41984 @2022-07-14 11:02:14.337937066 +0000 UTC}" err=nil
+INFO [07-14|11:02:14.339] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916550/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 51B79F13A3AC:899492663D8D , 30D8F3D41984 @2022-07-14 11:02:14.337937066 +0000 UTC}" prevotes="VoteSet{H:7916550 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:51B79F13A3AC:899492663D8D(1) BA{1:x} map[]}"
+INFO [07-14|11:02:14.339] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:14.339] enterPrecommit(7916550/1). Current: 7916550/1/RoundStepPrevote height=7916550 round=1
+INFO [07-14|11:02:14.339] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916550 round=1 hash=51B79F13A3AC:899492663D8D
+INFO [07-14|11:02:14.340] Signed and pushed vote                   height=7916550 round=1 vote="Vote{0:FBD5E2AFB7C0 7916550/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 51B79F13A3AC:899492663D8D , F5BBF4069DDF @2022-07-14 11:02:14.339869853 +0000 UTC}" err=nil
+INFO [07-14|11:02:14.341] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916550/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 51B79F13A3AC:899492663D8D , F5BBF4069DDF @2022-07-14 11:02:14.339869853 +0000 UTC}" precommits="VoteSet{H:7916550 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:51B79F13A3AC:899492663D8D(1) BA{1:x} map[]}"
+INFO [07-14|11:02:14.341] enterCommit(7916550/1). Current: 7916550/1/RoundStepPrecommit height=7916550 commitRound=1
+INFO [07-14|11:02:14.341] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916550 commitRound=1 blockHash=51B79F13A3AC:899492663D8D
+INFO [07-14|11:02:14.341] Finalizing commit of block               tx number=0  height=7916550 hash=0x51b79f13a3ac236b5ca1821a9e98d7b67a215de0cf1f1cf2c6b7615c994435ee
+INFO [07-14|11:02:14.342]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:14.358]KARDIA Updating evidence pool                   last_block_height=7916550 last_block_time=2022-07-14T11:02:10+0000
+INFO [07-14|11:02:14.358] scheduleRound0                           now=2022-07-14T11:02:14+0000 startTime=2022-07-14T11:02:15+0000
+INFO [07-14|11:02:15.341]KARDIA Timed out                                dur=982.842347ms  height=7916551 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:15.341] enterNewRound(7916551/1). Current: 7916551/1/RoundStepNewHeight height=7916551 round=1
+INFO [07-14|11:02:18.341]KARDIA Timed out                                dur=3s            height=7916551 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:18.341] enterPropose(7916551/1). Current: 7916551/1/RoundStepNewRound height=7916551 round=1
+INFO [07-14|11:02:18.341]KARDIA Creates new header                       header="Header{Height:7916551  Time:2022-07-14 11:02:14.339869853 +0000 UTC  NumTxs:0  LastBlockID:51B79F13A3AC:899492663D8D  LastCommitHash:000000000000  TxHash:000000000000  AppHash:DDE1C8AF9AAC  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#C337A4316BE0"
+INFO [07-14|11:02:18.343] Signed proposal                          height=7916551 round=1 proposal="Proposal{7916551/1 0 (7FF8817BD4A8:13681891CD1D) 92EA830B548F @1657796538}"
+INFO [07-14|11:02:18.345] Received proposal                        proposal="Proposal{7916551/1 0 (7FF8817BD4A8:13681891CD1D) 92EA830B548F @1657796538}"
+INFO [07-14|11:02:18.346] Received complete proposal block         height=7916551 hash="7ff881…b298ac"
+INFO [07-14|11:02:18.346] enterPrevote(7916551/1). Current: 7916551/1/RoundStepPropose 
+INFO [07-14|11:02:18.346] enterPrevote: ProposalBlock is valid     height=7916551 round=1
+INFO [07-14|11:02:18.347] Signed and pushed vote                   height=7916551 round=1 vote="Vote{0:FBD5E2AFB7C0 7916551/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 7FF8817BD4A8:13681891CD1D , 1A41FB7AA444 @2022-07-14 11:02:18.346923612 +0000 UTC}" err=nil
+INFO [07-14|11:02:18.349] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916551/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 7FF8817BD4A8:13681891CD1D , 1A41FB7AA444 @2022-07-14 11:02:18.346923612 +0000 UTC}" prevotes="VoteSet{H:7916551 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:7FF8817BD4A8:13681891CD1D(1) BA{1:x} map[]}"
+INFO [07-14|11:02:18.349] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:18.349] enterPrecommit(7916551/1). Current: 7916551/1/RoundStepPrevote height=7916551 round=1
+INFO [07-14|11:02:18.349] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916551 round=1 hash=7FF8817BD4A8:13681891CD1D
+INFO [07-14|11:02:18.349] Signed and pushed vote                   height=7916551 round=1 vote="Vote{0:FBD5E2AFB7C0 7916551/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 7FF8817BD4A8:13681891CD1D , 7E29A99197A9 @2022-07-14 11:02:18.349170623 +0000 UTC}" err=nil
+INFO [07-14|11:02:18.351] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916551/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 7FF8817BD4A8:13681891CD1D , 7E29A99197A9 @2022-07-14 11:02:18.349170623 +0000 UTC}" precommits="VoteSet{H:7916551 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:7FF8817BD4A8:13681891CD1D(1) BA{1:x} map[]}"
+INFO [07-14|11:02:18.351] enterCommit(7916551/1). Current: 7916551/1/RoundStepPrecommit height=7916551 commitRound=1
+INFO [07-14|11:02:18.351] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916551 commitRound=1 blockHash=7FF8817BD4A8:13681891CD1D
+INFO [07-14|11:02:18.351] Finalizing commit of block               tx number=0  height=7916551 hash=0x7ff8817bd4a881768137693c6c4a62d74f8ab6a859fb1d81f537f60951b298ac
+INFO [07-14|11:02:18.352]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:18.367]KARDIA Updating evidence pool                   last_block_height=7916551 last_block_time=2022-07-14T11:02:14+0000
+INFO [07-14|11:02:18.367] scheduleRound0                           now=2022-07-14T11:02:18+0000 startTime=2022-07-14T11:02:19+0000
+INFO [07-14|11:02:19.360]KARDIA Timed out                                dur=983.270821ms  height=7916552 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:19.360] enterNewRound(7916552/1). Current: 7916552/1/RoundStepNewHeight height=7916552 round=1
+WARN [07-14|11:02:20.720] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:22.360]KARDIA Timed out                                dur=3s            height=7916552 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:22.360] enterPropose(7916552/1). Current: 7916552/1/RoundStepNewRound height=7916552 round=1
+INFO [07-14|11:02:22.361]KARDIA Creates new header                       header="Header{Height:7916552  Time:2022-07-14 11:02:18.349170623 +0000 UTC  NumTxs:0  LastBlockID:7FF8817BD4A8:13681891CD1D  LastCommitHash:000000000000  TxHash:000000000000  AppHash:2858D0D30FD7  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#78E804DE1DE4"
+INFO [07-14|11:02:22.363] Signed proposal                          height=7916552 round=1 proposal="Proposal{7916552/1 0 (A01FF97039C6:FB988B6838A9) B90EC608A40A @1657796542}"
+INFO [07-14|11:02:22.368] Received proposal                        proposal="Proposal{7916552/1 0 (A01FF97039C6:FB988B6838A9) B90EC608A40A @1657796542}"
+INFO [07-14|11:02:22.369] Received complete proposal block         height=7916552 hash="a01ff9…3e0e35"
+INFO [07-14|11:02:22.369] enterPrevote(7916552/1). Current: 7916552/1/RoundStepPropose 
+INFO [07-14|11:02:22.369] enterPrevote: ProposalBlock is valid     height=7916552 round=1
+INFO [07-14|11:02:22.370] Signed and pushed vote                   height=7916552 round=1 vote="Vote{0:FBD5E2AFB7C0 7916552/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) A01FF97039C6:FB988B6838A9 , 86EB17B8784B @2022-07-14 11:02:22.37001054 +0000 UTC}" err=nil
+INFO [07-14|11:02:22.371] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916552/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) A01FF97039C6:FB988B6838A9 , 86EB17B8784B @2022-07-14 11:02:22.37001054 +0000 UTC}" prevotes="VoteSet{H:7916552 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:A01FF97039C6:FB988B6838A9(1) BA{1:x} map[]}"
+INFO [07-14|11:02:22.371] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:22.371] enterPrecommit(7916552/1). Current: 7916552/1/RoundStepPrevote height=7916552 round=1
+INFO [07-14|11:02:22.371] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916552 round=1 hash=A01FF97039C6:FB988B6838A9
+INFO [07-14|11:02:22.372] Signed and pushed vote                   height=7916552 round=1 vote="Vote{0:FBD5E2AFB7C0 7916552/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) A01FF97039C6:FB988B6838A9 , 5277D4C58D89 @2022-07-14 11:02:22.371742557 +0000 UTC}" err=nil
+INFO [07-14|11:02:22.374] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916552/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) A01FF97039C6:FB988B6838A9 , 5277D4C58D89 @2022-07-14 11:02:22.371742557 +0000 UTC}" precommits="VoteSet{H:7916552 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:A01FF97039C6:FB988B6838A9(1) BA{1:x} map[]}"
+INFO [07-14|11:02:22.374] enterCommit(7916552/1). Current: 7916552/1/RoundStepPrecommit height=7916552 commitRound=1
+INFO [07-14|11:02:22.374] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916552 commitRound=1 blockHash=A01FF97039C6:FB988B6838A9
+INFO [07-14|11:02:22.374] Finalizing commit of block               tx number=0  height=7916552 hash=0xa01ff97039c62d269c0ccd8c1d85cbbdb590c9067966f5250f2e16639b3e0e35
+INFO [07-14|11:02:22.375]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:22.386]KARDIA Updating evidence pool                   last_block_height=7916552 last_block_time=2022-07-14T11:02:18+0000
+INFO [07-14|11:02:22.387] scheduleRound0                           now=2022-07-14T11:02:22+0000 startTime=2022-07-14T11:02:23+0000
+INFO [07-14|11:02:23.375]KARDIA Timed out                                dur=987.087831ms  height=7916553 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:23.376] enterNewRound(7916553/1). Current: 7916553/1/RoundStepNewHeight height=7916553 round=1
+INFO [07-14|11:02:26.376]KARDIA Timed out                                dur=3s            height=7916553 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:26.376] enterPropose(7916553/1). Current: 7916553/1/RoundStepNewRound height=7916553 round=1
+INFO [07-14|11:02:26.376]KARDIA Creates new header                       header="Header{Height:7916553  Time:2022-07-14 11:02:22.371742557 +0000 UTC  NumTxs:0  LastBlockID:A01FF97039C6:FB988B6838A9  LastCommitHash:000000000000  TxHash:000000000000  AppHash:104AEEF47354  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#6B1F49A45DFB"
+INFO [07-14|11:02:26.379] Signed proposal                          height=7916553 round=1 proposal="Proposal{7916553/1 0 (1030E356FD79:95387E3E9CD5) 8A0A7AAF52EC @1657796546}"
+INFO [07-14|11:02:26.423] Received proposal                        proposal="Proposal{7916553/1 0 (1030E356FD79:95387E3E9CD5) 8A0A7AAF52EC @1657796546}"
+INFO [07-14|11:02:26.424] Received complete proposal block         height=7916553 hash="1030e3…ac45fc"
+INFO [07-14|11:02:26.424] enterPrevote(7916553/1). Current: 7916553/1/RoundStepPropose 
+INFO [07-14|11:02:26.425] enterPrevote: ProposalBlock is valid     height=7916553 round=1
+INFO [07-14|11:02:26.426] Signed and pushed vote                   height=7916553 round=1 vote="Vote{0:FBD5E2AFB7C0 7916553/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1030E356FD79:95387E3E9CD5 , 5C3304486C52 @2022-07-14 11:02:26.425308346 +0000 UTC}" err=nil
+INFO [07-14|11:02:26.427] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916553/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1030E356FD79:95387E3E9CD5 , 5C3304486C52 @2022-07-14 11:02:26.425308346 +0000 UTC}" prevotes="VoteSet{H:7916553 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:1030E356FD79:95387E3E9CD5(1) BA{1:x} map[]}"
+INFO [07-14|11:02:26.427] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:26.427] enterPrecommit(7916553/1). Current: 7916553/1/RoundStepPrevote height=7916553 round=1
+INFO [07-14|11:02:26.427] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916553 round=1 hash=1030E356FD79:95387E3E9CD5
+INFO [07-14|11:02:26.427] Signed and pushed vote                   height=7916553 round=1 vote="Vote{0:FBD5E2AFB7C0 7916553/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1030E356FD79:95387E3E9CD5 , D994DE973C0B @2022-07-14 11:02:26.427206759 +0000 UTC}" err=nil
+INFO [07-14|11:02:26.428] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916553/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1030E356FD79:95387E3E9CD5 , D994DE973C0B @2022-07-14 11:02:26.427206759 +0000 UTC}" precommits="VoteSet{H:7916553 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:1030E356FD79:95387E3E9CD5(1) BA{1:x} map[]}"
+INFO [07-14|11:02:26.428] enterCommit(7916553/1). Current: 7916553/1/RoundStepPrecommit height=7916553 commitRound=1
+INFO [07-14|11:02:26.428] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916553 commitRound=1 blockHash=1030E356FD79:95387E3E9CD5
+INFO [07-14|11:02:26.428] Finalizing commit of block               tx number=0  height=7916553 hash=0x1030e356fd790d22c36d975db0eaaf61628015f39ab77639b5c1205f5aac45fc
+INFO [07-14|11:02:26.430]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:26.443]KARDIA Updating evidence pool                   last_block_height=7916553 last_block_time=2022-07-14T11:02:22+0000
+INFO [07-14|11:02:26.443] scheduleRound0                           now=2022-07-14T11:02:26+0000 startTime=2022-07-14T11:02:27+0000
+INFO [07-14|11:02:26.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:02:26.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.236:34652} cc3b3f0eeb55ea5185c45ea3c00a9576601a5c75 in}"
+INFO [07-14|11:02:26.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:02:27.429]KARDIA Timed out                                dur=985.456555ms  height=7916554 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:27.429] enterNewRound(7916554/1). Current: 7916554/1/RoundStepNewHeight height=7916554 round=1
+INFO [07-14|11:02:30.443]KARDIA Timed out                                dur=3s            height=7916554 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:30.444] enterPropose(7916554/1). Current: 7916554/1/RoundStepNewRound height=7916554 round=1
+INFO [07-14|11:02:30.444]KARDIA Creates new header                       header="Header{Height:7916554  Time:2022-07-14 11:02:26.427206759 +0000 UTC  NumTxs:0  LastBlockID:1030E356FD79:95387E3E9CD5  LastCommitHash:000000000000  TxHash:000000000000  AppHash:E76FC3AD1672  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#CE0EF362DDFD"
+INFO [07-14|11:02:30.445] Signed proposal                          height=7916554 round=1 proposal="Proposal{7916554/1 0 (B53DBB2E23D3:0D32A4098F79) D08357B90C20 @1657796550}"
+INFO [07-14|11:02:30.446] Received proposal                        proposal="Proposal{7916554/1 0 (B53DBB2E23D3:0D32A4098F79) D08357B90C20 @1657796550}"
+INFO [07-14|11:02:30.447] Received complete proposal block         height=7916554 hash="b53dbb…8ac6f9"
+INFO [07-14|11:02:30.447] enterPrevote(7916554/1). Current: 7916554/1/RoundStepPropose 
+INFO [07-14|11:02:30.447] enterPrevote: ProposalBlock is valid     height=7916554 round=1
+INFO [07-14|11:02:30.448] Signed and pushed vote                   height=7916554 round=1 vote="Vote{0:FBD5E2AFB7C0 7916554/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B53DBB2E23D3:0D32A4098F79 , 20751918B507 @2022-07-14 11:02:30.447770973 +0000 UTC}" err=nil
+INFO [07-14|11:02:30.449] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916554/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B53DBB2E23D3:0D32A4098F79 , 20751918B507 @2022-07-14 11:02:30.447770973 +0000 UTC}" prevotes="VoteSet{H:7916554 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:B53DBB2E23D3:0D32A4098F79(1) BA{1:x} map[]}"
+INFO [07-14|11:02:30.449] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:30.449] enterPrecommit(7916554/1). Current: 7916554/1/RoundStepPrevote height=7916554 round=1
+INFO [07-14|11:02:30.449] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916554 round=1 hash=B53DBB2E23D3:0D32A4098F79
+INFO [07-14|11:02:30.450] Signed and pushed vote                   height=7916554 round=1 vote="Vote{0:FBD5E2AFB7C0 7916554/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B53DBB2E23D3:0D32A4098F79 , 217EEC5AF620 @2022-07-14 11:02:30.449749531 +0000 UTC}" err=nil
+INFO [07-14|11:02:30.451] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916554/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B53DBB2E23D3:0D32A4098F79 , 217EEC5AF620 @2022-07-14 11:02:30.449749531 +0000 UTC}" precommits="VoteSet{H:7916554 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:B53DBB2E23D3:0D32A4098F79(1) BA{1:x} map[]}"
+INFO [07-14|11:02:30.451] enterCommit(7916554/1). Current: 7916554/1/RoundStepPrecommit height=7916554 commitRound=1
+INFO [07-14|11:02:30.451] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916554 commitRound=1 blockHash=B53DBB2E23D3:0D32A4098F79
+INFO [07-14|11:02:30.452] Finalizing commit of block               tx number=0  height=7916554 hash=0xb53dbb2e23d3a7a950ec0b52d33cdbc623b93f4f4a5faf6c4c6634b70b8ac6f9
+INFO [07-14|11:02:30.453]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:30.479]KARDIA Updating evidence pool                   last_block_height=7916554 last_block_time=2022-07-14T11:02:26+0000
+INFO [07-14|11:02:30.479] scheduleRound0                           now=2022-07-14T11:02:30+0000 startTime=2022-07-14T11:02:31+0000
+WARN [07-14|11:02:30.972] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:31.452]KARDIA Timed out                                dur=972.264344ms  height=7916555 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:31.452] enterNewRound(7916555/1). Current: 7916555/1/RoundStepNewHeight height=7916555 round=1
+INFO [07-14|11:02:34.452]KARDIA Timed out                                dur=3s            height=7916555 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:34.452] enterPropose(7916555/1). Current: 7916555/1/RoundStepNewRound height=7916555 round=1
+INFO [07-14|11:02:34.452]KARDIA Creates new header                       header="Header{Height:7916555  Time:2022-07-14 11:02:30.449749531 +0000 UTC  NumTxs:0  LastBlockID:B53DBB2E23D3:0D32A4098F79  LastCommitHash:000000000000  TxHash:000000000000  AppHash:D3B72ACC7F44  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#8C8E20EC6448"
+INFO [07-14|11:02:34.454] Signed proposal                          height=7916555 round=1 proposal="Proposal{7916555/1 0 (ACF96EF8299F:4ACF1EB999DC) 61DA98F76B71 @1657796554}"
+INFO [07-14|11:02:34.455] Received proposal                        proposal="Proposal{7916555/1 0 (ACF96EF8299F:4ACF1EB999DC) 61DA98F76B71 @1657796554}"
+INFO [07-14|11:02:34.455] Received complete proposal block         height=7916555 hash="acf96e…630452"
+INFO [07-14|11:02:34.455] enterPrevote(7916555/1). Current: 7916555/1/RoundStepPropose 
+INFO [07-14|11:02:34.456] enterPrevote: ProposalBlock is valid     height=7916555 round=1
+INFO [07-14|11:02:34.456] Signed and pushed vote                   height=7916555 round=1 vote="Vote{0:FBD5E2AFB7C0 7916555/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) ACF96EF8299F:4ACF1EB999DC , EF64550AFD5E @2022-07-14 11:02:34.456267694 +0000 UTC}" err=nil
+INFO [07-14|11:02:34.457] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916555/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) ACF96EF8299F:4ACF1EB999DC , EF64550AFD5E @2022-07-14 11:02:34.456267694 +0000 UTC}" prevotes="VoteSet{H:7916555 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:ACF96EF8299F:4ACF1EB999DC(1) BA{1:x} map[]}"
+INFO [07-14|11:02:34.457] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:34.457] enterPrecommit(7916555/1). Current: 7916555/1/RoundStepPrevote height=7916555 round=1
+INFO [07-14|11:02:34.457] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916555 round=1 hash=ACF96EF8299F:4ACF1EB999DC
+INFO [07-14|11:02:34.458] Signed and pushed vote                   height=7916555 round=1 vote="Vote{0:FBD5E2AFB7C0 7916555/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) ACF96EF8299F:4ACF1EB999DC , 9307EC1A9D44 @2022-07-14 11:02:34.457654503 +0000 UTC}" err=nil
+INFO [07-14|11:02:34.458] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916555/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) ACF96EF8299F:4ACF1EB999DC , 9307EC1A9D44 @2022-07-14 11:02:34.457654503 +0000 UTC}" precommits="VoteSet{H:7916555 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:ACF96EF8299F:4ACF1EB999DC(1) BA{1:x} map[]}"
+INFO [07-14|11:02:34.458] enterCommit(7916555/1). Current: 7916555/1/RoundStepPrecommit height=7916555 commitRound=1
+INFO [07-14|11:02:34.458] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916555 commitRound=1 blockHash=ACF96EF8299F:4ACF1EB999DC
+INFO [07-14|11:02:34.459] Finalizing commit of block               tx number=0  height=7916555 hash=0xacf96ef8299fb2402227925f44d7b9287b3caccbdaac692cbb71c55c76630452
+INFO [07-14|11:02:34.460]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:34.473]KARDIA Updating evidence pool                   last_block_height=7916555 last_block_time=2022-07-14T11:02:30+0000
+INFO [07-14|11:02:34.473] scheduleRound0                           now=2022-07-14T11:02:34+0000 startTime=2022-07-14T11:02:35+0000
+INFO [07-14|11:02:35.459]KARDIA Timed out                                dur=985.124148ms  height=7916556 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:35.460] enterNewRound(7916556/1). Current: 7916556/1/RoundStepNewHeight height=7916556 round=1
+INFO [07-14|11:02:38.460]KARDIA Timed out                                dur=3s            height=7916556 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:38.460] enterPropose(7916556/1). Current: 7916556/1/RoundStepNewRound height=7916556 round=1
+INFO [07-14|11:02:38.460]KARDIA Creates new header                       header="Header{Height:7916556  Time:2022-07-14 11:02:34.457654503 +0000 UTC  NumTxs:0  LastBlockID:ACF96EF8299F:4ACF1EB999DC  LastCommitHash:000000000000  TxHash:000000000000  AppHash:2A2B85FE250D  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#7D8235BC4682"
+INFO [07-14|11:02:38.462] Signed proposal                          height=7916556 round=1 proposal="Proposal{7916556/1 0 (CA1E2B112A2B:F4DF90FF2CB4) 2C7E6E83E5E2 @1657796558}"
+INFO [07-14|11:02:38.466] Received proposal                        proposal="Proposal{7916556/1 0 (CA1E2B112A2B:F4DF90FF2CB4) 2C7E6E83E5E2 @1657796558}"
+INFO [07-14|11:02:38.467] Received complete proposal block         height=7916556 hash="ca1e2b…8ade81"
+INFO [07-14|11:02:38.467] enterPrevote(7916556/1). Current: 7916556/1/RoundStepPropose 
+INFO [07-14|11:02:38.467] enterPrevote: ProposalBlock is valid     height=7916556 round=1
+INFO [07-14|11:02:38.468] Signed and pushed vote                   height=7916556 round=1 vote="Vote{0:FBD5E2AFB7C0 7916556/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) CA1E2B112A2B:F4DF90FF2CB4 , DDD723D26FC9 @2022-07-14 11:02:38.46760295 +0000 UTC}" err=nil
+INFO [07-14|11:02:38.469] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916556/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) CA1E2B112A2B:F4DF90FF2CB4 , DDD723D26FC9 @2022-07-14 11:02:38.46760295 +0000 UTC}" prevotes="VoteSet{H:7916556 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:CA1E2B112A2B:F4DF90FF2CB4(1) BA{1:x} map[]}"
+INFO [07-14|11:02:38.469] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:38.469] enterPrecommit(7916556/1). Current: 7916556/1/RoundStepPrevote height=7916556 round=1
+INFO [07-14|11:02:38.469] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916556 round=1 hash=CA1E2B112A2B:F4DF90FF2CB4
+INFO [07-14|11:02:38.469] Signed and pushed vote                   height=7916556 round=1 vote="Vote{0:FBD5E2AFB7C0 7916556/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) CA1E2B112A2B:F4DF90FF2CB4 , CCBB2513C6CD @2022-07-14 11:02:38.469215397 +0000 UTC}" err=nil
+INFO [07-14|11:02:38.472] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916556/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) CA1E2B112A2B:F4DF90FF2CB4 , CCBB2513C6CD @2022-07-14 11:02:38.469215397 +0000 UTC}" precommits="VoteSet{H:7916556 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:CA1E2B112A2B:F4DF90FF2CB4(1) BA{1:x} map[]}"
+INFO [07-14|11:02:38.472] enterCommit(7916556/1). Current: 7916556/1/RoundStepPrecommit height=7916556 commitRound=1
+INFO [07-14|11:02:38.472] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916556 commitRound=1 blockHash=CA1E2B112A2B:F4DF90FF2CB4
+INFO [07-14|11:02:38.472] Finalizing commit of block               tx number=0  height=7916556 hash=0xca1e2b112a2b606c19b218d1c8a0634a24181cad0e7e23596893905b1e8ade81
+INFO [07-14|11:02:38.782]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:38.794]KARDIA Updating evidence pool                   last_block_height=7916556 last_block_time=2022-07-14T11:02:34+0000
+INFO [07-14|11:02:38.794] scheduleRound0                           now=2022-07-14T11:02:38+0000 startTime=2022-07-14T11:02:39+0000
+INFO [07-14|11:02:39.476]KARDIA Timed out                                dur=678.401618ms  height=7916557 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:39.476] enterNewRound(7916557/1). Current: 7916557/1/RoundStepNewHeight height=7916557 round=1
+WARN [07-14|11:02:41.209] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:42.476]KARDIA Timed out                                dur=3s            height=7916557 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:42.477] enterPropose(7916557/1). Current: 7916557/1/RoundStepNewRound height=7916557 round=1
+INFO [07-14|11:02:42.477]KARDIA Creates new header                       header="Header{Height:7916557  Time:2022-07-14 11:02:38.469215397 +0000 UTC  NumTxs:0  LastBlockID:CA1E2B112A2B:F4DF90FF2CB4  LastCommitHash:000000000000  TxHash:000000000000  AppHash:CFAC303622C7  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#C6FDC3E9913B"
+INFO [07-14|11:02:42.478] Signed proposal                          height=7916557 round=1 proposal="Proposal{7916557/1 0 (B8ACDD4DAF8C:485C93EB876B) 8E9F4D74216A @1657796562}"
+INFO [07-14|11:02:42.479] Received proposal                        proposal="Proposal{7916557/1 0 (B8ACDD4DAF8C:485C93EB876B) 8E9F4D74216A @1657796562}"
+INFO [07-14|11:02:42.479] Received complete proposal block         height=7916557 hash="b8acdd…3d0b6f"
+INFO [07-14|11:02:42.479] enterPrevote(7916557/1). Current: 7916557/1/RoundStepPropose 
+INFO [07-14|11:02:42.480] enterPrevote: ProposalBlock is valid     height=7916557 round=1
+INFO [07-14|11:02:42.480] Signed and pushed vote                   height=7916557 round=1 vote="Vote{0:FBD5E2AFB7C0 7916557/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B8ACDD4DAF8C:485C93EB876B , 35165DA40453 @2022-07-14 11:02:42.480264705 +0000 UTC}" err=nil
+INFO [07-14|11:02:42.482] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916557/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B8ACDD4DAF8C:485C93EB876B , 35165DA40453 @2022-07-14 11:02:42.480264705 +0000 UTC}" prevotes="VoteSet{H:7916557 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:B8ACDD4DAF8C:485C93EB876B(1) BA{1:x} map[]}"
+INFO [07-14|11:02:42.482] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:42.482] enterPrecommit(7916557/1). Current: 7916557/1/RoundStepPrevote height=7916557 round=1
+INFO [07-14|11:02:42.482] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916557 round=1 hash=B8ACDD4DAF8C:485C93EB876B
+INFO [07-14|11:02:42.483] Signed and pushed vote                   height=7916557 round=1 vote="Vote{0:FBD5E2AFB7C0 7916557/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B8ACDD4DAF8C:485C93EB876B , BA31EE783557 @2022-07-14 11:02:42.482378496 +0000 UTC}" err=nil
+INFO [07-14|11:02:42.483] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916557/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B8ACDD4DAF8C:485C93EB876B , BA31EE783557 @2022-07-14 11:02:42.482378496 +0000 UTC}" precommits="VoteSet{H:7916557 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:B8ACDD4DAF8C:485C93EB876B(1) BA{1:x} map[]}"
+INFO [07-14|11:02:42.484] enterCommit(7916557/1). Current: 7916557/1/RoundStepPrecommit height=7916557 commitRound=1
+INFO [07-14|11:02:42.484] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916557 commitRound=1 blockHash=B8ACDD4DAF8C:485C93EB876B
+INFO [07-14|11:02:42.484] Finalizing commit of block               tx number=0  height=7916557 hash=0xb8acdd4daf8cbda2987f8b8b2e99ab8843e8d36c13e7cd16835a9d67793d0b6f
+INFO [07-14|11:02:42.485]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:42.498]KARDIA Updating evidence pool                   last_block_height=7916557 last_block_time=2022-07-14T11:02:38+0000
+INFO [07-14|11:02:42.498] scheduleRound0                           now=2022-07-14T11:02:42+0000 startTime=2022-07-14T11:02:43+0000
+INFO [07-14|11:02:43.484]KARDIA Timed out                                dur=985.018736ms  height=7916558 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:43.484] enterNewRound(7916558/1). Current: 7916558/1/RoundStepNewHeight height=7916558 round=1
+INFO [07-14|11:02:46.485]KARDIA Timed out                                dur=3s            height=7916558 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:46.485] enterPropose(7916558/1). Current: 7916558/1/RoundStepNewRound height=7916558 round=1
+INFO [07-14|11:02:46.485]KARDIA Creates new header                       header="Header{Height:7916558  Time:2022-07-14 11:02:42.482378496 +0000 UTC  NumTxs:0  LastBlockID:B8ACDD4DAF8C:485C93EB876B  LastCommitHash:000000000000  TxHash:000000000000  AppHash:AC6EFEEA896D  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#AF1FE68AE5D5"
+INFO [07-14|11:02:46.493] Signed proposal                          height=7916558 round=1 proposal="Proposal{7916558/1 0 (3A2A2562C9AA:FD0B879FA616) 668F70D69706 @1657796566}"
+INFO [07-14|11:02:46.503] Received proposal                        proposal="Proposal{7916558/1 0 (3A2A2562C9AA:FD0B879FA616) 668F70D69706 @1657796566}"
+INFO [07-14|11:02:46.504] Received complete proposal block         height=7916558 hash="3a2a25…88fc9b"
+INFO [07-14|11:02:46.504] enterPrevote(7916558/1). Current: 7916558/1/RoundStepPropose 
+INFO [07-14|11:02:46.504] enterPrevote: ProposalBlock is valid     height=7916558 round=1
+INFO [07-14|11:02:46.505] Signed and pushed vote                   height=7916558 round=1 vote="Vote{0:FBD5E2AFB7C0 7916558/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3A2A2562C9AA:FD0B879FA616 , 68A5158D403D @2022-07-14 11:02:46.504731908 +0000 UTC}" err=nil
+INFO [07-14|11:02:46.524] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916558/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3A2A2562C9AA:FD0B879FA616 , 68A5158D403D @2022-07-14 11:02:46.504731908 +0000 UTC}" prevotes="VoteSet{H:7916558 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:3A2A2562C9AA:FD0B879FA616(1) BA{1:x} map[]}"
+INFO [07-14|11:02:46.524] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:46.524] enterPrecommit(7916558/1). Current: 7916558/1/RoundStepPrevote height=7916558 round=1
+INFO [07-14|11:02:46.524] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916558 round=1 hash=3A2A2562C9AA:FD0B879FA616
+INFO [07-14|11:02:46.524] Signed and pushed vote                   height=7916558 round=1 vote="Vote{0:FBD5E2AFB7C0 7916558/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3A2A2562C9AA:FD0B879FA616 , A9F642AF8CF8 @2022-07-14 11:02:46.524476306 +0000 UTC}" err=nil
+INFO [07-14|11:02:46.532] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916558/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3A2A2562C9AA:FD0B879FA616 , A9F642AF8CF8 @2022-07-14 11:02:46.524476306 +0000 UTC}" precommits="VoteSet{H:7916558 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:3A2A2562C9AA:FD0B879FA616(1) BA{1:x} map[]}"
+INFO [07-14|11:02:46.532] enterCommit(7916558/1). Current: 7916558/1/RoundStepPrecommit height=7916558 commitRound=1
+INFO [07-14|11:02:46.532] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916558 commitRound=1 blockHash=3A2A2562C9AA:FD0B879FA616
+INFO [07-14|11:02:46.532] Finalizing commit of block               tx number=0  height=7916558 hash=0x3a2a2562c9aacbd82815cf864e3f8c93314f52f050de853c7e540802fd88fc9b
+INFO [07-14|11:02:46.533]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:46.548]KARDIA Updating evidence pool                   last_block_height=7916558 last_block_time=2022-07-14T11:02:42+0000
+INFO [07-14|11:02:46.548] scheduleRound0                           now=2022-07-14T11:02:46+0000 startTime=2022-07-14T11:02:47+0000
+INFO [07-14|11:02:47.532]KARDIA Timed out                                dur=983.468156ms  height=7916559 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:47.532] enterNewRound(7916559/1). Current: 7916559/1/RoundStepNewHeight height=7916559 round=1
+INFO [07-14|11:02:50.539]KARDIA Timed out                                dur=3s            height=7916559 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:50.539] enterPropose(7916559/1). Current: 7916559/1/RoundStepNewRound height=7916559 round=1
+INFO [07-14|11:02:50.539]KARDIA Creates new header                       header="Header{Height:7916559  Time:2022-07-14 11:02:46.524476306 +0000 UTC  NumTxs:0  LastBlockID:3A2A2562C9AA:FD0B879FA616  LastCommitHash:000000000000  TxHash:000000000000  AppHash:2540E1F45639  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#5364286FA2F1"
+INFO [07-14|11:02:50.685] Signed proposal                          height=7916559 round=1 proposal="Proposal{7916559/1 0 (32E49071E501:453FB77DBBB4) D2168E6597AA @1657796570}"
+INFO [07-14|11:02:50.701] Received proposal                        proposal="Proposal{7916559/1 0 (32E49071E501:453FB77DBBB4) D2168E6597AA @1657796570}"
+INFO [07-14|11:02:50.720] Received complete proposal block         height=7916559 hash="32e490…7a96d9"
+INFO [07-14|11:02:50.720] enterPrevote(7916559/1). Current: 7916559/1/RoundStepPropose 
+INFO [07-14|11:02:50.721] enterPrevote: ProposalBlock is valid     height=7916559 round=1
+INFO [07-14|11:02:50.721] Signed and pushed vote                   height=7916559 round=1 vote="Vote{0:FBD5E2AFB7C0 7916559/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 32E49071E501:453FB77DBBB4 , 9B2AB73C86D7 @2022-07-14 11:02:50.721159711 +0000 UTC}" err=nil
+INFO [07-14|11:02:50.722] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916559/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 32E49071E501:453FB77DBBB4 , 9B2AB73C86D7 @2022-07-14 11:02:50.721159711 +0000 UTC}" prevotes="VoteSet{H:7916559 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:32E49071E501:453FB77DBBB4(1) BA{1:x} map[]}"
+INFO [07-14|11:02:50.722] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:50.722] enterPrecommit(7916559/1). Current: 7916559/1/RoundStepPrevote height=7916559 round=1
+INFO [07-14|11:02:50.722] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916559 round=1 hash=32E49071E501:453FB77DBBB4
+INFO [07-14|11:02:50.723] Signed and pushed vote                   height=7916559 round=1 vote="Vote{0:FBD5E2AFB7C0 7916559/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 32E49071E501:453FB77DBBB4 , 5EC1180BDBBB @2022-07-14 11:02:50.723022591 +0000 UTC}" err=nil
+INFO [07-14|11:02:50.724] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916559/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 32E49071E501:453FB77DBBB4 , 5EC1180BDBBB @2022-07-14 11:02:50.723022591 +0000 UTC}" precommits="VoteSet{H:7916559 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:32E49071E501:453FB77DBBB4(1) BA{1:x} map[]}"
+INFO [07-14|11:02:50.724] enterCommit(7916559/1). Current: 7916559/1/RoundStepPrecommit height=7916559 commitRound=1
+INFO [07-14|11:02:50.724] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916559 commitRound=1 blockHash=32E49071E501:453FB77DBBB4
+INFO [07-14|11:02:50.724] Finalizing commit of block               tx number=0  height=7916559 hash=0x32e49071e5015158dcb2dbb99cd1931fa9fe43f204c9df0b6c305da77c7a96d9
+INFO [07-14|11:02:50.726]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:50.742]KARDIA Updating evidence pool                   last_block_height=7916559 last_block_time=2022-07-14T11:02:46+0000
+INFO [07-14|11:02:50.742] scheduleRound0                           now=2022-07-14T11:02:50+0000 startTime=2022-07-14T11:02:51+0000
+WARN [07-14|11:02:51.476] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:02:51.725]KARDIA Timed out                                dur=981.891213ms  height=7916560 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:51.725] enterNewRound(7916560/1). Current: 7916560/1/RoundStepNewHeight height=7916560 round=1
+INFO [07-14|11:02:54.725]KARDIA Timed out                                dur=3s            height=7916560 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:54.725] enterPropose(7916560/1). Current: 7916560/1/RoundStepNewRound height=7916560 round=1
+INFO [07-14|11:02:54.725]KARDIA Creates new header                       header="Header{Height:7916560  Time:2022-07-14 11:02:50.723022591 +0000 UTC  NumTxs:0  LastBlockID:32E49071E501:453FB77DBBB4  LastCommitHash:000000000000  TxHash:000000000000  AppHash:10299E0BCE64  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#595B0AA269C0"
+INFO [07-14|11:02:54.727] Signed proposal                          height=7916560 round=1 proposal="Proposal{7916560/1 0 (D48A9FCD43AD:C0B34ED68349) 926591FD278E @1657796574}"
+INFO [07-14|11:02:54.728] Received proposal                        proposal="Proposal{7916560/1 0 (D48A9FCD43AD:C0B34ED68349) 926591FD278E @1657796574}"
+INFO [07-14|11:02:54.729] Received complete proposal block         height=7916560 hash="d48a9f…4ee74d"
+INFO [07-14|11:02:54.729] enterPrevote(7916560/1). Current: 7916560/1/RoundStepPropose 
+INFO [07-14|11:02:54.729] enterPrevote: ProposalBlock is valid     height=7916560 round=1
+INFO [07-14|11:02:54.730] Signed and pushed vote                   height=7916560 round=1 vote="Vote{0:FBD5E2AFB7C0 7916560/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) D48A9FCD43AD:C0B34ED68349 , 234CE21F3204 @2022-07-14 11:02:54.72959667 +0000 UTC}" err=nil
+INFO [07-14|11:02:54.731] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916560/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) D48A9FCD43AD:C0B34ED68349 , 234CE21F3204 @2022-07-14 11:02:54.72959667 +0000 UTC}" prevotes="VoteSet{H:7916560 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:D48A9FCD43AD:C0B34ED68349(1) BA{1:x} map[]}"
+INFO [07-14|11:02:54.731] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:54.731] enterPrecommit(7916560/1). Current: 7916560/1/RoundStepPrevote height=7916560 round=1
+INFO [07-14|11:02:54.731] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916560 round=1 hash=D48A9FCD43AD:C0B34ED68349
+INFO [07-14|11:02:54.732] Signed and pushed vote                   height=7916560 round=1 vote="Vote{0:FBD5E2AFB7C0 7916560/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) D48A9FCD43AD:C0B34ED68349 , B6A3A0E5A4F4 @2022-07-14 11:02:54.731365995 +0000 UTC}" err=nil
+INFO [07-14|11:02:54.732] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916560/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) D48A9FCD43AD:C0B34ED68349 , B6A3A0E5A4F4 @2022-07-14 11:02:54.731365995 +0000 UTC}" precommits="VoteSet{H:7916560 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:D48A9FCD43AD:C0B34ED68349(1) BA{1:x} map[]}"
+INFO [07-14|11:02:54.732] enterCommit(7916560/1). Current: 7916560/1/RoundStepPrecommit height=7916560 commitRound=1
+INFO [07-14|11:02:54.733] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916560 commitRound=1 blockHash=D48A9FCD43AD:C0B34ED68349
+INFO [07-14|11:02:54.733] Finalizing commit of block               tx number=0  height=7916560 hash=0xd48a9fcd43adf60d739d127f43033b5861bbea53ef4117ffbe5056205b4ee74d
+INFO [07-14|11:02:54.740]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:54.755]KARDIA Updating evidence pool                   last_block_height=7916560 last_block_time=2022-07-14T11:02:50+0000
+INFO [07-14|11:02:54.755] scheduleRound0                           now=2022-07-14T11:02:54+0000 startTime=2022-07-14T11:02:55+0000
+INFO [07-14|11:02:55.694] Saving AddrBook to file                  size=0
+INFO [07-14|11:02:55.733]KARDIA Timed out                                dur=977.831277ms  height=7916561 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:55.733] enterNewRound(7916561/1). Current: 7916561/1/RoundStepNewHeight height=7916561 round=1
+INFO [07-14|11:02:56.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:02:56.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.236:34652} cc3b3f0eeb55ea5185c45ea3c00a9576601a5c75 in}"
+INFO [07-14|11:02:56.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:02:56.700] Dialing peer                             address=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+INFO [07-14|11:02:56.703] Add our address to book                  addr=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+ERROR[07-14|11:02:56.703] Error dialing seed                       err="self ID<fbd5e2afb7c0a7862b06964e29e676bf02183256>" seed=fbd5e2afb7c0a7862b06964e29e676bf02183256@10.10.0.232:3000
+INFO [07-14|11:02:56.703] Add our address to book                  addr=fbd5e2afb7c0a7862b06964e29e676bf02183256@172.17.0.1:44380
+INFO [07-14|11:02:56.703] Inbound Peer rejected                    err="self ID<fbd5e2afb7c0a7862b06964e29e676bf02183256>" numPeers=4
+INFO [07-14|11:02:58.733]KARDIA Timed out                                dur=3s            height=7916561 round=1 step=RoundStepNewRound
+INFO [07-14|11:02:58.733] enterPropose(7916561/1). Current: 7916561/1/RoundStepNewRound height=7916561 round=1
+INFO [07-14|11:02:58.733]KARDIA Creates new header                       header="Header{Height:7916561  Time:2022-07-14 11:02:54.731365995 +0000 UTC  NumTxs:0  LastBlockID:D48A9FCD43AD:C0B34ED68349  LastCommitHash:000000000000  TxHash:000000000000  AppHash:DB4B0CE1AF7B  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#43FF4D5A7A2C"
+INFO [07-14|11:02:58.747] Signed proposal                          height=7916561 round=1 proposal="Proposal{7916561/1 0 (409CAF0A98A9:F60CC52D70E1) C6037B910DA1 @1657796578}"
+INFO [07-14|11:02:58.748] Received proposal                        proposal="Proposal{7916561/1 0 (409CAF0A98A9:F60CC52D70E1) C6037B910DA1 @1657796578}"
+INFO [07-14|11:02:58.748] Received complete proposal block         height=7916561 hash="409caf…77c12f"
+INFO [07-14|11:02:58.748] enterPrevote(7916561/1). Current: 7916561/1/RoundStepPropose 
+INFO [07-14|11:02:58.749] enterPrevote: ProposalBlock is valid     height=7916561 round=1
+INFO [07-14|11:02:58.749] Signed and pushed vote                   height=7916561 round=1 vote="Vote{0:FBD5E2AFB7C0 7916561/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 409CAF0A98A9:F60CC52D70E1 , B001DB379FF8 @2022-07-14 11:02:58.749211786 +0000 UTC}" err=nil
+INFO [07-14|11:02:58.751] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916561/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 409CAF0A98A9:F60CC52D70E1 , B001DB379FF8 @2022-07-14 11:02:58.749211786 +0000 UTC}" prevotes="VoteSet{H:7916561 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:409CAF0A98A9:F60CC52D70E1(1) BA{1:x} map[]}"
+INFO [07-14|11:02:58.751] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:02:58.751] enterPrecommit(7916561/1). Current: 7916561/1/RoundStepPrevote height=7916561 round=1
+INFO [07-14|11:02:58.751] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916561 round=1 hash=409CAF0A98A9:F60CC52D70E1
+INFO [07-14|11:02:58.751] Signed and pushed vote                   height=7916561 round=1 vote="Vote{0:FBD5E2AFB7C0 7916561/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 409CAF0A98A9:F60CC52D70E1 , 441CAFF35C2C @2022-07-14 11:02:58.751203763 +0000 UTC}" err=nil
+INFO [07-14|11:02:58.752] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916561/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 409CAF0A98A9:F60CC52D70E1 , 441CAFF35C2C @2022-07-14 11:02:58.751203763 +0000 UTC}" precommits="VoteSet{H:7916561 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:409CAF0A98A9:F60CC52D70E1(1) BA{1:x} map[]}"
+INFO [07-14|11:02:58.752] enterCommit(7916561/1). Current: 7916561/1/RoundStepPrecommit height=7916561 commitRound=1
+INFO [07-14|11:02:58.753] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916561 commitRound=1 blockHash=409CAF0A98A9:F60CC52D70E1
+INFO [07-14|11:02:58.753] Finalizing commit of block               tx number=0  height=7916561 hash=0x409caf0a98a99d8d77bc940a61be1c23633e88be1d68e4e52fe5da603d77c12f
+INFO [07-14|11:02:58.754]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:02:58.764]KARDIA Updating evidence pool                   last_block_height=7916561 last_block_time=2022-07-14T11:02:54+0000
+INFO [07-14|11:02:58.764] scheduleRound0                           now=2022-07-14T11:02:58+0000 startTime=2022-07-14T11:02:59+0000
+ERROR[07-14|11:02:59.008] Failed to derive block receipts fields   hash="79b746…bf5b26"           height=3441839 err="transaction and receipt count mismatch"
+INFO [07-14|11:02:59.753]KARDIA Timed out                                dur=988.657309ms  height=7916562 round=1 step=RoundStepNewHeight
+INFO [07-14|11:02:59.753] enterNewRound(7916562/1). Current: 7916562/1/RoundStepNewHeight height=7916562 round=1
+WARN [07-14|11:03:01.719] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:02.754]KARDIA Timed out                                dur=3s            height=7916562 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:02.754] enterPropose(7916562/1). Current: 7916562/1/RoundStepNewRound height=7916562 round=1
+INFO [07-14|11:03:02.754]KARDIA Creates new header                       header="Header{Height:7916562  Time:2022-07-14 11:02:58.751203763 +0000 UTC  NumTxs:0  LastBlockID:409CAF0A98A9:F60CC52D70E1  LastCommitHash:000000000000  TxHash:000000000000  AppHash:40802838E773  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#5334F0BE21BC"
+INFO [07-14|11:03:02.755] Signed proposal                          height=7916562 round=1 proposal="Proposal{7916562/1 0 (BFD9B0B019AA:ABA488092FE3) 30F3D953B733 @1657796582}"
+INFO [07-14|11:03:02.756] Received proposal                        proposal="Proposal{7916562/1 0 (BFD9B0B019AA:ABA488092FE3) 30F3D953B733 @1657796582}"
+INFO [07-14|11:03:02.757] Received complete proposal block         height=7916562 hash="bfd9b0…3e087b"
+INFO [07-14|11:03:02.757] enterPrevote(7916562/1). Current: 7916562/1/RoundStepPropose 
+INFO [07-14|11:03:02.757] enterPrevote: ProposalBlock is valid     height=7916562 round=1
+INFO [07-14|11:03:02.757] Signed and pushed vote                   height=7916562 round=1 vote="Vote{0:FBD5E2AFB7C0 7916562/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) BFD9B0B019AA:ABA488092FE3 , 0CBC167F12F7 @2022-07-14 11:03:02.757459263 +0000 UTC}" err=nil
+INFO [07-14|11:03:02.758] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916562/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) BFD9B0B019AA:ABA488092FE3 , 0CBC167F12F7 @2022-07-14 11:03:02.757459263 +0000 UTC}" prevotes="VoteSet{H:7916562 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:BFD9B0B019AA:ABA488092FE3(1) BA{1:x} map[]}"
+INFO [07-14|11:03:02.758] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:02.758] enterPrecommit(7916562/1). Current: 7916562/1/RoundStepPrevote height=7916562 round=1
+INFO [07-14|11:03:02.758] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916562 round=1 hash=BFD9B0B019AA:ABA488092FE3
+INFO [07-14|11:03:02.759] Signed and pushed vote                   height=7916562 round=1 vote="Vote{0:FBD5E2AFB7C0 7916562/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) BFD9B0B019AA:ABA488092FE3 , C74687AAABA0 @2022-07-14 11:03:02.758840787 +0000 UTC}" err=nil
+INFO [07-14|11:03:02.760] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916562/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) BFD9B0B019AA:ABA488092FE3 , C74687AAABA0 @2022-07-14 11:03:02.758840787 +0000 UTC}" precommits="VoteSet{H:7916562 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:BFD9B0B019AA:ABA488092FE3(1) BA{1:x} map[]}"
+INFO [07-14|11:03:02.760] enterCommit(7916562/1). Current: 7916562/1/RoundStepPrecommit height=7916562 commitRound=1
+INFO [07-14|11:03:02.760] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916562 commitRound=1 blockHash=BFD9B0B019AA:ABA488092FE3
+INFO [07-14|11:03:02.760] Finalizing commit of block               tx number=0  height=7916562 hash=0xbfd9b0b019aa7a8504c706155985379543b04ecaf49736452e3f41e46c3e087b
+INFO [07-14|11:03:02.761]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:02.775]KARDIA Updating evidence pool                   last_block_height=7916562 last_block_time=2022-07-14T11:02:58+0000
+INFO [07-14|11:03:02.775] scheduleRound0                           now=2022-07-14T11:03:02+0000 startTime=2022-07-14T11:03:03+0000
+INFO [07-14|11:03:03.761]KARDIA Timed out                                dur=984.628467ms  height=7916563 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:03.761] enterNewRound(7916563/1). Current: 7916563/1/RoundStepNewHeight height=7916563 round=1
+INFO [07-14|11:03:06.761]KARDIA Timed out                                dur=3s            height=7916563 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:06.761] enterPropose(7916563/1). Current: 7916563/1/RoundStepNewRound height=7916563 round=1
+INFO [07-14|11:03:06.761]KARDIA Creates new header                       header="Header{Height:7916563  Time:2022-07-14 11:03:02.758840787 +0000 UTC  NumTxs:0  LastBlockID:BFD9B0B019AA:ABA488092FE3  LastCommitHash:000000000000  TxHash:000000000000  AppHash:A911AC4CB6C9  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#577DB3276F46"
+INFO [07-14|11:03:06.763] Signed proposal                          height=7916563 round=1 proposal="Proposal{7916563/1 0 (98CC19308509:B05EF8178437) EA31052BBD6F @1657796586}"
+INFO [07-14|11:03:06.764] Received proposal                        proposal="Proposal{7916563/1 0 (98CC19308509:B05EF8178437) EA31052BBD6F @1657796586}"
+INFO [07-14|11:03:06.764] Received complete proposal block         height=7916563 hash="98cc19…91bd4b"
+INFO [07-14|11:03:06.764] enterPrevote(7916563/1). Current: 7916563/1/RoundStepPropose 
+INFO [07-14|11:03:06.765] enterPrevote: ProposalBlock is valid     height=7916563 round=1
+INFO [07-14|11:03:06.766] Signed and pushed vote                   height=7916563 round=1 vote="Vote{0:FBD5E2AFB7C0 7916563/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 98CC19308509:B05EF8178437 , C07EDCC45D0F @2022-07-14 11:03:06.765300846 +0000 UTC}" err=nil
+INFO [07-14|11:03:06.766] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916563/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 98CC19308509:B05EF8178437 , C07EDCC45D0F @2022-07-14 11:03:06.765300846 +0000 UTC}" prevotes="VoteSet{H:7916563 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:98CC19308509:B05EF8178437(1) BA{1:x} map[]}"
+INFO [07-14|11:03:06.766] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:06.766] enterPrecommit(7916563/1). Current: 7916563/1/RoundStepPrevote height=7916563 round=1
+INFO [07-14|11:03:06.766] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916563 round=1 hash=98CC19308509:B05EF8178437
+INFO [07-14|11:03:06.767] Signed and pushed vote                   height=7916563 round=1 vote="Vote{0:FBD5E2AFB7C0 7916563/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 98CC19308509:B05EF8178437 , 7FE8219AC34F @2022-07-14 11:03:06.767024646 +0000 UTC}" err=nil
+INFO [07-14|11:03:06.768] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916563/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 98CC19308509:B05EF8178437 , 7FE8219AC34F @2022-07-14 11:03:06.767024646 +0000 UTC}" precommits="VoteSet{H:7916563 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:98CC19308509:B05EF8178437(1) BA{1:x} map[]}"
+INFO [07-14|11:03:06.768] enterCommit(7916563/1). Current: 7916563/1/RoundStepPrecommit height=7916563 commitRound=1
+INFO [07-14|11:03:06.768] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916563 commitRound=1 blockHash=98CC19308509:B05EF8178437
+INFO [07-14|11:03:06.768] Finalizing commit of block               tx number=0  height=7916563 hash=0x98cc193085095f47f5b52b2509cede1ceda683fc065066ac5035fd41fa91bd4b
+INFO [07-14|11:03:06.786]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:06.799]KARDIA Updating evidence pool                   last_block_height=7916563 last_block_time=2022-07-14T11:03:02+0000
+INFO [07-14|11:03:06.799] scheduleRound0                           now=2022-07-14T11:03:06+0000 startTime=2022-07-14T11:03:07+0000
+INFO [07-14|11:03:07.768]KARDIA Timed out                                dur=969.527808ms  height=7916564 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:07.769] enterNewRound(7916564/1). Current: 7916564/1/RoundStepNewHeight height=7916564 round=1
+INFO [07-14|11:03:10.769]KARDIA Timed out                                dur=3s            height=7916564 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:10.769] enterPropose(7916564/1). Current: 7916564/1/RoundStepNewRound height=7916564 round=1
+INFO [07-14|11:03:10.769]KARDIA Creates new header                       header="Header{Height:7916564  Time:2022-07-14 11:03:06.767024646 +0000 UTC  NumTxs:0  LastBlockID:98CC19308509:B05EF8178437  LastCommitHash:000000000000  TxHash:000000000000  AppHash:B8F3C6CCDF0A  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#6313B4AD7709"
+INFO [07-14|11:03:10.819] Signed proposal                          height=7916564 round=1 proposal="Proposal{7916564/1 0 (45ECC450E16C:814EEA04573D) F7A17D785390 @1657796590}"
+INFO [07-14|11:03:10.820] Received proposal                        proposal="Proposal{7916564/1 0 (45ECC450E16C:814EEA04573D) F7A17D785390 @1657796590}"
+INFO [07-14|11:03:10.820] Received complete proposal block         height=7916564 hash="45ecc4…039d24"
+INFO [07-14|11:03:10.820] enterPrevote(7916564/1). Current: 7916564/1/RoundStepPropose 
+INFO [07-14|11:03:10.821] enterPrevote: ProposalBlock is valid     height=7916564 round=1
+INFO [07-14|11:03:10.822] Signed and pushed vote                   height=7916564 round=1 vote="Vote{0:FBD5E2AFB7C0 7916564/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 45ECC450E16C:814EEA04573D , 29CE81F76E1D @2022-07-14 11:03:10.821353739 +0000 UTC}" err=nil
+INFO [07-14|11:03:10.823] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916564/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 45ECC450E16C:814EEA04573D , 29CE81F76E1D @2022-07-14 11:03:10.821353739 +0000 UTC}" prevotes="VoteSet{H:7916564 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:45ECC450E16C:814EEA04573D(1) BA{1:x} map[]}"
+INFO [07-14|11:03:10.823] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:10.823] enterPrecommit(7916564/1). Current: 7916564/1/RoundStepPrevote height=7916564 round=1
+INFO [07-14|11:03:10.823] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916564 round=1 hash=45ECC450E16C:814EEA04573D
+INFO [07-14|11:03:10.823] Signed and pushed vote                   height=7916564 round=1 vote="Vote{0:FBD5E2AFB7C0 7916564/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 45ECC450E16C:814EEA04573D , E10E85B50E65 @2022-07-14 11:03:10.823186725 +0000 UTC}" err=nil
+INFO [07-14|11:03:10.824] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916564/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 45ECC450E16C:814EEA04573D , E10E85B50E65 @2022-07-14 11:03:10.823186725 +0000 UTC}" precommits="VoteSet{H:7916564 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:45ECC450E16C:814EEA04573D(1) BA{1:x} map[]}"
+INFO [07-14|11:03:10.824] enterCommit(7916564/1). Current: 7916564/1/RoundStepPrecommit height=7916564 commitRound=1
+INFO [07-14|11:03:10.824] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916564 commitRound=1 blockHash=45ECC450E16C:814EEA04573D
+INFO [07-14|11:03:10.824] Finalizing commit of block               tx number=0  height=7916564 hash=0x45ecc450e16ca556bbf363d46085ee70428e5ba728d24e8f30d20c944a039d24
+INFO [07-14|11:03:10.826]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:10.841]KARDIA Updating evidence pool                   last_block_height=7916564 last_block_time=2022-07-14T11:03:06+0000
+INFO [07-14|11:03:10.841] scheduleRound0                           now=2022-07-14T11:03:10+0000 startTime=2022-07-14T11:03:11+0000
+INFO [07-14|11:03:11.824]KARDIA Timed out                                dur=983.322134ms  height=7916565 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:11.824] enterNewRound(7916565/1). Current: 7916565/1/RoundStepNewHeight height=7916565 round=1
+WARN [07-14|11:03:11.958] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:14.825]KARDIA Timed out                                dur=3s            height=7916565 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:14.825] enterPropose(7916565/1). Current: 7916565/1/RoundStepNewRound height=7916565 round=1
+INFO [07-14|11:03:14.825]KARDIA Creates new header                       header="Header{Height:7916565  Time:2022-07-14 11:03:10.823186725 +0000 UTC  NumTxs:0  LastBlockID:45ECC450E16C:814EEA04573D  LastCommitHash:000000000000  TxHash:000000000000  AppHash:BF14C3E060AD  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#12782745DF38"
+INFO [07-14|11:03:14.826] Signed proposal                          height=7916565 round=1 proposal="Proposal{7916565/1 0 (DA76A98BBCE7:9CBE32CC5394) 6EEBD68E5BCD @1657796594}"
+INFO [07-14|11:03:14.827] Received proposal                        proposal="Proposal{7916565/1 0 (DA76A98BBCE7:9CBE32CC5394) 6EEBD68E5BCD @1657796594}"
+INFO [07-14|11:03:14.828] Received complete proposal block         height=7916565 hash="da76a9…e3213e"
+INFO [07-14|11:03:14.828] enterPrevote(7916565/1). Current: 7916565/1/RoundStepPropose 
+INFO [07-14|11:03:14.828] enterPrevote: ProposalBlock is valid     height=7916565 round=1
+INFO [07-14|11:03:14.829] Signed and pushed vote                   height=7916565 round=1 vote="Vote{0:FBD5E2AFB7C0 7916565/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) DA76A98BBCE7:9CBE32CC5394 , 095DC7F83E86 @2022-07-14 11:03:14.828621983 +0000 UTC}" err=nil
+INFO [07-14|11:03:14.830] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916565/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) DA76A98BBCE7:9CBE32CC5394 , 095DC7F83E86 @2022-07-14 11:03:14.828621983 +0000 UTC}" prevotes="VoteSet{H:7916565 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:DA76A98BBCE7:9CBE32CC5394(1) BA{1:x} map[]}"
+INFO [07-14|11:03:14.830] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:14.830] enterPrecommit(7916565/1). Current: 7916565/1/RoundStepPrevote height=7916565 round=1
+INFO [07-14|11:03:14.830] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916565 round=1 hash=DA76A98BBCE7:9CBE32CC5394
+INFO [07-14|11:03:14.830] Signed and pushed vote                   height=7916565 round=1 vote="Vote{0:FBD5E2AFB7C0 7916565/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) DA76A98BBCE7:9CBE32CC5394 , 34C78A831A5D @2022-07-14 11:03:14.830244767 +0000 UTC}" err=nil
+INFO [07-14|11:03:14.831] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916565/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) DA76A98BBCE7:9CBE32CC5394 , 34C78A831A5D @2022-07-14 11:03:14.830244767 +0000 UTC}" precommits="VoteSet{H:7916565 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:DA76A98BBCE7:9CBE32CC5394(1) BA{1:x} map[]}"
+INFO [07-14|11:03:14.831] enterCommit(7916565/1). Current: 7916565/1/RoundStepPrecommit height=7916565 commitRound=1
+INFO [07-14|11:03:14.831] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916565 commitRound=1 blockHash=DA76A98BBCE7:9CBE32CC5394
+INFO [07-14|11:03:14.831] Finalizing commit of block               tx number=0  height=7916565 hash=0xda76a98bbce78975dc0658b2952ee33b5d8c57d4f81be9044b6a907b0ee3213e
+INFO [07-14|11:03:14.832]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:14.848]KARDIA Updating evidence pool                   last_block_height=7916565 last_block_time=2022-07-14T11:03:10+0000
+INFO [07-14|11:03:14.848] scheduleRound0                           now=2022-07-14T11:03:14+0000 startTime=2022-07-14T11:03:15+0000
+INFO [07-14|11:03:15.831]KARDIA Timed out                                dur=983.191834ms  height=7916566 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:15.831] enterNewRound(7916566/1). Current: 7916566/1/RoundStepNewHeight height=7916566 round=1
+INFO [07-14|11:03:18.832]KARDIA Timed out                                dur=3s            height=7916566 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:18.832] enterPropose(7916566/1). Current: 7916566/1/RoundStepNewRound height=7916566 round=1
+INFO [07-14|11:03:18.832]KARDIA Creates new header                       header="Header{Height:7916566  Time:2022-07-14 11:03:14.830244767 +0000 UTC  NumTxs:0  LastBlockID:DA76A98BBCE7:9CBE32CC5394  LastCommitHash:000000000000  TxHash:000000000000  AppHash:5600FACFD81F  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#733A17D0E1CB"
+INFO [07-14|11:03:18.834] Signed proposal                          height=7916566 round=1 proposal="Proposal{7916566/1 0 (B67393C5EF6C:34A18D64FEFD) D4041973B736 @1657796598}"
+INFO [07-14|11:03:18.835] Received proposal                        proposal="Proposal{7916566/1 0 (B67393C5EF6C:34A18D64FEFD) D4041973B736 @1657796598}"
+INFO [07-14|11:03:18.835] Received complete proposal block         height=7916566 hash="b67393…3cf446"
+INFO [07-14|11:03:18.835] enterPrevote(7916566/1). Current: 7916566/1/RoundStepPropose 
+INFO [07-14|11:03:18.836] enterPrevote: ProposalBlock is valid     height=7916566 round=1
+INFO [07-14|11:03:18.837] Signed and pushed vote                   height=7916566 round=1 vote="Vote{0:FBD5E2AFB7C0 7916566/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B67393C5EF6C:34A18D64FEFD , 359ABF7C1834 @2022-07-14 11:03:18.836311184 +0000 UTC}" err=nil
+INFO [07-14|11:03:18.877] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916566/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) B67393C5EF6C:34A18D64FEFD , 359ABF7C1834 @2022-07-14 11:03:18.836311184 +0000 UTC}" prevotes="VoteSet{H:7916566 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:B67393C5EF6C:34A18D64FEFD(1) BA{1:x} map[]}"
+INFO [07-14|11:03:18.877] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:18.877] enterPrecommit(7916566/1). Current: 7916566/1/RoundStepPrevote height=7916566 round=1
+INFO [07-14|11:03:18.877] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916566 round=1 hash=B67393C5EF6C:34A18D64FEFD
+INFO [07-14|11:03:18.878] Signed and pushed vote                   height=7916566 round=1 vote="Vote{0:FBD5E2AFB7C0 7916566/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B67393C5EF6C:34A18D64FEFD , 1EBFCDD95936 @2022-07-14 11:03:18.877358203 +0000 UTC}" err=nil
+INFO [07-14|11:03:18.879] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916566/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) B67393C5EF6C:34A18D64FEFD , 1EBFCDD95936 @2022-07-14 11:03:18.877358203 +0000 UTC}" precommits="VoteSet{H:7916566 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:B67393C5EF6C:34A18D64FEFD(1) BA{1:x} map[]}"
+INFO [07-14|11:03:18.879] enterCommit(7916566/1). Current: 7916566/1/RoundStepPrecommit height=7916566 commitRound=1
+INFO [07-14|11:03:18.879] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916566 commitRound=1 blockHash=B67393C5EF6C:34A18D64FEFD
+INFO [07-14|11:03:18.879] Finalizing commit of block               tx number=0  height=7916566 hash=0xb67393c5ef6cffe6af9c63efd3dccf228de9da95022349b57fd5bce8053cf446
+INFO [07-14|11:03:18.880]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:18.894]KARDIA Updating evidence pool                   last_block_height=7916566 last_block_time=2022-07-14T11:03:14+0000
+INFO [07-14|11:03:18.894] scheduleRound0                           now=2022-07-14T11:03:18+0000 startTime=2022-07-14T11:03:19+0000
+INFO [07-14|11:03:19.879]KARDIA Timed out                                dur=984.290423ms  height=7916567 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:19.879] enterNewRound(7916567/1). Current: 7916567/1/RoundStepNewHeight height=7916567 round=1
+WARN [07-14|11:03:22.062] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:22.879]KARDIA Timed out                                dur=3s            height=7916567 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:22.879] enterPropose(7916567/1). Current: 7916567/1/RoundStepNewRound height=7916567 round=1
+INFO [07-14|11:03:22.879]KARDIA Creates new header                       header="Header{Height:7916567  Time:2022-07-14 11:03:18.877358203 +0000 UTC  NumTxs:0  LastBlockID:B67393C5EF6C:34A18D64FEFD  LastCommitHash:000000000000  TxHash:000000000000  AppHash:3590A205BE8B  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#664B58F442D8"
+INFO [07-14|11:03:22.935] Signed proposal                          height=7916567 round=1 proposal="Proposal{7916567/1 0 (6653185899D7:3081932CDECB) 8F3B2851313C @1657796602}"
+INFO [07-14|11:03:22.936] Received proposal                        proposal="Proposal{7916567/1 0 (6653185899D7:3081932CDECB) 8F3B2851313C @1657796602}"
+INFO [07-14|11:03:22.938] Received complete proposal block         height=7916567 hash="665318…051b71"
+INFO [07-14|11:03:22.938] enterPrevote(7916567/1). Current: 7916567/1/RoundStepPropose 
+INFO [07-14|11:03:22.938] enterPrevote: ProposalBlock is valid     height=7916567 round=1
+INFO [07-14|11:03:22.939] Signed and pushed vote                   height=7916567 round=1 vote="Vote{0:FBD5E2AFB7C0 7916567/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 6653185899D7:3081932CDECB , 4E9356C62E6D @2022-07-14 11:03:22.938666094 +0000 UTC}" err=nil
+INFO [07-14|11:03:22.940] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916567/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 6653185899D7:3081932CDECB , 4E9356C62E6D @2022-07-14 11:03:22.938666094 +0000 UTC}" prevotes="VoteSet{H:7916567 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:6653185899D7:3081932CDECB(1) BA{1:x} map[]}"
+INFO [07-14|11:03:22.940] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:22.940] enterPrecommit(7916567/1). Current: 7916567/1/RoundStepPrevote height=7916567 round=1
+INFO [07-14|11:03:22.940] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916567 round=1 hash=6653185899D7:3081932CDECB
+INFO [07-14|11:03:22.941] Signed and pushed vote                   height=7916567 round=1 vote="Vote{0:FBD5E2AFB7C0 7916567/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 6653185899D7:3081932CDECB , 2034CB4BF4B8 @2022-07-14 11:03:22.940508941 +0000 UTC}" err=nil
+INFO [07-14|11:03:22.942] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916567/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 6653185899D7:3081932CDECB , 2034CB4BF4B8 @2022-07-14 11:03:22.940508941 +0000 UTC}" precommits="VoteSet{H:7916567 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:6653185899D7:3081932CDECB(1) BA{1:x} map[]}"
+INFO [07-14|11:03:22.942] enterCommit(7916567/1). Current: 7916567/1/RoundStepPrecommit height=7916567 commitRound=1
+INFO [07-14|11:03:22.942] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916567 commitRound=1 blockHash=6653185899D7:3081932CDECB
+INFO [07-14|11:03:22.942] Finalizing commit of block               tx number=0  height=7916567 hash=0x6653185899d75afa6e1cea21aaa51d10054eda2222e18407d8a585bba5051b71
+INFO [07-14|11:03:22.943]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:22.957]KARDIA Updating evidence pool                   last_block_height=7916567 last_block_time=2022-07-14T11:03:18+0000
+INFO [07-14|11:03:22.957] scheduleRound0                           now=2022-07-14T11:03:22+0000 startTime=2022-07-14T11:03:23+0000
+INFO [07-14|11:03:23.942]KARDIA Timed out                                dur=984.980503ms  height=7916568 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:23.942] enterNewRound(7916568/1). Current: 7916568/1/RoundStepNewHeight height=7916568 round=1
+INFO [07-14|11:03:26.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:03:26.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.233:3000} d97e7bce3fc1c0f248cd5f87479e173dfec7d2b1 out}"
+INFO [07-14|11:03:26.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:03:26.942]KARDIA Timed out                                dur=3s            height=7916568 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:26.942] enterPropose(7916568/1). Current: 7916568/1/RoundStepNewRound height=7916568 round=1
+INFO [07-14|11:03:26.942]KARDIA Creates new header                       header="Header{Height:7916568  Time:2022-07-14 11:03:22.940508941 +0000 UTC  NumTxs:0  LastBlockID:6653185899D7:3081932CDECB  LastCommitHash:000000000000  TxHash:000000000000  AppHash:DFCF0FC4321C  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#91F2A0B0A96A"
+INFO [07-14|11:03:26.944] Signed proposal                          height=7916568 round=1 proposal="Proposal{7916568/1 0 (E422C53350AC:9E57A915FF66) 708125BC2122 @1657796606}"
+INFO [07-14|11:03:26.945] Received proposal                        proposal="Proposal{7916568/1 0 (E422C53350AC:9E57A915FF66) 708125BC2122 @1657796606}"
+INFO [07-14|11:03:26.946] Received complete proposal block         height=7916568 hash="e422c5…812c43"
+INFO [07-14|11:03:26.946] enterPrevote(7916568/1). Current: 7916568/1/RoundStepPropose 
+INFO [07-14|11:03:26.946] enterPrevote: ProposalBlock is valid     height=7916568 round=1
+INFO [07-14|11:03:26.947] Signed and pushed vote                   height=7916568 round=1 vote="Vote{0:FBD5E2AFB7C0 7916568/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) E422C53350AC:9E57A915FF66 , BEA850FB4655 @2022-07-14 11:03:26.946733938 +0000 UTC}" err=nil
+INFO [07-14|11:03:26.948] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916568/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) E422C53350AC:9E57A915FF66 , BEA850FB4655 @2022-07-14 11:03:26.946733938 +0000 UTC}" prevotes="VoteSet{H:7916568 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:E422C53350AC:9E57A915FF66(1) BA{1:x} map[]}"
+INFO [07-14|11:03:26.948] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:26.948] enterPrecommit(7916568/1). Current: 7916568/1/RoundStepPrevote height=7916568 round=1
+INFO [07-14|11:03:26.948] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916568 round=1 hash=E422C53350AC:9E57A915FF66
+INFO [07-14|11:03:26.949] Signed and pushed vote                   height=7916568 round=1 vote="Vote{0:FBD5E2AFB7C0 7916568/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) E422C53350AC:9E57A915FF66 , 4E9D06744A5E @2022-07-14 11:03:26.948735686 +0000 UTC}" err=nil
+INFO [07-14|11:03:26.950] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916568/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) E422C53350AC:9E57A915FF66 , 4E9D06744A5E @2022-07-14 11:03:26.948735686 +0000 UTC}" precommits="VoteSet{H:7916568 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:E422C53350AC:9E57A915FF66(1) BA{1:x} map[]}"
+INFO [07-14|11:03:26.950] enterCommit(7916568/1). Current: 7916568/1/RoundStepPrecommit height=7916568 commitRound=1
+INFO [07-14|11:03:26.950] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916568 commitRound=1 blockHash=E422C53350AC:9E57A915FF66
+INFO [07-14|11:03:26.950] Finalizing commit of block               tx number=0  height=7916568 hash=0xe422c53350ace10812b5b5ce0ac920dadb9b6c1e06bea96fc4a7cb312c812c43
+INFO [07-14|11:03:26.951]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:26.966]KARDIA Updating evidence pool                   last_block_height=7916568 last_block_time=2022-07-14T11:03:22+0000
+INFO [07-14|11:03:26.966] scheduleRound0                           now=2022-07-14T11:03:26+0000 startTime=2022-07-14T11:03:27+0000
+INFO [07-14|11:03:27.951]KARDIA Timed out                                dur=984.292065ms  height=7916569 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:27.951] enterNewRound(7916569/1). Current: 7916569/1/RoundStepNewHeight height=7916569 round=1
+INFO [07-14|11:03:30.951]KARDIA Timed out                                dur=3s            height=7916569 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:30.951] enterPropose(7916569/1). Current: 7916569/1/RoundStepNewRound height=7916569 round=1
+INFO [07-14|11:03:30.951]KARDIA Creates new header                       header="Header{Height:7916569  Time:2022-07-14 11:03:26.948735686 +0000 UTC  NumTxs:0  LastBlockID:E422C53350AC:9E57A915FF66  LastCommitHash:000000000000  TxHash:000000000000  AppHash:7305621AACA2  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#CAE1926BBE9F"
+INFO [07-14|11:03:30.953] Signed proposal                          height=7916569 round=1 proposal="Proposal{7916569/1 0 (4C09B4977F23:5C7BEFA022B0) 13A391100EC3 @1657796610}"
+INFO [07-14|11:03:30.954] Received proposal                        proposal="Proposal{7916569/1 0 (4C09B4977F23:5C7BEFA022B0) 13A391100EC3 @1657796610}"
+INFO [07-14|11:03:30.954] Received complete proposal block         height=7916569 hash="4c09b4…97a960"
+INFO [07-14|11:03:30.954] enterPrevote(7916569/1). Current: 7916569/1/RoundStepPropose 
+INFO [07-14|11:03:30.954] enterPrevote: ProposalBlock is valid     height=7916569 round=1
+INFO [07-14|11:03:30.955] Signed and pushed vote                   height=7916569 round=1 vote="Vote{0:FBD5E2AFB7C0 7916569/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 4C09B4977F23:5C7BEFA022B0 , 67BBADF9C86A @2022-07-14 11:03:30.955021178 +0000 UTC}" err=nil
+INFO [07-14|11:03:30.956] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916569/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 4C09B4977F23:5C7BEFA022B0 , 67BBADF9C86A @2022-07-14 11:03:30.955021178 +0000 UTC}" prevotes="VoteSet{H:7916569 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:4C09B4977F23:5C7BEFA022B0(1) BA{1:x} map[]}"
+INFO [07-14|11:03:30.956] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:30.956] enterPrecommit(7916569/1). Current: 7916569/1/RoundStepPrevote height=7916569 round=1
+INFO [07-14|11:03:30.956] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916569 round=1 hash=4C09B4977F23:5C7BEFA022B0
+INFO [07-14|11:03:30.961] Signed and pushed vote                   height=7916569 round=1 vote="Vote{0:FBD5E2AFB7C0 7916569/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 4C09B4977F23:5C7BEFA022B0 , 83CA713630A2 @2022-07-14 11:03:30.95658316 +0000 UTC}" err=nil
+INFO [07-14|11:03:30.963] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916569/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 4C09B4977F23:5C7BEFA022B0 , 83CA713630A2 @2022-07-14 11:03:30.95658316 +0000 UTC}" precommits="VoteSet{H:7916569 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:4C09B4977F23:5C7BEFA022B0(1) BA{1:x} map[]}"
+INFO [07-14|11:03:30.963] enterCommit(7916569/1). Current: 7916569/1/RoundStepPrecommit height=7916569 commitRound=1
+INFO [07-14|11:03:30.963] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916569 commitRound=1 blockHash=4C09B4977F23:5C7BEFA022B0
+INFO [07-14|11:03:30.963] Finalizing commit of block               tx number=0  height=7916569 hash=0x4c09b4977f2353079fa0d600dcfe4ff076dbb9120d733828b6810c36c497a960
+INFO [07-14|11:03:30.965]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:30.976]KARDIA Updating evidence pool                   last_block_height=7916569 last_block_time=2022-07-14T11:03:26+0000
+INFO [07-14|11:03:30.976] scheduleRound0                           now=2022-07-14T11:03:30+0000 startTime=2022-07-14T11:03:31+0000
+INFO [07-14|11:03:31.963]KARDIA Timed out                                dur=987.121676ms  height=7916570 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:32.095] enterNewRound(7916570/1). Current: 7916570/1/RoundStepNewHeight height=7916570 round=1
+WARN [07-14|11:03:32.218] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:35.096]KARDIA Timed out                                dur=3s            height=7916570 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:35.096] enterPropose(7916570/1). Current: 7916570/1/RoundStepNewRound height=7916570 round=1
+INFO [07-14|11:03:35.096]KARDIA Creates new header                       header="Header{Height:7916570  Time:2022-07-14 11:03:30.95658316 +0000 UTC  NumTxs:0  LastBlockID:4C09B4977F23:5C7BEFA022B0  LastCommitHash:000000000000  TxHash:000000000000  AppHash:5EDE6CCAE9C2  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#963AB0CD4162"
+INFO [07-14|11:03:35.098] Signed proposal                          height=7916570 round=1 proposal="Proposal{7916570/1 0 (C3B45BC62C3E:A966458E2FD7) 3493BA6F5407 @1657796615}"
+INFO [07-14|11:03:35.112] Received proposal                        proposal="Proposal{7916570/1 0 (C3B45BC62C3E:A966458E2FD7) 3493BA6F5407 @1657796615}"
+INFO [07-14|11:03:35.117] Received complete proposal block         height=7916570 hash="c3b45b…800df7"
+INFO [07-14|11:03:35.117] enterPrevote(7916570/1). Current: 7916570/1/RoundStepPropose 
+INFO [07-14|11:03:35.118] enterPrevote: ProposalBlock is valid     height=7916570 round=1
+INFO [07-14|11:03:35.118] Signed and pushed vote                   height=7916570 round=1 vote="Vote{0:FBD5E2AFB7C0 7916570/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) C3B45BC62C3E:A966458E2FD7 , 3D11BD1B798E @2022-07-14 11:03:35.118062356 +0000 UTC}" err=nil
+INFO [07-14|11:03:35.120] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916570/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) C3B45BC62C3E:A966458E2FD7 , 3D11BD1B798E @2022-07-14 11:03:35.118062356 +0000 UTC}" prevotes="VoteSet{H:7916570 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:C3B45BC62C3E:A966458E2FD7(1) BA{1:x} map[]}"
+INFO [07-14|11:03:35.120] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:35.120] enterPrecommit(7916570/1). Current: 7916570/1/RoundStepPrevote height=7916570 round=1
+INFO [07-14|11:03:35.120] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916570 round=1 hash=C3B45BC62C3E:A966458E2FD7
+INFO [07-14|11:03:35.121] Signed and pushed vote                   height=7916570 round=1 vote="Vote{0:FBD5E2AFB7C0 7916570/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) C3B45BC62C3E:A966458E2FD7 , 5296C17FE8A0 @2022-07-14 11:03:35.120673722 +0000 UTC}" err=nil
+INFO [07-14|11:03:35.126] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916570/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) C3B45BC62C3E:A966458E2FD7 , 5296C17FE8A0 @2022-07-14 11:03:35.120673722 +0000 UTC}" precommits="VoteSet{H:7916570 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:C3B45BC62C3E:A966458E2FD7(1) BA{1:x} map[]}"
+INFO [07-14|11:03:35.126] enterCommit(7916570/1). Current: 7916570/1/RoundStepPrecommit height=7916570 commitRound=1
+INFO [07-14|11:03:35.126] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916570 commitRound=1 blockHash=C3B45BC62C3E:A966458E2FD7
+INFO [07-14|11:03:35.126] Finalizing commit of block               tx number=0  height=7916570 hash=0xc3b45bc62c3ec0a9949e6c5afa8ee35399e4ad9c2895d78fb668fd6e11800df7
+INFO [07-14|11:03:35.128]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:35.141]KARDIA Updating evidence pool                   last_block_height=7916570 last_block_time=2022-07-14T11:03:30+0000
+INFO [07-14|11:03:35.141] scheduleRound0                           now=2022-07-14T11:03:35+0000 startTime=2022-07-14T11:03:36+0000
+INFO [07-14|11:03:36.127]KARDIA Timed out                                dur=985.131513ms  height=7916571 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:36.127] enterNewRound(7916571/1). Current: 7916571/1/RoundStepNewHeight height=7916571 round=1
+ERROR[07-14|11:03:36.967] Failed to derive block receipts fields   hash="79861f…693e0b"           height=3440821 err="transaction and receipt count mismatch"
+INFO [07-14|11:03:39.127]KARDIA Timed out                                dur=3s            height=7916571 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:39.127] enterPropose(7916571/1). Current: 7916571/1/RoundStepNewRound height=7916571 round=1
+INFO [07-14|11:03:39.127]KARDIA Creates new header                       header="Header{Height:7916571  Time:2022-07-14 11:03:35.120673722 +0000 UTC  NumTxs:0  LastBlockID:C3B45BC62C3E:A966458E2FD7  LastCommitHash:000000000000  TxHash:000000000000  AppHash:3866409F00B4  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#71356457C10F"
+INFO [07-14|11:03:39.129] Signed proposal                          height=7916571 round=1 proposal="Proposal{7916571/1 0 (1D6FF3B215AF:E5C10D36DD70) FD0C05652F41 @1657796619}"
+INFO [07-14|11:03:39.158] Received proposal                        proposal="Proposal{7916571/1 0 (1D6FF3B215AF:E5C10D36DD70) FD0C05652F41 @1657796619}"
+INFO [07-14|11:03:39.162] Received complete proposal block         height=7916571 hash="1d6ff3…ffb740"
+INFO [07-14|11:03:39.162] enterPrevote(7916571/1). Current: 7916571/1/RoundStepPropose 
+INFO [07-14|11:03:39.162] enterPrevote: ProposalBlock is valid     height=7916571 round=1
+INFO [07-14|11:03:39.163] Signed and pushed vote                   height=7916571 round=1 vote="Vote{0:FBD5E2AFB7C0 7916571/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1D6FF3B215AF:E5C10D36DD70 , D5D7E8866514 @2022-07-14 11:03:39.162557993 +0000 UTC}" err=nil
+INFO [07-14|11:03:39.168] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916571/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1D6FF3B215AF:E5C10D36DD70 , D5D7E8866514 @2022-07-14 11:03:39.162557993 +0000 UTC}" prevotes="VoteSet{H:7916571 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:1D6FF3B215AF:E5C10D36DD70(1) BA{1:x} map[]}"
+INFO [07-14|11:03:39.168] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:39.168] enterPrecommit(7916571/1). Current: 7916571/1/RoundStepPrevote height=7916571 round=1
+INFO [07-14|11:03:39.168] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916571 round=1 hash=1D6FF3B215AF:E5C10D36DD70
+INFO [07-14|11:03:39.169] Signed and pushed vote                   height=7916571 round=1 vote="Vote{0:FBD5E2AFB7C0 7916571/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1D6FF3B215AF:E5C10D36DD70 , D77295C6242B @2022-07-14 11:03:39.168427657 +0000 UTC}" err=nil
+INFO [07-14|11:03:39.173] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916571/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1D6FF3B215AF:E5C10D36DD70 , D77295C6242B @2022-07-14 11:03:39.168427657 +0000 UTC}" precommits="VoteSet{H:7916571 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:1D6FF3B215AF:E5C10D36DD70(1) BA{1:x} map[]}"
+INFO [07-14|11:03:39.173] enterCommit(7916571/1). Current: 7916571/1/RoundStepPrecommit height=7916571 commitRound=1
+INFO [07-14|11:03:39.173] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916571 commitRound=1 blockHash=1D6FF3B215AF:E5C10D36DD70
+INFO [07-14|11:03:39.173] Finalizing commit of block               tx number=0  height=7916571 hash=0x1d6ff3b215afff4ee5bb5290aa11998ea1ecf308e1cd89cfa9cd7ac6abffb740
+INFO [07-14|11:03:39.175]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:39.185]KARDIA Updating evidence pool                   last_block_height=7916571 last_block_time=2022-07-14T11:03:35+0000
+INFO [07-14|11:03:39.185] scheduleRound0                           now=2022-07-14T11:03:39+0000 startTime=2022-07-14T11:03:40+0000
+INFO [07-14|11:03:40.175]KARDIA Timed out                                dur=988.811131ms  height=7916572 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:40.175] enterNewRound(7916572/1). Current: 7916572/1/RoundStepNewHeight height=7916572 round=1
+WARN [07-14|11:03:42.459] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:43.175]KARDIA Timed out                                dur=3s            height=7916572 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:43.175] enterPropose(7916572/1). Current: 7916572/1/RoundStepNewRound height=7916572 round=1
+INFO [07-14|11:03:43.176]KARDIA Creates new header                       header="Header{Height:7916572  Time:2022-07-14 11:03:39.168427657 +0000 UTC  NumTxs:0  LastBlockID:1D6FF3B215AF:E5C10D36DD70  LastCommitHash:000000000000  TxHash:000000000000  AppHash:BC686631C138  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#56F7457D8D86"
+INFO [07-14|11:03:43.177] Signed proposal                          height=7916572 round=1 proposal="Proposal{7916572/1 0 (DA9D02AF12B5:C06EA4294D78) 925FB45D16D5 @1657796623}"
+INFO [07-14|11:03:43.178] Received proposal                        proposal="Proposal{7916572/1 0 (DA9D02AF12B5:C06EA4294D78) 925FB45D16D5 @1657796623}"
+INFO [07-14|11:03:43.180] Received complete proposal block         height=7916572 hash="da9d02…97987a"
+INFO [07-14|11:03:43.181] enterPrevote(7916572/1). Current: 7916572/1/RoundStepPropose 
+INFO [07-14|11:03:43.181] enterPrevote: ProposalBlock is valid     height=7916572 round=1
+INFO [07-14|11:03:43.181] Signed and pushed vote                   height=7916572 round=1 vote="Vote{0:FBD5E2AFB7C0 7916572/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) DA9D02AF12B5:C06EA4294D78 , 68EE7687B525 @2022-07-14 11:03:43.181398293 +0000 UTC}" err=nil
+INFO [07-14|11:03:43.182] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916572/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) DA9D02AF12B5:C06EA4294D78 , 68EE7687B525 @2022-07-14 11:03:43.181398293 +0000 UTC}" prevotes="VoteSet{H:7916572 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:DA9D02AF12B5:C06EA4294D78(1) BA{1:x} map[]}"
+INFO [07-14|11:03:43.182] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:43.182] enterPrecommit(7916572/1). Current: 7916572/1/RoundStepPrevote height=7916572 round=1
+INFO [07-14|11:03:43.182] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916572 round=1 hash=DA9D02AF12B5:C06EA4294D78
+INFO [07-14|11:03:43.183] Signed and pushed vote                   height=7916572 round=1 vote="Vote{0:FBD5E2AFB7C0 7916572/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) DA9D02AF12B5:C06EA4294D78 , 87FD5BBF53DC @2022-07-14 11:03:43.182864068 +0000 UTC}" err=nil
+INFO [07-14|11:03:43.184] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916572/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) DA9D02AF12B5:C06EA4294D78 , 87FD5BBF53DC @2022-07-14 11:03:43.182864068 +0000 UTC}" precommits="VoteSet{H:7916572 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:DA9D02AF12B5:C06EA4294D78(1) BA{1:x} map[]}"
+INFO [07-14|11:03:43.184] enterCommit(7916572/1). Current: 7916572/1/RoundStepPrecommit height=7916572 commitRound=1
+INFO [07-14|11:03:43.184] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916572 commitRound=1 blockHash=DA9D02AF12B5:C06EA4294D78
+INFO [07-14|11:03:43.184] Finalizing commit of block               tx number=0  height=7916572 hash=0xda9d02af12b50534371881befd32e9eb11c9ed058e7721365512855bd997987a
+INFO [07-14|11:03:43.185]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:43.196]KARDIA Updating evidence pool                   last_block_height=7916572 last_block_time=2022-07-14T11:03:39+0000
+INFO [07-14|11:03:43.196] scheduleRound0                           now=2022-07-14T11:03:43+0000 startTime=2022-07-14T11:03:44+0000
+INFO [07-14|11:03:44.184]KARDIA Timed out                                dur=987.7175ms    height=7916573 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:44.184] enterNewRound(7916573/1). Current: 7916573/1/RoundStepNewHeight height=7916573 round=1
+INFO [07-14|11:03:47.186]KARDIA Timed out                                dur=3s            height=7916573 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:47.186] enterPropose(7916573/1). Current: 7916573/1/RoundStepNewRound height=7916573 round=1
+INFO [07-14|11:03:47.186]KARDIA Creates new header                       header="Header{Height:7916573  Time:2022-07-14 11:03:43.182864068 +0000 UTC  NumTxs:0  LastBlockID:DA9D02AF12B5:C06EA4294D78  LastCommitHash:000000000000  TxHash:000000000000  AppHash:7CDB79C6EF73  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#F92981FF62ED"
+INFO [07-14|11:03:47.187] Signed proposal                          height=7916573 round=1 proposal="Proposal{7916573/1 0 (1E71C017D426:2D951D6E5008) AFD1231C3523 @1657796627}"
+INFO [07-14|11:03:47.188] Received proposal                        proposal="Proposal{7916573/1 0 (1E71C017D426:2D951D6E5008) AFD1231C3523 @1657796627}"
+INFO [07-14|11:03:47.188] Received complete proposal block         height=7916573 hash="1e71c0…abb531"
+INFO [07-14|11:03:47.188] enterPrevote(7916573/1). Current: 7916573/1/RoundStepPropose 
+INFO [07-14|11:03:47.189] enterPrevote: ProposalBlock is valid     height=7916573 round=1
+INFO [07-14|11:03:47.190] Signed and pushed vote                   height=7916573 round=1 vote="Vote{0:FBD5E2AFB7C0 7916573/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1E71C017D426:2D951D6E5008 , FD1C57771047 @2022-07-14 11:03:47.189287973 +0000 UTC}" err=nil
+INFO [07-14|11:03:47.191] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916573/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 1E71C017D426:2D951D6E5008 , FD1C57771047 @2022-07-14 11:03:47.189287973 +0000 UTC}" prevotes="VoteSet{H:7916573 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:1E71C017D426:2D951D6E5008(1) BA{1:x} map[]}"
+INFO [07-14|11:03:47.191] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:47.191] enterPrecommit(7916573/1). Current: 7916573/1/RoundStepPrevote height=7916573 round=1
+INFO [07-14|11:03:47.191] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916573 round=1 hash=1E71C017D426:2D951D6E5008
+INFO [07-14|11:03:47.191] Signed and pushed vote                   height=7916573 round=1 vote="Vote{0:FBD5E2AFB7C0 7916573/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1E71C017D426:2D951D6E5008 , 8384264B0F79 @2022-07-14 11:03:47.191171865 +0000 UTC}" err=nil
+INFO [07-14|11:03:47.192] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916573/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 1E71C017D426:2D951D6E5008 , 8384264B0F79 @2022-07-14 11:03:47.191171865 +0000 UTC}" precommits="VoteSet{H:7916573 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:1E71C017D426:2D951D6E5008(1) BA{1:x} map[]}"
+INFO [07-14|11:03:47.192] enterCommit(7916573/1). Current: 7916573/1/RoundStepPrecommit height=7916573 commitRound=1
+INFO [07-14|11:03:47.192] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916573 commitRound=1 blockHash=1E71C017D426:2D951D6E5008
+INFO [07-14|11:03:47.192] Finalizing commit of block               tx number=0  height=7916573 hash=0x1e71c017d426e6038d9e2a659d61780f9b4bdfe8bf88acb4a105016db4abb531
+INFO [07-14|11:03:47.194]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:47.206]KARDIA Updating evidence pool                   last_block_height=7916573 last_block_time=2022-07-14T11:03:43+0000
+INFO [07-14|11:03:47.206] scheduleRound0                           now=2022-07-14T11:03:47+0000 startTime=2022-07-14T11:03:48+0000
+INFO [07-14|11:03:48.193]KARDIA Timed out                                dur=986.324462ms  height=7916574 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:48.193] enterNewRound(7916574/1). Current: 7916574/1/RoundStepNewHeight height=7916574 round=1
+INFO [07-14|11:03:51.193]KARDIA Timed out                                dur=3s            height=7916574 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:51.193] enterPropose(7916574/1). Current: 7916574/1/RoundStepNewRound height=7916574 round=1
+INFO [07-14|11:03:51.194]KARDIA Creates new header                       header="Header{Height:7916574  Time:2022-07-14 11:03:47.191171865 +0000 UTC  NumTxs:0  LastBlockID:1E71C017D426:2D951D6E5008  LastCommitHash:000000000000  TxHash:000000000000  AppHash:634007FC28FF  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#93C45D5020E9"
+INFO [07-14|11:03:51.196] Signed proposal                          height=7916574 round=1 proposal="Proposal{7916574/1 0 (72549B63654A:49C374A1EE6B) 88B760E714D9 @1657796631}"
+INFO [07-14|11:03:51.196] Received proposal                        proposal="Proposal{7916574/1 0 (72549B63654A:49C374A1EE6B) 88B760E714D9 @1657796631}"
+INFO [07-14|11:03:51.197] Received complete proposal block         height=7916574 hash="72549b…706483"
+INFO [07-14|11:03:51.197] enterPrevote(7916574/1). Current: 7916574/1/RoundStepPropose 
+INFO [07-14|11:03:51.197] enterPrevote: ProposalBlock is valid     height=7916574 round=1
+INFO [07-14|11:03:51.198] Signed and pushed vote                   height=7916574 round=1 vote="Vote{0:FBD5E2AFB7C0 7916574/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 72549B63654A:49C374A1EE6B , 7949D168C968 @2022-07-14 11:03:51.198029542 +0000 UTC}" err=nil
+INFO [07-14|11:03:51.199] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916574/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 72549B63654A:49C374A1EE6B , 7949D168C968 @2022-07-14 11:03:51.198029542 +0000 UTC}" prevotes="VoteSet{H:7916574 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:72549B63654A:49C374A1EE6B(1) BA{1:x} map[]}"
+INFO [07-14|11:03:51.199] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:51.199] enterPrecommit(7916574/1). Current: 7916574/1/RoundStepPrevote height=7916574 round=1
+INFO [07-14|11:03:51.199] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916574 round=1 hash=72549B63654A:49C374A1EE6B
+INFO [07-14|11:03:51.200] Signed and pushed vote                   height=7916574 round=1 vote="Vote{0:FBD5E2AFB7C0 7916574/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 72549B63654A:49C374A1EE6B , 6827E120B3F2 @2022-07-14 11:03:51.199991873 +0000 UTC}" err=nil
+INFO [07-14|11:03:51.201] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916574/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 72549B63654A:49C374A1EE6B , 6827E120B3F2 @2022-07-14 11:03:51.199991873 +0000 UTC}" precommits="VoteSet{H:7916574 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:72549B63654A:49C374A1EE6B(1) BA{1:x} map[]}"
+INFO [07-14|11:03:51.201] enterCommit(7916574/1). Current: 7916574/1/RoundStepPrecommit height=7916574 commitRound=1
+INFO [07-14|11:03:51.201] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916574 commitRound=1 blockHash=72549B63654A:49C374A1EE6B
+INFO [07-14|11:03:51.201] Finalizing commit of block               tx number=0  height=7916574 hash=0x72549b63654af291246f66864bb6771a8cdf3f35602952b38e4d14a291706483
+INFO [07-14|11:03:51.204]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:51.213]KARDIA Updating evidence pool                   last_block_height=7916574 last_block_time=2022-07-14T11:03:47+0000
+INFO [07-14|11:03:51.213] scheduleRound0                           now=2022-07-14T11:03:51+0000 startTime=2022-07-14T11:03:52+0000
+INFO [07-14|11:03:52.201]KARDIA Timed out                                dur=987.52764ms   height=7916575 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:52.201] enterNewRound(7916575/1). Current: 7916575/1/RoundStepNewHeight height=7916575 round=1
+WARN [07-14|11:03:52.522] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:03:55.201]KARDIA Timed out                                dur=3s            height=7916575 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:55.202] enterPropose(7916575/1). Current: 7916575/1/RoundStepNewRound height=7916575 round=1
+INFO [07-14|11:03:55.202]KARDIA Creates new header                       header="Header{Height:7916575  Time:2022-07-14 11:03:51.199991873 +0000 UTC  NumTxs:0  LastBlockID:72549B63654A:49C374A1EE6B  LastCommitHash:000000000000  TxHash:000000000000  AppHash:74A3AD2139F0  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#AB2E55EDCFD9"
+INFO [07-14|11:03:55.203] Signed proposal                          height=7916575 round=1 proposal="Proposal{7916575/1 0 (954B8F44FF66:0B92A811C282) DF9DF7F3E570 @1657796635}"
+INFO [07-14|11:03:55.204] Received proposal                        proposal="Proposal{7916575/1 0 (954B8F44FF66:0B92A811C282) DF9DF7F3E570 @1657796635}"
+INFO [07-14|11:03:55.205] Received complete proposal block         height=7916575 hash="954b8f…91605b"
+INFO [07-14|11:03:55.205] enterPrevote(7916575/1). Current: 7916575/1/RoundStepPropose 
+INFO [07-14|11:03:55.205] enterPrevote: ProposalBlock is valid     height=7916575 round=1
+INFO [07-14|11:03:55.206] Signed and pushed vote                   height=7916575 round=1 vote="Vote{0:FBD5E2AFB7C0 7916575/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 954B8F44FF66:0B92A811C282 , EDF1BD756517 @2022-07-14 11:03:55.205561567 +0000 UTC}" err=nil
+INFO [07-14|11:03:55.207] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916575/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 954B8F44FF66:0B92A811C282 , EDF1BD756517 @2022-07-14 11:03:55.205561567 +0000 UTC}" prevotes="VoteSet{H:7916575 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:954B8F44FF66:0B92A811C282(1) BA{1:x} map[]}"
+INFO [07-14|11:03:55.207] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:55.207] enterPrecommit(7916575/1). Current: 7916575/1/RoundStepPrevote height=7916575 round=1
+INFO [07-14|11:03:55.207] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916575 round=1 hash=954B8F44FF66:0B92A811C282
+INFO [07-14|11:03:55.207] Signed and pushed vote                   height=7916575 round=1 vote="Vote{0:FBD5E2AFB7C0 7916575/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 954B8F44FF66:0B92A811C282 , C92634E26C34 @2022-07-14 11:03:55.207161445 +0000 UTC}" err=nil
+INFO [07-14|11:03:55.208] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916575/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 954B8F44FF66:0B92A811C282 , C92634E26C34 @2022-07-14 11:03:55.207161445 +0000 UTC}" precommits="VoteSet{H:7916575 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:954B8F44FF66:0B92A811C282(1) BA{1:x} map[]}"
+INFO [07-14|11:03:55.208] enterCommit(7916575/1). Current: 7916575/1/RoundStepPrecommit height=7916575 commitRound=1
+INFO [07-14|11:03:55.208] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916575 commitRound=1 blockHash=954B8F44FF66:0B92A811C282
+INFO [07-14|11:03:55.208] Finalizing commit of block               tx number=0  height=7916575 hash=0x954b8f44ff664815648444f8447357d2b3a2972cd85a16811f9c8aeb7791605b
+INFO [07-14|11:03:55.210]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:55.223]KARDIA Updating evidence pool                   last_block_height=7916575 last_block_time=2022-07-14T11:03:51+0000
+INFO [07-14|11:03:55.223] scheduleRound0                           now=2022-07-14T11:03:55+0000 startTime=2022-07-14T11:03:56+0000
+INFO [07-14|11:03:56.209]KARDIA Timed out                                dur=984.991984ms  height=7916576 round=1 step=RoundStepNewHeight
+INFO [07-14|11:03:56.209] enterNewRound(7916576/1). Current: 7916576/1/RoundStepNewHeight height=7916576 round=1
+INFO [07-14|11:03:56.700] Ensure peers                             numOutPeers=2 numInPeers=2 numDialing=0 numToDial=13
+INFO [07-14|11:03:56.700] We need more addresses. Sending pexRequest to random peer peer="Peer{MConn{10.10.0.233:3000} d97e7bce3fc1c0f248cd5f87479e173dfec7d2b1 out}"
+INFO [07-14|11:03:56.700] No addresses to dial. Falling back to seeds 
+INFO [07-14|11:03:59.209]KARDIA Timed out                                dur=3s            height=7916576 round=1 step=RoundStepNewRound
+INFO [07-14|11:03:59.210] enterPropose(7916576/1). Current: 7916576/1/RoundStepNewRound height=7916576 round=1
+INFO [07-14|11:03:59.210]KARDIA Creates new header                       header="Header{Height:7916576  Time:2022-07-14 11:03:55.207161445 +0000 UTC  NumTxs:0  LastBlockID:954B8F44FF66:0B92A811C282  LastCommitHash:000000000000  TxHash:000000000000  AppHash:B1BB75A2D94B  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#3D7DAE36EE06"
+INFO [07-14|11:03:59.244] Signed proposal                          height=7916576 round=1 proposal="Proposal{7916576/1 0 (3F75C4B41AA7:8662AEF0B1C1) D75860D26CCA @1657796639}"
+INFO [07-14|11:03:59.251] Received proposal                        proposal="Proposal{7916576/1 0 (3F75C4B41AA7:8662AEF0B1C1) D75860D26CCA @1657796639}"
+INFO [07-14|11:03:59.251] Received complete proposal block         height=7916576 hash="3f75c4…07650d"
+INFO [07-14|11:03:59.251] enterPrevote(7916576/1). Current: 7916576/1/RoundStepPropose 
+INFO [07-14|11:03:59.252] enterPrevote: ProposalBlock is valid     height=7916576 round=1
+INFO [07-14|11:03:59.252] Signed and pushed vote                   height=7916576 round=1 vote="Vote{0:FBD5E2AFB7C0 7916576/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3F75C4B41AA7:8662AEF0B1C1 , D18AF884E193 @2022-07-14 11:03:59.25229009 +0000 UTC}" err=nil
+INFO [07-14|11:03:59.254] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916576/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 3F75C4B41AA7:8662AEF0B1C1 , D18AF884E193 @2022-07-14 11:03:59.25229009 +0000 UTC}" prevotes="VoteSet{H:7916576 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:3F75C4B41AA7:8662AEF0B1C1(1) BA{1:x} map[]}"
+INFO [07-14|11:03:59.254] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:03:59.254] enterPrecommit(7916576/1). Current: 7916576/1/RoundStepPrevote height=7916576 round=1
+INFO [07-14|11:03:59.254] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916576 round=1 hash=3F75C4B41AA7:8662AEF0B1C1
+INFO [07-14|11:03:59.255] Signed and pushed vote                   height=7916576 round=1 vote="Vote{0:FBD5E2AFB7C0 7916576/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3F75C4B41AA7:8662AEF0B1C1 , BE16A188C28E @2022-07-14 11:03:59.254336705 +0000 UTC}" err=nil
+INFO [07-14|11:03:59.256] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916576/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 3F75C4B41AA7:8662AEF0B1C1 , BE16A188C28E @2022-07-14 11:03:59.254336705 +0000 UTC}" precommits="VoteSet{H:7916576 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:3F75C4B41AA7:8662AEF0B1C1(1) BA{1:x} map[]}"
+INFO [07-14|11:03:59.256] enterCommit(7916576/1). Current: 7916576/1/RoundStepPrecommit height=7916576 commitRound=1
+INFO [07-14|11:03:59.256] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916576 commitRound=1 blockHash=3F75C4B41AA7:8662AEF0B1C1
+INFO [07-14|11:03:59.256] Finalizing commit of block               tx number=0  height=7916576 hash=0x3f75c4b41aa724f39cfb94c12097023c1fe70b35e6d1771fa183c459ef07650d
+INFO [07-14|11:03:59.257]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:03:59.268]KARDIA Updating evidence pool                   last_block_height=7916576 last_block_time=2022-07-14T11:03:55+0000
+INFO [07-14|11:03:59.268] scheduleRound0                           now=2022-07-14T11:03:59+0000 startTime=2022-07-14T11:04:00+0000
+INFO [07-14|11:04:00.257]KARDIA Timed out                                dur=987.265884ms  height=7916577 round=1 step=RoundStepNewHeight
+INFO [07-14|11:04:00.257] enterNewRound(7916577/1). Current: 7916577/1/RoundStepNewHeight height=7916577 round=1
+WARN [07-14|11:04:02.732] Caller gas above allowance, capping      requested=100000000 cap=50000000
+INFO [07-14|11:04:03.257]KARDIA Timed out                                dur=3s            height=7916577 round=1 step=RoundStepNewRound
+INFO [07-14|11:04:03.257] enterPropose(7916577/1). Current: 7916577/1/RoundStepNewRound height=7916577 round=1
+INFO [07-14|11:04:03.257]KARDIA Creates new header                       header="Header{Height:7916577  Time:2022-07-14 11:03:59.254336705 +0000 UTC  NumTxs:0  LastBlockID:3F75C4B41AA7:8662AEF0B1C1  LastCommitHash:000000000000  TxHash:000000000000  AppHash:3FA6ED4680C9  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#0CB45F653EE5"
+INFO [07-14|11:04:03.268] Signed proposal                          height=7916577 round=1 proposal="Proposal{7916577/1 0 (F71CA4480ED1:8193E019F18E) E522663C3B8B @1657796643}"
+INFO [07-14|11:04:03.302] Received proposal                        proposal="Proposal{7916577/1 0 (F71CA4480ED1:8193E019F18E) E522663C3B8B @1657796643}"
+INFO [07-14|11:04:03.307] Received complete proposal block         height=7916577 hash="f71ca4…28a203"
+INFO [07-14|11:04:03.307] enterPrevote(7916577/1). Current: 7916577/1/RoundStepPropose 
+INFO [07-14|11:04:03.307] enterPrevote: ProposalBlock is valid     height=7916577 round=1
+INFO [07-14|11:04:03.308] Signed and pushed vote                   height=7916577 round=1 vote="Vote{0:FBD5E2AFB7C0 7916577/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) F71CA4480ED1:8193E019F18E , 2EEC4695A3F0 @2022-07-14 11:04:03.307928504 +0000 UTC}" err=nil
+INFO [07-14|11:04:03.342] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916577/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) F71CA4480ED1:8193E019F18E , 2EEC4695A3F0 @2022-07-14 11:04:03.307928504 +0000 UTC}" prevotes="VoteSet{H:7916577 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:F71CA4480ED1:8193E019F18E(1) BA{1:x} map[]}"
+INFO [07-14|11:04:03.342] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:04:03.342] enterPrecommit(7916577/1). Current: 7916577/1/RoundStepPrevote height=7916577 round=1
+INFO [07-14|11:04:03.342] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916577 round=1 hash=F71CA4480ED1:8193E019F18E
+INFO [07-14|11:04:03.342] Signed and pushed vote                   height=7916577 round=1 vote="Vote{0:FBD5E2AFB7C0 7916577/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) F71CA4480ED1:8193E019F18E , F4B151FF5E16 @2022-07-14 11:04:03.342424656 +0000 UTC}" err=nil
+INFO [07-14|11:04:03.343] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916577/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) F71CA4480ED1:8193E019F18E , F4B151FF5E16 @2022-07-14 11:04:03.342424656 +0000 UTC}" precommits="VoteSet{H:7916577 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:F71CA4480ED1:8193E019F18E(1) BA{1:x} map[]}"
+INFO [07-14|11:04:03.343] enterCommit(7916577/1). Current: 7916577/1/RoundStepPrecommit height=7916577 commitRound=1
+INFO [07-14|11:04:03.343] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916577 commitRound=1 blockHash=F71CA4480ED1:8193E019F18E
+INFO [07-14|11:04:03.344] Finalizing commit of block               tx number=0  height=7916577 hash=0xf71ca4480ed1ee27e1b5925e3bca5bb279fc19029c2527df7bd0c905ad28a203
+INFO [07-14|11:04:03.371]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:04:03.381]KARDIA Updating evidence pool                   last_block_height=7916577 last_block_time=2022-07-14T11:03:59+0000
+INFO [07-14|11:04:03.381] scheduleRound0                           now=2022-07-14T11:04:03+0000 startTime=2022-07-14T11:04:04+0000
+INFO [07-14|11:04:04.344]KARDIA Timed out                                dur=962.833976ms  height=7916578 round=1 step=RoundStepNewHeight
+INFO [07-14|11:04:04.344] enterNewRound(7916578/1). Current: 7916578/1/RoundStepNewHeight height=7916578 round=1
+INFO [07-14|11:04:07.344]KARDIA Timed out                                dur=3s            height=7916578 round=1 step=RoundStepNewRound
+INFO [07-14|11:04:07.344] enterPropose(7916578/1). Current: 7916578/1/RoundStepNewRound height=7916578 round=1
+INFO [07-14|11:04:07.344]KARDIA Creates new header                       header="Header{Height:7916578  Time:2022-07-14 11:04:03.342424656 +0000 UTC  NumTxs:0  LastBlockID:F71CA4480ED1:8193E019F18E  LastCommitHash:000000000000  TxHash:000000000000  AppHash:92565BD4A658  ValidatorsHash:2396E704EC52  ConsensusHash:000000000000}#89403E91F1AD"
+INFO [07-14|11:04:07.347] Signed proposal                          height=7916578 round=1 proposal="Proposal{7916578/1 0 (8695D7A77EF9:02748FA62969) FD7DB7494818 @1657796647}"
+INFO [07-14|11:04:07.358] Received proposal                        proposal="Proposal{7916578/1 0 (8695D7A77EF9:02748FA62969) FD7DB7494818 @1657796647}"
+INFO [07-14|11:04:07.375] Received complete proposal block         height=7916578 hash="8695d7…054231"
+INFO [07-14|11:04:07.375] enterPrevote(7916578/1). Current: 7916578/1/RoundStepPropose 
+INFO [07-14|11:04:07.375] enterPrevote: ProposalBlock is valid     height=7916578 round=1
+INFO [07-14|11:04:07.377] Signed and pushed vote                   height=7916578 round=1 vote="Vote{0:FBD5E2AFB7C0 7916578/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 8695D7A77EF9:02748FA62969 , DE4D730BE01D @2022-07-14 11:04:07.375848551 +0000 UTC}" err=nil
+INFO [07-14|11:04:07.392] Added to prevote                         vote="Vote{0:FBD5E2AFB7C0 7916578/1/SIGNED_MSG_TYPE_PREVOTE(Prevote) 8695D7A77EF9:02748FA62969 , DE4D730BE01D @2022-07-14 11:04:07.375848551 +0000 UTC}" prevotes="VoteSet{H:7916578 R:1 T:SIGNED_MSG_TYPE_PREVOTE +2/3:8695D7A77EF9:02748FA62969(1) BA{1:x} map[]}"
+INFO [07-14|11:04:07.392] Updating ValidBlock because of POL.      validRound=0 POLRound=1
+INFO [07-14|11:04:07.392] enterPrecommit(7916578/1). Current: 7916578/1/RoundStepPrevote height=7916578 round=1
+INFO [07-14|11:04:07.392] enterPrecommit: +2/3 prevoted proposal block. Locking height=7916578 round=1 hash=8695D7A77EF9:02748FA62969
+INFO [07-14|11:04:07.393] Signed and pushed vote                   height=7916578 round=1 vote="Vote{0:FBD5E2AFB7C0 7916578/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 8695D7A77EF9:02748FA62969 , EE70FCDBD3CB @2022-07-14 11:04:07.392660336 +0000 UTC}" err=nil
+INFO [07-14|11:04:07.408] Added to precommit                       vote="Vote{0:FBD5E2AFB7C0 7916578/1/SIGNED_MSG_TYPE_PRECOMMIT(Precommit) 8695D7A77EF9:02748FA62969 , EE70FCDBD3CB @2022-07-14 11:04:07.392660336 +0000 UTC}" precommits="VoteSet{H:7916578 R:1 T:SIGNED_MSG_TYPE_PRECOMMIT +2/3:8695D7A77EF9:02748FA62969(1) BA{1:x} map[]}"
+INFO [07-14|11:04:07.408] enterCommit(7916578/1). Current: 7916578/1/RoundStepPrecommit height=7916578 commitRound=1
+INFO [07-14|11:04:07.408] Commit is for locked block. Set ProposalBlock=LockedBlock height=7916578 commitRound=1 blockHash=8695D7A77EF9:02748FA62969
+INFO [07-14|11:04:07.408] Finalizing commit of block               tx number=0  height=7916578 hash=0x8695d7a77ef9d71a13907d82b107ae01d063a81619fc5c13e488a78d8e054231
+INFO [07-14|11:04:07.435]KARDIA header gas limit                         limit=100000000
+INFO [07-14|11:04:07.443]KARDIA Updating evidence pool                   last_block_height=7916578 last_block_time=2022-07-14T11:04:03+0000
+INFO [07-14|11:04:07.443] scheduleRound0                           now=2022-07-14T11:04:07+0000 startTime=2022-07-14T11:04:08+0000
+INFO [07-14|11:04:08.408]KARDIA Timed out                                dur=964.640088ms  height=7916579 round=1 step=RoundStepNewHeight
+INFO [07-14|11:04:08.408] enterNewRound(7916579/1). Current: 7916579/1/RoundStepNewHeight height=7916579 round=1
+

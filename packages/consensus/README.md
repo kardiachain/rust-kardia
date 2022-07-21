@@ -2,10 +2,7 @@
 This package implements the Kardiachain DPoS-BFT consensus engine. It maintains internal state and peer states by gossip protocol.
 
 Its main components are:
-- `TimeoutTicker`: for processing data in round and steps
-- `State`: for storing internal state of the consensus engine
-- `Reactor`: handle messages from peer or internal state changes via channels (state, data, vote, votebit)
-- WAL (write-ahead-log): a canonical WAL to recover from any crashes.
+// TODO: 
 
 ## Kardia consensus algorithm
 ### Terminologies
