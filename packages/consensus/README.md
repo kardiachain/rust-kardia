@@ -11,10 +11,10 @@ Its main components are:
   - The condition `+2/3 <PRECOMMIT, h_p, r, id(v)>` is evaluated to `true` once there is two third of majority `PRECOMMIT` on block `v` at height `h_p` and round `r`.
   - Some of the rules ends with ”for the ﬁrst time” constraint to denote that it is triggered only the ﬁrst time a corresponding condition evaluates to true.
 - The variables with index `p` are process local state variables, while variables without index p are value placeholders.
-- Algorithm proceeds in rounds, where each round has a decicated *proposer*. Function `proposer(h, r)` returns the proposer for the round `r` at height `h`.
-- There are three timouts: `timeoutPropose`, `timeoutPrevote` and `timeoutPrecommit`. The timeouts prevent the algorithm from blocking (waiting for some condition to be true). Timeouts are increased every new round `r`: `timeoutX(r) = initTimeoutX + r*timoutDelta` where `X` could be `Propose`, `Prevote` or `Precommit`, they are reset for every new height.
-- Apart from those variables, a process also stores the current consensus instance (h_p, called height), and the current round number (round_p) and attaches them to every message. Finally, a process also stores an array of decisions, decision_p (assumes a sequence of consensus instances, one for each height).
-- `PROPOSAL` message that carries value, `PREVOTE` and `PRECOMMIT` messages carry value id.
+- Algorithm proceeds in rounds, where each round has a dedicated *proposer*. Function `proposer(h, r)` returns the proposer for the round `r` at height `h`.
+- There are three timouts: `timeoutPropose`, `timeoutPrevote` and `timeoutPrecommit`. The timeouts prevent the algorithm from blocking (waiting for some condition to be true). Timeouts are increased every new round `r`: `timeoutX(r) = initTimeoutX + r*timeoutDelta` where `X` could be `Propose`, `Prevote` or `Precommit`, they are reset for every new height.
+- `h_p` and `round_p` are attached to every message. Finally, a process also stores an array of decisions, `decision_p` (assumes a sequence of consensus instances, one for each height).
+- `PROPOSAL` message that carries value `v`, `PREVOTE` and `PRECOMMIT` messages carry value id `id(v)`.
 - A validator sends `PREVOTE(id(v))` when it evaluates `PROPOSAL(v)` is valid, otherwise `PREVOTE(nil)`.
 - A validator sends `PRECOMMIT(id(v))` when it receives +2/3 `PREVOTE(id(v))`, otherwise `PRECOMMIT(nil)`.
 - A validator proceeds to `COMMIT` when it receives +2/3 `PRECOMMIT(id(v))`
@@ -150,7 +150,7 @@ Proposal block are splitted into parts. They are sent part by part.
 This process receives block part message.
 Until the process receives complete proposal, it:
 - broadcast event complete proposal (for gossiping)
-- do check for `upon` rules and executes.
+- do check validity of the proposal, its votes. See `upon` rules (2,3,5,8).
 
 ### Processing vote message
 Vote messages are added into vote set. They are checked for validity, an evidence will be thrown for peer violation. 
@@ -174,6 +174,9 @@ TODO:
 The process decides a proposal. It is triggered by the consensus engine.
 - If the consensus engine already knew a valid block (+2/3 prevotes), use that valid block. 
 - Otherwise, it proposes a new block by collecting txs from txpool. If the txpool isn't ready yet, it keeps waiting. The consensus engine will automatically move to new round if the proposing process is timeout.
+
+## Process validating proposal
+The process validates a proposal. It is triggered by the consensus engine (after receiving a complete proposal). 
 
 ## Process finalizing commit
 This process is seperated from the consensus engine. It creates commit and apply block.
