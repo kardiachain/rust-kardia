@@ -1,1 +1,14 @@
 /target
+packages/vm/src/smc/dpos/EnumerableSet.sol
+packages/vm/src/smc/dpos/Minter.sol
+packages/vm/src/smc/dpos/Ownable.sol
+packages/vm/src/smc/dpos/Params.sol
+packages/vm/src/smc/dpos/Safemath.sol
+packages/vm/src/smc/dpos/Staking.sol
+packages/vm/src/smc/dpos/Treasury.sol
+packages/vm/src/smc/dpos/Validator.sol
+packages/vm/src/smc/dpos/interfaces/IMinter.sol
+packages/vm/src/smc/dpos/interfaces/IParams.sol
+packages/vm/src/smc/dpos/interfaces/IStaking.sol
+packages/vm/src/smc/dpos/interfaces/IValidator.sol
+packages/proto
