@@ -4,8 +4,9 @@ This package implements the Kardiachain DPoS-BFT consensus engine. It maintains 
 Its main components are:
 // TODO: 
 
-## Kardia consensus algorithm
-### Terminologies
+# Kardia consensus algorithm
+
+## Terminologies
 - `v`: value, aka. block; `id(v)`: hash of block `v`; `h_p`: height of process
 - `upon` rule is triggered once the condition is satisfied. 
   - The condition `+2/3 <PRECOMMIT, h_p, r, id(v)>` is evaluated to `true` once there is two third of majority `PRECOMMIT` on block `v` at height `h_p` and round `r`.
@@ -21,7 +22,7 @@ Its main components are:
 - During the prevote step, a validator "locks" value `v` iff it has +2/3 `PREVOTE` (or before sending `PRECOMMIT(id(v))`). If there is another proposal has +2/3 prevotes, the process moves to lock that new proposal. The lock is reset every new height. `lockedValue` is used to store forementioned value and `lockedRound` is the round `r` when `validValue` gets assigned. Locking mechanism prevents proposing 2 different proposals for the same height. (upon rule 5)
 - Whenever the consensus receives +2/3 prevotes of a proposal for the first time, the process considers that is a valid proposal. `validValue` is used to store forementioned value and `validRound` is the round `r` when `validValue` gets assigned. This is considered as a valid proposal caching method which helps to reduce the time to propose a new proposal.
 
-### Pseudocode
+## Pseudocode
 ```go
 h_p := 0 //  height of process
 round_p := 0 // round of process
@@ -207,3 +208,10 @@ This process is seperated from the consensus engine. It creates commit and apply
 Applying block:
 - block operation, save block with commit
 - block executor, apply block
+
+## Process gossiping
+The process tracks every connected peer, it gossips three things:
+- data
+- votes
+- any +2/3 votes for a block
+### 

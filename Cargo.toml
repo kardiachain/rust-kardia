@@ -6,7 +6,9 @@ license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
 
 [workspace]
-members = ["source/chainspec"]
+members = [
+    "source/chainspec"
+]
 
 [[bin]]
 name = "bin"
@@ -17,6 +19,7 @@ path = "bin/src/main.rs"
 # kai-core = { path = "packages/core" }
 # kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
+kai-pb = { path = "packages/pb" }
 # kai-db = { path = "packages/db" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }

@@ -355,10 +355,21 @@ name = "kai-consensus"
 version = "0.1.0"
 
 [[package]]
+name = "kai-pb"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "prost",
+ "prost-build",
+ "prost-types",
+]
+
+[[package]]
 name = "kardiachain"
 version = "1.0.0"
 dependencies = [
  "kai-consensus",
+ "kai-pb",
  "prost",
  "prost-build",
  "tonic",
