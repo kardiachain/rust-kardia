@@ -132,90 +132,14 @@ The above consensus algorithm could be explained in more detail:
   - The execution of `StartRound()` (which enter `PROPOSE` state) is guaranteed by either `upon` rule 8 rightaway or after above timeout.
 - The `upon` rule 9 helps it catching up the latest round of other processes.
 
-## Processing messages 
-This section discusses about processes which digest messages (proposal or votes) that came both from peers and consensus engine itself.
-
-Every message type has its own way to process. The difference is described as below.
-
-When received f+1 messages (proposal or votes) of `round` that is later `round_p`, this shows that current process is late, skip to `round` (upon rule 9). 
-
-### Processing proposal message
-Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
-The consensus received a proposal message (either from a peer or the consensus engine itself).
-Only the proposal that satisfies following validations is accepted:
-- `proposal.height = height_p`, `proposal.round == round_p`
-- `-1 <= POLRound < round_p`
-- `proposal` must be proposed by `proposer(height, round)`
-- `signature` is valid
-
-Note that the proposal does not include the content of the proposal block. There is another process to receive part of the block.
-
-#### Processing proposal block part message
-Proposal block are splitted into parts. They are sent part by part. 
-This process receives block part message.
-Until the process receives complete proposal, it:
-- broadcast event complete proposal (for gossiping)
-- do check validity of the proposal, its votes. See `upon` rules (2,3,5,8).
-
-### Processing vote message
-Vote messages are added into vote set. They are checked for validity, an evidence will be thrown for peer violation. 
-
-The consensus stores only votes of `height_p` in `Votes: HeightVoteSet`. Precommit votes from previous height is stored in `LastCommit: VoteSet`. 
-
-Vote messages are grouped by round `r` and vote type in `HeightVoteSet` as following:
-```
-// all votes of a height
-struct HeightVoteSet {
-  height
-  valSet // validator set
-
-  round // max tracked round
-  roundVoteSets // a map between round and round's vote set
-  peerCatchupRounds // TODO: what is it?
-}
- 
-// all votes of a round
-struct RoundVoteSet {
-  Prevotes: VoteSet // all prevotes of round
-  Precommits: VoteSet // all precommits of round
-}
-
-// 
-struct VoteSet {
-
-}
-```
-#### Vote validations
-- Validate vote: Ensure height, round, step are match; ensure signer, validator...
-
-#### Adding vote process
-- Add vote by height, round, block id
-- Check vote conflict, throw evidence to punish peer.
-
-Special cases, must be checked before normal case is run:
-- Late precommit from last height (`height_p - 1`) should be add in `LastCommit`.
-#### Check for upon rules
-For every added vote, the process performs the check for `upon` rules and triggers rule's execution as soon as the rule is satisfied.
-
-#### Evidence
-
-## Process deciding proposal
-The process decides a proposal. It is triggered by the consensus engine.
-- If the consensus engine already knew a valid block (+2/3 prevotes), use that valid block. 
-- Otherwise, it proposes a new block by collecting txs from txpool. If the txpool isn't ready yet, it keeps waiting. The consensus engine will automatically move to new round if the proposing process is timeout.
-
-## Process validating proposal
-The process validates a proposal. It is triggered by the consensus engine (after receiving a complete proposal). 
-
-## Process finalizing commit
-This process is seperated from the consensus engine. It creates commit and apply block.
-Applying block:
-- block operation, save block with commit
-- block executor, apply block
-
-## Process gossiping
-The process tracks every connected peer, it gossips three things:
-- data
-- votes
-- any +2/3 votes for a block
-### 
+## Auxiliary processes
+These auxiliary processes are in charged to:
+- decide/validate proposal
+  - [Deciding proposal](./proposal.md#deciding-proposal)
+  - [Validating proposal](./proposal.md#validating-proposal)
+- process incoming messages (proposal or votes) and check `upon` rules
+  - [Processing messages](./messages.md#processing-messages)
+- commit, apply new block
+  - [Commit specification](./commit.md#commit-specification)
+- gossip protocol
+  - [Gossip protocol specification](./gossip.md#gossip-protocol-specification)
