@@ -4,7 +4,6 @@ fn main() {
     prost_build::compile_protos(
         &[
             "src/gogoproto/gogo.proto",
-            "src/kardiachain/libs/types.proto",
             "src/kardiachain/blockchain/types.proto",
             "src/kardiachain/consensus/types.proto",
             "src/kardiachain/consensus/wal.proto",

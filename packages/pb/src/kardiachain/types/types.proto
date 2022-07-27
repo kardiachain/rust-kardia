@@ -139,3 +139,8 @@ message BlockMeta {
   BlockID block_id   = 1 [(gogoproto.customname) = "BlockID", (gogoproto.nullable) = false];
   Header  header     = 3 [(gogoproto.nullable) = false];
 }
+
+message BitArray {
+  int64           bits  = 1;
+  repeated uint64 elems = 2;
+}

@@ -5,7 +5,6 @@ package kardiachain.consensus;
 
 import "gogoproto/gogo.proto";
 import "kardiachain/types/types.proto";
-import "kardiachain/libs/types.proto";
 
 // NewRoundStep is sent for every step taken in the ConsensusState.
 // For every height/round/step transition
@@ -24,7 +23,7 @@ message NewValidBlock {
     uint64                          height                = 1;
     uint32                          round                 = 2;
     kardiachain.types.PartSetHeader block_part_set_header = 3 [(gogoproto.nullable) = false];
-    kardiachain.libs.BitArray  block_parts           = 4;
+    kardiachain.types.BitArray  block_parts           = 4;
     bool                           is_commit             = 5;
 }
 
@@ -39,7 +38,7 @@ message Proposal {
 message ProposalPOL {
     uint64                         height             = 1;
     uint32                         proposal_pol_round = 2;
-    kardiachain.libs.BitArray proposal_pol       = 3 [(gogoproto.nullable) = false];
+    kardiachain.types.BitArray proposal_pol       = 3 [(gogoproto.nullable) = false];
 }
 
 // BlockPart is sent when gossipping a piece of the proposed block.
@@ -76,7 +75,7 @@ message VoteSetBits {
     uint32                          round    = 2;
     kardiachain.types.SignedMsgType type     = 3;
     kardiachain.types.BlockID       block_id = 4 [(gogoproto.customname) = "BlockID", (gogoproto.nullable) = false];
-    kardiachain.libs.BitArray  votes    = 5 [(gogoproto.nullable) = false];
+    kardiachain.types.BitArray  votes    = 5 [(gogoproto.nullable) = false];
 }
   
 message Message {

@@ -2,13 +2,6 @@ pub mod blockchain {
     include!(concat!(env!("OUT_DIR"), "/kardiachain.blockchain.rs"));
 }
 
-pub fn create_block_request(color: String) -> blockchain::BlockRequest {
-    let mut br = blockchain::BlockRequest {
-        height: 1,
-    };
-    br
-}
-
 pub mod consensus {
     include!(concat!(env!("OUT_DIR"), "/kardiachain.consensus.rs"));
 }
