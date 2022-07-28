@@ -26,6 +26,10 @@ During the prevote step, a validator "locks" on a proposal if and only if it has
 
 Whenever the consensus receives +2/3 prevotes of a proposal for the first time, such proposal is considered as a valid proposal. This caching method which helps to reduce the time to propose a new proposal.
 
+Block is divided into parts and they are sent via gossip protocol. A proposer will send their summary of the proposal and proposal parts. Peers will receive: the summary, detail proposal then do the validation. If peers are not received any proposal from the proposer, peers will vote for nil in both states `Prevote` and `Precommit` then proceed to a new round.
+
+TODO: evidence for suspicious vote
+
 ### Pseudocode
 
 #### Terms
