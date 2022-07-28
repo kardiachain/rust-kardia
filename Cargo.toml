@@ -19,7 +19,7 @@ path = "bin/src/main.rs"
 # kai-core = { path = "packages/core" }
 # kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
-kai-pb = { path = "packages/pb" }
+kai_pb = { path = "packages/pb" }
 # kai-db = { path = "packages/db" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }
