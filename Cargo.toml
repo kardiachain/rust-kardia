@@ -11,8 +11,8 @@ members = [
 ]
 
 [[bin]]
-name = "bin"
-path = "bin/src/main.rs"
+name = "client"
+path = "source/client/src/main.rs"
 
 [dependencies]
 # internal packages
