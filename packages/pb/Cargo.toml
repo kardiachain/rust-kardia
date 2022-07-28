@@ -1,5 +1,5 @@
 [package]
-name = "kai-pb"
+name = "kai_pb"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,4 @@ prost-types = "0.10.1"
 bytes = "1.1"
 [build-dependencies]
 prost-build = "0.10.4"
+walkdir = "2"
