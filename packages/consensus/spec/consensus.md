@@ -1,32 +1,46 @@
-# Kardia consensus algorithm
-This consensus algorithm is based on DPoS-BFT.
+- [Consensus specification](#consensus-specification)
+  - [Kardia consensus algorithm](#kardia-consensus-algorithm)
+    - [Pseudocode](#pseudocode)
+      - [Terms](#terms)
+  - [Auxiliary processes](#auxiliary-processes)
 
-## Terminologies
-- The network is composed of optionally connected _nodes_. Nodes
-  directly connected to a particular node are called _peers_.
-- The consensus process in deciding the next block (at some _height_
-  `H`) is composed of one or many _rounds_.
-- `Propose`, `Prevote`, and `Precommit`
-  represent state machine states of a round. (aka `RoundStep` or
-  just "step").
-- A node is said to be _at_ a given height, round, and step, or at
-  `(H,R,S)`, or at `(H,R)` in short to omit the step.
+# Consensus specification
+
+## Kardia consensus algorithm
+This consensus algorithm is based on DPoS-BFT. 
+
+The network is composed of optionally connected _nodes_. Nodes directly connected to a particular node are called _peers_. Peers use this consensus algorithm to decide a new block to put into chain of blocks. Each peer has its own consensus process.
+
+
+The consensus process in deciding the next block (at some _height_ `H`) is composed of one or many _rounds_. At each round, there is a dedicated *proposer*. The proposer has the responsibility to propose a new block and other nodes send their vote to decide. The consensus handles proposal and votes based on BFT model. 
+
+The consensus process itself is a state machine with following states: `Propose`, `Prevote`, and `Precommit`. The so called **round** is a chain of state transitions (`Propose` -> `Prevote` -> `Precommit`). 
+
+State transition is triggered by both internal and external factors. In particular:
+- Internal factor: timeout of current state
+- External factor: messages received from peers.
+
+There are three timouts: `timeoutPropose`, `timeoutPrevote` and `timeoutPrecommit`. The timeouts prevent the algorithm from blocking (waiting for some condition to be true). Timeouts are increased every new round `r`: `timeoutX(r) = initTimeoutX + r*timeoutDelta` where `X` could be `Propose`, `Prevote` or `Precommit`, they are reset for every new height.
+
+During the prevote step, a validator "locks" on a proposal if and only if it has +2/3 prevotes. If there is another proposal has +2/3 prevotes, the process moves to lock that new proposal. The lock is reset every new height. Locking mechanism prevents proposing 2 different proposals for the same height.
+
+Whenever the consensus receives +2/3 prevotes of a proposal for the first time, such proposal is considered as a valid proposal. This caching method which helps to reduce the time to propose a new proposal.
+
+### Pseudocode
+
+#### Terms
 - `v`: value, aka. block; `id(v)`: hash of block `v`; `h_p`: height of process
+- `proposer(h, r)` returns the proposer for the round `r` at height `h`.
 - `upon` rule is triggered once the condition is satisfied. 
   - The condition `+2/3 <PRECOMMIT, h_p, r, id(v)>` is evaluated to `true` once there is two third of majority `PRECOMMIT` on block `v` at height `h_p` and round `r`.
   - Some of the rules ends with ”for the ﬁrst time” constraint to denote that it is triggered only the ﬁrst time a corresponding condition evaluates to true.
 - The variables with index `p` are process local state variables, while variables without index p are value placeholders.
-- Algorithm proceeds in rounds, where each round has a dedicated *proposer*. Function `proposer(h, r)` returns the proposer for the round `r` at height `h`.
-- There are three timouts: `timeoutPropose`, `timeoutPrevote` and `timeoutPrecommit`. The timeouts prevent the algorithm from blocking (waiting for some condition to be true). Timeouts are increased every new round `r`: `timeoutX(r) = initTimeoutX + r*timeoutDelta` where `X` could be `Propose`, `Prevote` or `Precommit`, they are reset for every new height.
 - `h_p` and `round_p` are attached to every message. Finally, a process also stores an array of decisions, `decision_p` (assumes a sequence of consensus instances, one for each height).
 - `PROPOSAL` message that carries value `v`, `PREVOTE` and `PRECOMMIT` messages carry value id `id(v)`.
 - A validator sends `PREVOTE(id(v))` when it evaluates `PROPOSAL(v)` is valid, otherwise `PREVOTE(nil)`.
 - A validator sends `PRECOMMIT(id(v))` when it receives +2/3 `PREVOTE(id(v))`, otherwise `PRECOMMIT(nil)`.
-- A validator proceeds to `COMMIT` when it receives +2/3 `PRECOMMIT(id(v))`
-- During the prevote step, a validator "locks" value `v` iff it has +2/3 `PREVOTE` (or before sending `PRECOMMIT(id(v))`). If there is another proposal has +2/3 prevotes, the process moves to lock that new proposal. The lock is reset every new height. `lockedValue` is used to store forementioned value and `lockedRound` is the round `r` when `validValue` gets assigned. Locking mechanism prevents proposing 2 different proposals for the same height. (upon rule 5)
-- Whenever the consensus receives +2/3 prevotes of a proposal for the first time, the process considers that is a valid proposal. `validValue` is used to store forementioned value and `validRound` is the round `r` when `validValue` gets assigned. This is considered as a valid proposal caching method which helps to reduce the time to propose a new proposal.
+- A validator proceeds to commit new block when it receives +2/3 `PRECOMMIT(id(v))`
 
-## Pseudocode
 ```go
 h_p := 0 //  height of process
 round_p := 0 // round of process
