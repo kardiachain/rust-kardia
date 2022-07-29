@@ -1,4 +1,5 @@
-use types::channel;
+use std::io::Bytes;
+
 /*
 Each peer has one `MConnection` (multiplex connection) instance.
 
@@ -24,9 +25,9 @@ channel's queue is full.
 Inbound message bytes are handled with an onReceive callback function.
 */
 
-type ReceiveCbFunc = fn (byte, Vec<byte>);
+type ReceiveCbFunc = fn(u8, Vec<u8>);
 
-type ErrorCbFunc = fn (T);
+type ErrorCbFunc = fn();
 
 // initializing MConnection struct
 pub struct MConnection {
@@ -42,6 +43,9 @@ pub struct MConnection {
 
     // config
     config: MConnConfig,
+
+    on_receive: ReceiveCbFunc,
+    
 }
 
 impl MConnection {
@@ -83,7 +87,7 @@ impl MConnection {
     fn stop_pong_timer() {}
 
     fn max_packet_msg_size() -> i32 {
-
+        0x00
     }
 
 
@@ -92,11 +96,17 @@ impl MConnection {
 
 // MConnConfig is a MConnection configuration
 pub struct MConnConfig {
-    
+    pub send_rate: i64,
+    pub recv_rate: i64,
+
+
+}
+
+pub fn default_kai_conn_config() -> MConnConfig {
+    MConnConfig { send_rate: (0x00), recv_rate: (0x00) }
 }
 
 // initializing Channel struct 
 pub struct Channel {
 
 }
-
