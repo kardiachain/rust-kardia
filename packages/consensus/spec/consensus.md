@@ -144,14 +144,14 @@ The above consensus algorithm could be explained in more detail:
     - `upon` rule 5: +2/3 of prevotes on `id(v)` => send our precommit vote for `id(v)` and transition to `PRECOMMIT` state.
     - `upon` rule 6: +2/3 of prevotes on nil => send our precommit vote for nil and transition to `PRECOMMIT` state.
   - Sending precommit vote is carried by either a `upon` rule 6 or above timeout.
-- Enter `PRECOMMIT`: the process enters to this state listens for +2/3 precommits of `id(v)` to commit `v` (TODO: finalizing commit).
+- Enter `PRECOMMIT`: the process enters to this state listens for +2/3 precommits of `id(v)` to commit `v into blockchain.
   - A precommit timeout is scheduled in `upon` rule 7 with `height` and `round`, function `OnTimeoutPrecommit(hieght, round)` will be executed when timeout.
     - `upon` rule 7: +2/3 of any precommits received => schedule timeout precommit.
   - The execution of `StartRound()` (which enter `PROPOSE` state) is guaranteed by either `upon` rule 8 rightaway or after above timeout.
 - The `upon` rule 9 helps it catching up the latest round of other processes.
 
 ## Auxiliary processes
-These auxiliary processes are in charged to:
+These auxiliary processes work separately from the consensus process. They feed the consensus process by data (proposal, votes). They are grouped as following:
 - decide/validate proposal
   - [Deciding proposal](./proposal.md#deciding-proposal)
   - [Validating proposal](./proposal.md#validating-proposal)
