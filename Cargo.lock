@@ -353,9 +353,12 @@ checksum = "112c678d4050afce233f4f2852bb2eb519230b3cf12f33585275537d7e41578d"
 [[package]]
 name = "kai-consensus"
 version = "0.1.0"
+dependencies = [
+ "kai-proto",
+]
 
 [[package]]
-name = "kai_proto"
+name = "kai-proto"
 version = "0.1.0"
 dependencies = [
  "bytes",
@@ -370,7 +373,7 @@ name = "kardiachain"
 version = "1.0.0"
 dependencies = [
  "kai-consensus",
- "kai_proto",
+ "kai-proto",
  "prost",
  "prost-build",
  "tonic",
