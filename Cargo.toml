@@ -6,15 +6,28 @@ license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
 
 [workspace]
-members = ["source/chainspec", "source/vm"]
+members = [
+    "source/chainspec"
+]
+
+[[bin]]
+name = "client"
+path = "source/client/src/main.rs"
 
 [dependencies]
 # internal packages
-kai-core = { path = "packages/core" }
-kai-accounts = { path = "packages/accounts" }
+# kai-core = { path = "packages/core" }
+# kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
-kai-db = { path = "packages/db" }
-kai-rpc = { path = "packages/rpc" }
-kai-txpool = { path = "packages/txpool" }
-kai-utils = { path = "packages/utils" }
-kai-vm = { path = "packages/vm" }
+kai_proto = { path = "packages/proto" }
+# kai-db = { path = "packages/db" }
+# kai-rpc = { path = "packages/rpc" }
+# kai-txpool = { path = "packages/txpool" }
+# kai-utils = { path = "packages/utils" }
+# kai-vm = { path = "packages/vm" }
+prost = "0.10"
+tonic = "0.7"
+
+[build-dependencies]
+prost-build = "0.10"
+tonic-build = "0.7"
