@@ -58,6 +58,10 @@ impl Peer {
         &self.node_info
     }
 
+    pub fn socket_address(&self) {
+        
+    }
+
     pub fn send(ch_id : Bytes, msg: Vec<Bytes>) -> bool {
         false
     }

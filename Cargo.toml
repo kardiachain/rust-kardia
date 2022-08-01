@@ -4,6 +4,7 @@ name = "kardiachain"
 version = "1.0.0"
 license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
+edition = "2021"
 
 [workspace]
 members = ["source/chainspec", "source/vm"]
@@ -14,15 +15,21 @@ kai-core = { path = "packages/core" }
 kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
 kai-db = { path = "packages/db" }
-kai-net = { path = "packages/net" }
-kai-node = { path = "packages/node" }
 kai-rpc = { path = "packages/rpc" }
 kai-txpool = { path = "packages/txpool" }
 kai-utils = { path = "packages/utils" }
 kai-vm = { path = "packages/vm" }
 kai-p2p = { path = "packages/p2p" }
+kai-types = { path = "packages/types"}
+
+libp2p = "0.46.1"
+tokio = { version = "1.20.0", features = ["full"] }
 
 [[bin]]
 name = "client"
 path = "source/client/src/main.rs"
+
+[[bin]]
+name = "kardia-sentry"
+path = "bin/kardia-sentry.rs"
 
