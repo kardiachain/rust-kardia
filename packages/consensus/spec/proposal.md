@@ -5,9 +5,7 @@
     - [`ProposalBlockParts`](#proposalblockparts)
   - [Functions](#functions)
     - [Deciding proposal](#deciding-proposal)
-      - [Collecting transactions from txpool](#collecting-transactions-from-txpool)
       - [Sign proposal](#sign-proposal)
-    - [Validating proposal](#validating-proposal)
     - [Processing proposal message](#processing-proposal-message)
     - [Processing proposal block part message](#processing-proposal-block-part-message)
 
@@ -53,32 +51,25 @@ Preconditions:
 Process:
 - Deciding block proposal:
   - If the consensus engine already knew a valid block (+2/3 prevotes), use that valid block. 
-  - Otherwise, it proposes a new block by collecting txs from txpool. If the txpool isn't ready yet, it keeps waiting. The consensus engine will automatically move to new round if the proposing process is timeout.
+  - Otherwise, it delegates proposal making request the request to the consensus engine's block operations. The consensus engine will automatically move to new round if the proposing process is timed out.
 - Making proposal: 
-  - Creating a new proposal with necessary information: height, round, timestamp, proof-of-lock round, block id
+  - Creating a new proposal with necessary information: height, round, timestamp, proof-of-lock round, block id, commit
     - proof-of-lock round is the round where proposer locked on
     - block id is the identity of proposal block
+    - commit contains consensus engine's precommits of previous height. In case of height 1, precommits is [constructed with value `empty`](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/state.go#L1526)
   - Sign the proposal
-
-#### Collecting transactions from txpool
-TODO: 
 
 #### Sign proposal
 The `Proposal` must be signed by the proposer. The `Proposal` is converted to proto-encoding for signing.
 
 TODO: proposal.go/64, it converts proposal to proto bytes -> sign with that bytes
 
-
-### Validating proposal
-TODO:
-The process validates a proposal sent from a peer. It is triggered by the consensus engine (after receiving a complete proposal). 
-
 ### Processing proposal message
 TODO:
 Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
 The consensus received a proposal message (either from a peer or the consensus engine itself).
 Only the proposal that satisfies following validations is accepted:
-- `proposal.height = height_p`, `proposal.round == round_p`
+- `proposal.height == height_p`, `proposal.round == round_p`
 - `-1 <= POLRound < round_p`
 - `proposal` must be proposed by `proposer(height, round)`
 - `signature` is valid
@@ -86,9 +77,19 @@ Only the proposal that satisfies following validations is accepted:
 Note that the proposal does not include the content of the proposal block. There is another process to receive part of the block.
 
 ### Processing proposal block part message
-TODO:
-Proposal block are splitted into parts. They are sent part by part. 
-This process receives block part message.
-Until the process receives complete proposal, it:
-- broadcast event complete proposal (for gossiping)
-- do check validity of the proposal, its votes. See `upon` rules (2,3,5,8).
+Proposal block are splitted into parts and gossiped.
+
+This process receives block part message and adds every received part to consensus state `ProposalBlockParts`.
+
+Only block part that satisfies following validations is accepted:
+- `part.height == height_p` (1)
+
+Once block part is added, the process check that whether it has received a complete proposal then it does:
+- broadcast event complete proposal (ie. for whom are missing proposal, they know who can beg for the proposal)  
+- do check validity of the proposal (**), if the proposal is:
+  - valid: then feed `upon` rules (2,3,5,8) by sending the complete proposal via a (tx,rx) channel of consensus. Those rules listen on that channel, check on their rule and know what to decide next.
+  - invalid: then terminate processing, consensus engine will automatically move to prevote step when it's timed out.
+
+NOTE: 
+1. we accept round mismatch 
+2. since proposal is a block, by checking its validity also mean checking validity of that block. Refer to `BlockExecutor.ValidateBlock()`.
