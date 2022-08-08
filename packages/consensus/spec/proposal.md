@@ -1,10 +1,12 @@
 - [Proposal specification](#proposal-specification)
   - [Models](#models)
     - [`Proposal`](#proposal)
-  - [Validations](#validations)
-  - [Sign proposal](#sign-proposal)
+    - [`ProposalBlock`](#proposalblock)
+    - [`ProposalBlockParts`](#proposalblockparts)
   - [Functions](#functions)
     - [Deciding proposal](#deciding-proposal)
+      - [Collecting transactions from txpool](#collecting-transactions-from-txpool)
+      - [Sign proposal](#sign-proposal)
     - [Validating proposal](#validating-proposal)
     - [Processing proposal message](#processing-proposal-message)
     - [Processing proposal block part message](#processing-proposal-block-part-message)
@@ -15,33 +17,41 @@ A proposal is a block proposal for the consensus process to be put in the blockc
 
 The consensus engine stores the proposal under following fields: `Proposal`, `ProposalBlock` and `ProposalBlockParts`.
 
-The full proposal are splited into parts and gossiped to peers to reduce the burden of transmission for the proposer. A proposer broadcasts their **signed** proposal by `Proposal` message as a summary. Peers receive the `Proposal`, then it will ask for the detail proposal (eg. `ProposalBlock`, `ProposalBlockParts`) via gossiping protocol. 
+The full proposal are splited into parts and gossiped to peers to reduce the burden of transmission for the proposer. A proposer broadcasts their **signed** proposal by `Proposal` message as a summary. Once peers receive the `Proposal`, then they will ask for the detail proposal (ie. `ProposalBlock`, `ProposalBlockParts`) via gossiping protocol. 
 
 Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
-The consensus received a proposal message (either from a peer or the consensus engine itself).
+
+The consensus receives a proposal message (either from a peer or the consensus engine itself), validates (only for proposal came from a peer) and votes on that proposal.
 
 ## Models
+This section describes data structures of a proposal.
+### `Proposal`
 ```
 Proposal {
     Height // current height
     Round // current round
-    Timestamp // creation time
     POLRound // round where proposer locked on
     POLBlockID // block id where proposer locked on
+    Timestamp // creation time
+    Signature // signature of the proposer
 }
 ```
-## validations
+### `ProposalBlock`
+
+
+### `ProposalBlockParts`
+
+
 ## Functions
 ### Deciding proposal
-TODO:
 The process which decides a new proposal.
 
-Preconditions
+Preconditions:
 - The consensus engine is the proposer at this round, it  triggered this process for deciding a proposal.
 - The consensus engine state contains: `height, round, proof-of-lock round & block, valid block` 
 
 Process:
-- Deciding block
+- Deciding block proposal:
   - If the consensus engine already knew a valid block (+2/3 prevotes), use that valid block. 
   - Otherwise, it proposes a new block by collecting txs from txpool. If the txpool isn't ready yet, it keeps waiting. The consensus engine will automatically move to new round if the proposing process is timeout.
 - Making proposal: 
@@ -50,9 +60,18 @@ Process:
     - block id is the identity of proposal block
   - Sign the proposal
 
+#### Collecting transactions from txpool
+TODO: 
+
+#### Sign proposal
+The `Proposal` must be signed by the proposer. The `Proposal` is converted to proto-encoding for signing.
+
+TODO: proposal.go/64, it converts proposal to proto bytes -> sign with that bytes
+
+
 ### Validating proposal
 TODO:
-The process validates a proposal. It is triggered by the consensus engine (after receiving a complete proposal). 
+The process validates a proposal sent from a peer. It is triggered by the consensus engine (after receiving a complete proposal). 
 
 ### Processing proposal message
 TODO:
