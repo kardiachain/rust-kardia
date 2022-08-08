@@ -5,7 +5,6 @@
     - [`ProposalBlockParts`](#proposalblockparts)
   - [Functions](#functions)
     - [Deciding proposal](#deciding-proposal)
-      - [Sign proposal](#sign-proposal)
     - [Processing proposal message](#processing-proposal-message)
     - [Processing proposal block part message](#processing-proposal-block-part-message)
 
@@ -35,18 +34,24 @@ Proposal {
 }
 ```
 ### `ProposalBlock`
-
+Proposal block is `Block`
 
 ### `ProposalBlockParts`
-
+Proposal block part is `BlockPart`
 
 ## Functions
 ### Deciding proposal
-The process which decides a new proposal.
+The process which decides a new block proposal.
 
 Preconditions:
-- The consensus engine is the proposer at this round, it  triggered this process for deciding a proposal.
-- The consensus engine state contains: `height, round, proof-of-lock round & block, valid block` 
+- The consensus engine is the proposer at this round, it triggered this process for deciding a proposal.
+- The consensus engine state contains: 
+  - `cs.height`: current height
+  - `cs.round`: current round
+  - `cs.POLRound`: current proof-of-lock round
+  - `cs.POLBlock`: current proof-of-lock block
+  - `cs.validBlock`: current valid block
+  - `cs.Proposal`: current proposal
 
 Process:
 - Deciding block proposal:
@@ -57,20 +62,19 @@ Process:
     - proof-of-lock round is the round where proposer locked on
     - block id is the identity of proposal block
     - commit contains consensus engine's precommits of previous height. In case of height 1, precommits is [constructed with value `empty`](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/state.go#L1526)
-  - Sign the proposal
-
-#### Sign proposal
-The `Proposal` must be signed by the proposer. The `Proposal` is converted to proto-encoding for signing.
-
-TODO: proposal.go/64, it converts proposal to proto bytes -> sign with that bytes
+  - Sign the proposal. Please refer to [signing proposal](signing.md#signing-proposal).
+- Sending proposal. Please refer to [proposal gossip](proposal.md#process-proposal-gossiping)
+  - Internally via `(tx,rx)` channel of consensus engine
+  - Externally via gossiping
 
 ### Processing proposal message
-TODO:
+TODO: [Reference go-kardia](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/state.go#L483-L517)
 Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
 The consensus received a proposal message (either from a peer or the consensus engine itself).
 Only the proposal that satisfies following validations is accepted:
+- `cs.Proposal` is empty
 - `proposal.height == height_p`, `proposal.round == round_p`
-- `-1 <= POLRound < round_p`
+- `-1 <= proposal.POLRound < round_p`
 - `proposal` must be proposed by `proposer(height, round)`
 - `signature` is valid
 
