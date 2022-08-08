@@ -1,6 +1,8 @@
 - [Proposal specification](#proposal-specification)
-  - [models](#models)
-  - [validations](#validations)
+  - [Models](#models)
+    - [`Proposal`](#proposal)
+  - [Validations](#validations)
+  - [Sign proposal](#sign-proposal)
   - [Functions](#functions)
     - [Deciding proposal](#deciding-proposal)
     - [Validating proposal](#validating-proposal)
@@ -9,7 +11,16 @@
 
 # Proposal specification
 
-## models
+A proposal is a block proposal for the consensus process to be put in the blockchain, it contains a list of transactions (or empty if there is no transaction).
+
+The consensus engine stores the proposal under following fields: `Proposal`, `ProposalBlock` and `ProposalBlockParts`.
+
+The full proposal are splited into parts and gossiped to peers to reduce the burden of transmission for the proposer. A proposer broadcasts their **signed** proposal by `Proposal` message as a summary. Peers receive the `Proposal`, then it will ask for the detail proposal (eg. `ProposalBlock`, `ProposalBlockParts`) via gossiping protocol. 
+
+Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
+The consensus received a proposal message (either from a peer or the consensus engine itself).
+
+## Models
 ```
 Proposal {
     Height // current height
