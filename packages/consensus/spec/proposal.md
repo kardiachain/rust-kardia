@@ -68,7 +68,6 @@ Process:
   - Externally via gossiping
 
 ### Processing proposal message
-TODO: [Reference go-kardia](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/state.go#L483-L517)
 Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.
 The consensus received a proposal message (either from a peer or the consensus engine itself).
 Only the proposal that satisfies following validations is accepted:
@@ -78,7 +77,8 @@ Only the proposal that satisfies following validations is accepted:
 - `proposal` must be proposed by `proposer(height, round)`
 - `signature` is valid
 
-Note that the proposal does not include the content of the proposal block. There is another process to receive part of the block.
+Note:
+- The proposal does not include the content of the proposal block. There is another process to receive part of the block.
 
 ### Processing proposal block part message
 Proposal block are splitted into parts and gossiped.
@@ -86,7 +86,7 @@ Proposal block are splitted into parts and gossiped.
 This process receives block part message and adds every received part to consensus state `ProposalBlockParts`.
 
 Only block part that satisfies following validations is accepted:
-- `part.height == height_p` (1)
+- `part.height == height_p` (*)
 
 Once block part is added, the process check that whether it has received a complete proposal then it does:
 - broadcast event complete proposal (ie. for whom are missing proposal, they know who can beg for the proposal)  
@@ -94,6 +94,6 @@ Once block part is added, the process check that whether it has received a compl
   - valid: then feed `upon` rules (2,3,5,8) by sending the complete proposal via a (tx,rx) channel of consensus. Those rules listen on that channel, check on their rule and know what to decide next.
   - invalid: then terminate processing, consensus engine will automatically move to prevote step when it's timed out.
 
-NOTE: 
-1. we accept round mismatch 
-2. since proposal is a block, by checking its validity also mean checking validity of that block. Refer to `BlockExecutor.ValidateBlock()`.
+Note: 
+- (*): we accept round mismatch 
+- (**): since proposal is a block, by checking its validity also mean checking validity of that block. Refer to `BlockExecutor.ValidateBlock()`.
