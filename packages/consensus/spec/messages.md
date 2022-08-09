@@ -1,10 +1,14 @@
 - [Messages specification](#messages-specification)
   - [Processing messages](#processing-messages)
     - [Process `NewRoundStepMessage`](#process-newroundstepmessage)
-    - [Processing +2/3 of a specific message of later round](#processing-23-of-a-specific-message-of-later-round)
-    - [Processing proposal message](#processing-proposal-message)
-    - [Processing proposal block part message](#processing-proposal-block-part-message)
-    - [Processing vote message](#processing-vote-message)
+    - [Process `NewValidBlockMessage`](#process-newvalidblockmessage)
+    - [Process `HasVoteMessage`](#process-hasvotemessage)
+    - [Process `VoteSetMaj23Message`](#process-votesetmaj23message)
+    - [Process `ProposalMessage`](#process-proposalmessage)
+    - [Process `ProposalPOLMessage`](#process-proposalpolmessage)
+    - [Process `BlockPartMessage`](#process-blockpartmessage)
+    - [Process `VoteMessage`](#process-votemessage)
+    - [Process `VoteSetBitsMessage`](#process-votesetbitsmessage)
   - [Type definitions of messages](#type-definitions-of-messages)
     - [Channels](#channels)
     - [`NewRoundStepMessage`](#newroundstepmessage)
@@ -32,25 +36,36 @@ Processing incoming messages affects either a peer state or the consensus state.
 Referenced from [`go-kardia` implementation](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L242-L383).
 
 ### Process `NewRoundStepMessage`
-Do validations:
 - Validate height [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L278)
 - Validate for duplicates or decreases [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L1259)
 - Apply new round for peer state [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L1254)
   - Update: height, round, step, start time
   - Reset: proposal, proposal block parts, proposal POL and round, prevotes nil, precommits nil
   - Update: precommits = catchup commit. TODO: make clear this one.
+### Process `NewValidBlockMessage`
+- Validate height, round and isCommit
+- Update proposal block parts
 
-### Processing +2/3 of a specific message of later round
-When received 2f+1 messages (proposal or votes) of `round` that is later `round_p`, this shows that current process is late, skip to `round` (upon rule 9). 
+### Process `HasVoteMessage`
+- Validate height
+- Set has vote
 
-### Processing proposal message
-See [processing proposal message](./proposal.md#processing-proposal-message)
+### Process `VoteSetMaj23Message`
+Respond with a VoteSetBitsMessage showing which votes we have (and consequently shows which we don't have).
 
-### Processing proposal block part message
-See [processing proposal block part message](./proposal.md#processing-proposal-block-part-message)
+### Process `ProposalMessage`
+Mark peer state has proposal
+Put proposal to peerMsgQueue
 
-### Processing vote message
-See [processing vote message](./vote.md#processing-vote-message)
+### Process `ProposalPOLMessage`
+ApplyProposalPOLMessage updates the peer state for the new proposal POL.
+
+### Process `BlockPartMessage`
+SetHasProposalBlockPart sets the given block part index as known for the peer.
+Put proposal block part to peerMsgQueue
+
+### Process `VoteMessage`
+### Process `VoteSetBitsMessage`
 
 ## Type definitions of messages
 ### Channels
