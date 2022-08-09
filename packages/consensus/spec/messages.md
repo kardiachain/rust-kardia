@@ -1,5 +1,6 @@
 - [Messages specification](#messages-specification)
   - [Processing messages](#processing-messages)
+    - [Process `NewRoundStepMessage`](#process-newroundstepmessage)
     - [Processing +2/3 of a specific message of later round](#processing-23-of-a-specific-message-of-later-round)
     - [Processing proposal message](#processing-proposal-message)
     - [Processing proposal block part message](#processing-proposal-block-part-message)
@@ -26,6 +27,19 @@ TODO: in old implementation of `go-kardia`. There is a pubsub event that broadca
 ## Processing messages 
 This section discusses about processes which digest messages that came both from peers.
 
+Processing incoming messages affects either a peer state or the consensus state. Peer state updates can happen in parallel, but processing of proposals, block parts, and votes are ordered by the receiveRoutine eg. blocks on consensus state for proposals, block parts, and votes (TODO: change `receiveRoutine`, we've removed `receiveRoutine` in Rust implementation).
+
+Referenced from [`go-kardia` implementation](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L242-L383).
+
+### Process `NewRoundStepMessage`
+Do validations:
+- Validate height [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L278)
+- Validate for duplicates or decreases [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L1259)
+- Apply new round for peer state [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L1254)
+  - Update: height, round, step, start time
+  - Reset: proposal, proposal block parts, proposal POL and round, prevotes nil, precommits nil
+  - Update: precommits = catchup commit. TODO: make clear this one.
+
 ### Processing +2/3 of a specific message of later round
 When received 2f+1 messages (proposal or votes) of `round` that is later `round_p`, this shows that current process is late, skip to `round` (upon rule 9). 
 
@@ -37,7 +51,6 @@ See [processing proposal block part message](./proposal.md#processing-proposal-b
 
 ### Processing vote message
 See [processing vote message](./vote.md#processing-vote-message)
-
 
 ## Type definitions of messages
 ### Channels
