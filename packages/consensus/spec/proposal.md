@@ -63,9 +63,9 @@ Process:
     - block id is the identity of proposal block
     - commit contains consensus engine's precommits of previous height. In case of height 1, precommits is [constructed with value `empty`](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/state.go#L1526)
   - Sign the proposal. Please refer to [signing proposal](signing.md#signing-proposal).
-- Sending proposal. Please refer to [proposal gossip](proposal.md#process-proposal-gossiping)
+- Sending proposal:
   - Internally via `(tx,rx)` channel of consensus engine
-  - Externally via gossiping
+  - Externally via gossiping: this process isn't in charge for broadcasting proposal to peers but [process proposal gossiping](proposal.md#process-proposal-gossiping) is responsible for broadcasting instead.
 
 ### Processing proposal message
 Proposal message contains following information: `height, round, timestamp, signature, POLRound and POLBlockId`.

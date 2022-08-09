@@ -152,10 +152,11 @@ The above consensus algorithm could be explained in more detail:
 
 ## Auxiliary processes
 These auxiliary processes work separately from the consensus process. They feed the consensus process by data (proposal, votes). They are grouped as following:
-- decide/validate proposal
+- Proposal
   - [Deciding proposal](./proposal.md#deciding-proposal)
-  - [Validating proposal](./proposal.md#validating-proposal)
-- process incoming messages (proposal or votes) and check `upon` rules
+  - [Processing proposal message](./proposal.md#processing-proposal-message)
+  - [Processing proposal block part message](./proposal.md#processing-proposal-block-part-message)
+- Processing incoming messages (proposal or votes) and check `upon` rules
   - [Processing messages](./messages.md#processing-messages)
 - commit, apply new block
   - [Commit specification](./commit.md#commit-specification)
