@@ -161,4 +161,4 @@ These auxiliary processes work separately from the consensus process. They feed 
 - commit, apply new block
   - [Commit specification](./commit.md#commit-specification)
 - gossip protocol
-  - [Gossip protocol specification](./gossip.md#gossip-protocol-specification)
+  - [Gossip protocol specification](./gossiping.md#gossip-protocol-specification)

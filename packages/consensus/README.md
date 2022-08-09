@@ -6,5 +6,5 @@ This package implements the Kardiachain DPoS-BFT consensus engine. It maintains 
 - [Messages](./spec/messages.md)
   - [Proposal](./spec/proposal.md)
   - [Vote](./spec/vote.md)
-- [Gossip](./spec/gossip.md)
+- [Gossiping](./spec/gossiping.md)
 - [Commit](./spec/commit.md)
