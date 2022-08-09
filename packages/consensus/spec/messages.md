@@ -4,30 +4,27 @@
     - [Processing proposal message](#processing-proposal-message)
     - [Processing proposal block part message](#processing-proposal-block-part-message)
     - [Processing vote message](#processing-vote-message)
-  - [Message types](#message-types)
-    - [`Message`](#message)
-    - [`VoteMessage`](#votemessage)
-    - [`ProposalMessage`](#proposalmessage)
+  - [Type definitions of messages](#type-definitions-of-messages)
+    - [Channels](#channels)
+    - [`NewRoundStepMessage`](#newroundstepmessage)
+    - [`NewValidBlockMessage`](#newvalidblockmessage)
     - [`HasVoteMessage`](#hasvotemessage)
     - [`VoteSetMaj23Message`](#votesetmaj23message)
-    - [`VoteSetBitsMessage`](#votesetbitsmessage)
+    - [`ProposalMessage`](#proposalmessage)
+    - [`ProposalPOLMessage`](#proposalpolmessage)
     - [`BlockPartMessage`](#blockpartmessage)
-    - [`NewValidBlockMessage`](#newvalidblockmessage)
+    - [`VoteMessage`](#votemessage)
+    - [`VoteSetBitsMessage`](#votesetbitsmessage)
 
 # Messages specification
 
-This specification has two main parts:
-- Types of messages used in Karchain network
-- How to process messages
+In contrast to the gossiping which is to send data outbound. This specification describes how to process incoming messages that came from peers and type definitions of those messages.
 
-In contrast to the gossiping which is to send data outbound. This specification describes how to process incoming messages that came from peers.
 
 TODO: in old implementation of `go-kardia`. There is a pubsub event that broadcast: NewRoundStepMessage, NewValidBlockMessage, HasVoteMessage [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L388-L459). And this is how they are consumed by the consensus [ref](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L272-L287).
 
 ## Processing messages 
-This section discusses about processes which digest messages (proposal or votes) that came both from peers and consensus engine itself.
-
-Every message type has its own way to process. The difference is described as below.
+This section discusses about processes which digest messages that came both from peers.
 
 ### Processing +2/3 of a specific message of later round
 When received 2f+1 messages (proposal or votes) of `round` that is later `round_p`, this shows that current process is late, skip to `round` (upon rule 9). 
@@ -42,20 +39,113 @@ See [processing proposal block part message](./proposal.md#processing-proposal-b
 See [processing vote message](./vote.md#processing-vote-message)
 
 
-## Message types
+## Type definitions of messages
+### Channels
+Messages are grouped into channels and sent along corresponding its `ChannelID`. In particular:
 
-### `Message`
+- `StateChannel` messages:
+  - `NewRoundStepMessage`
+  - `NewValidBlockMessage`
+  - `HasVoteMessage`
+  - `VoteSetMaj23Message`
+- `DataChannel` messages:
+  - `ProposalMessage`
+  - `ProposalPOLMessage`
+  - `BlockPartMessage`
+- `VoteChannel` messages:
+  - `VoteMessage`
+- `VoteSetBitsChannel` messages:
+  - `VoteSetBitsMessage`
 
-### `VoteMessage`
-
-### `ProposalMessage`
-
+### `NewRoundStepMessage`
+`NewRoundStepMessage` is sent for every step taken in the ConsensusState. For every height/round/step transition
+```go
+type NewRoundStepMessage struct {
+	Height                uint64
+	Round                 uint32
+	Step                  cstypes.RoundStepType
+	SecondsSinceStartTime uint64
+	LastCommitRound       uint32
+}
+```
+### `NewValidBlockMessage`
+`NewValidBlockMessage` is sent when a validator observes a valid block B in some round r, i.e., there is a Proposal for block B and 2/3+ prevotes for the block B in the round r. In case the block is also committed, then IsCommit flag is set to true.
+```go
+type NewValidBlockMessage struct {
+    Height           uint64
+    Round            uint32
+    BlockPartsHeader types.PartSetHeader
+    BlockParts       *cmn.BitArray
+    IsCommit         bool
+}
+```
 ### `HasVoteMessage`
-
+`HasVoteMessage` is sent to indicate that a particular vote has been received.
+```go
+type HasVoteMessage struct {
+    Height uint64
+    Round  uint32
+    Type   kproto.SignedMsgType
+    Index  uint32
+}
+```
 ### `VoteSetMaj23Message`
+`VoteSetMaj23Message` is sent to indicate that a given BlockID has seen +2/3 votes.
 
-### `VoteSetBitsMessage`
+```go
+type VoteSetMaj23Message struct {
+    Height  uint64
+    Round   uint32
+    Type    kproto.SignedMsgType
+    BlockID types.BlockID
+}
+```
+### `ProposalMessage`
+`ProposalMessage` is sent when a new block is proposed.
+```go
+type ProposalMessage struct {
+    Proposal *types.Proposal
+}
+```
+
+### `ProposalPOLMessage`
+`ProposalPOLMessage` is sent when a previous proposal is re-proposed.
+```go
+type ProposalPOLMessage struct {
+    Height           uint64
+    ProposalPOLRound uint32
+    ProposalPOL      *cmn.BitArray
+}
+```
 
 ### `BlockPartMessage`
+`BlockPartMessage` is sent when gossipping a piece of the proposed block.
+```go
+type BlockPartMessage struct {
+    Height uint64
+    Round  uint32
+    Part   *types.Part
+}
+```
 
-### `NewValidBlockMessage`
+### `VoteMessage`
+`VoteMessage` is sent when voting for a proposal (or lack thereof).
+```go
+type VoteMessage struct {
+    Vote *types.Vote
+}
+```
+
+### `VoteSetBitsMessage`
+`VoteSetBitsMessage` is sent to communicate the bit-array of votes seen for the BlockID.
+
+
+```go
+type VoteSetBitsMessage struct {
+    Height  uint64
+    Round   uint32
+    Type    kproto.SignedMsgType
+    BlockID types.BlockID
+    Votes   *cmn.BitArray
+}
+```
