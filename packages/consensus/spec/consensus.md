@@ -2,6 +2,9 @@
   - [Kardia consensus algorithm](#kardia-consensus-algorithm)
     - [Pseudocode](#pseudocode)
       - [Terms](#terms)
+  - [Consensus reactor](#consensus-reactor)
+  - [Consensus state](#consensus-state)
+  - [Messages flow](#messages-flow)
   - [Auxiliary processes](#auxiliary-processes)
 
 # Consensus specification
@@ -150,6 +153,72 @@ The above consensus algorithm could be explained in more detail:
   - The execution of `StartRound()` (which enter `PROPOSE` state) is guaranteed by either `upon` rule 8 rightaway or after above timeout.
 - The `upon` rule 9 helps it catching up the latest round of other processes.
 
+## Consensus reactor
+Consensus reactor exposes an interface `ConsensusReactor.Receive()` for `p2p` using to send messages. 
+
+`ConsensusReactor.Receive()` processes incoming messages and might update peer state. Then it forwards them to `ConsensusState.peerMsgQueue`, the consensus engine processes each message on the queue in ordered which might make state transition. For more details, see [messages specification](./messages.md#processing-messages). 
+
+TODO: convert model to Rust
+```go
+
+type ConsensusReactor struct {
+	p2p.BaseReactor // BaseService + p2p.Switch
+	conS            *ConsensusState
+	waitSync        bool
+	targetPending   int
+	mtx             sync.RWMutex
+	eventBus        *types.EventBus
+}
+```
+
+## Consensus state
+TODO: convert model to Rust
+```go
+type ConsensusState struct {
+	service.BaseService
+
+	config          *cfg.ConsensusConfig
+	privValidator   types.PrivValidator // for signing votes
+	blockOperations BaseBlockOperations
+	blockExec       *cstate.BlockExecutor
+	evpool          evidencePool // TODO(namdoh): Add mem pool.
+
+	// internal state
+	mtx sync.RWMutex
+	cstypes.RoundState
+	state         cstate.LatestBlockState // State until height-1.
+
+	// State changes may be triggered by: msgs from peers,
+	// msgs from ourself, or by timeouts
+	peerMsgQueue     chan msgInfo
+	internalMsgQueue chan msgInfo
+
+	// we use eventBus to trigger msg broadcasts in the manager,
+	// and to notify external subscribers, eg. through a websocket
+	eventBus *types.EventBus
+
+	// For tests where we want to limit the number of transitions the state makes
+	nSteps int
+
+	// a Write-Ahead Log ensures we can recover from any kind of crash
+	// and helps us avoid signing conflicting votes
+	wal          WAL
+	replayMode   bool // so we don't log signing errors during replay
+	doWALCatchup bool // determines if we even try to do the catchup
+
+	// Synchronous pubsub between consensus state and manager.
+	// State only emits EventNewRoundStep, EventVote and EventProposalHeartbeat
+	evsw kevents.EventSwitch
+
+	// closed when we finish shutting down
+	done chan struct{}
+}
+```
+## Messages flow
+Consensus reactor exposes an interface for sending messages to.
+
+Incoming messages came from network layer (p2p package),
+ 
 ## Auxiliary processes
 These auxiliary processes work separately from the consensus process. They feed the consensus process by data (proposal, votes). They are grouped as following:
 - Proposal
