@@ -9,6 +9,16 @@
 
 # Gossip protocol specification
 
+Gossiping in Kardia node client is to sent data outbound, eg. from the local node to connected peers. For each connected peer, the consensus reactor keeps tracking of peer state for gossiping purpose. (For processing incoming messages from peers, please refer to [Messages specification](#messages-specification))
+
+Based on a peer's state, consensus reactor gossips three main things:
+- Data: proposal, proposal block parts, catchup blocks. TODO: read from [here](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L462-L554)
+- Votes: broadcast missing votes based on peer state. TODO: read from [here](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L601-L671)
+- +2/3: broadcast block id has been received +2/3 votes based on peer state. TODO: read from [here](https://github.com/kardiachain/go-kardia/blob/7b90a657494230b99afb54135882cf2f78ec0395/consensus/manager.go#L728-L812)
+
+Every time the consensus reactor gossiped a piece of data, then it sleeps for predefined duration (via configuration).
+
+Note: 
 ## Models
 ### `PeerRoundState`
 ### BlockPartMessage
