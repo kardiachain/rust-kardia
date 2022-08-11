@@ -13,7 +13,7 @@ pub const VOTE_SET_BITS_CHANNEL: u8 = 0x23;
   Trait for [Consensus Reactor](../spec/consensus#consensus-reactor)
 
   Methods: TODO:
-  
+
    ```
    pub newReactor(), OnStart(), OnStop(), SwitchToConsensus()
    pub SetPrivValidator(), GetPrivValidator(), GetValidators()
@@ -33,6 +33,7 @@ pub trait ConsensusReactor {
     fn add_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
     fn remove_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
     fn receive(ch_id: ChannelId, src: Peer, msg: Message) -> Result<(), Box<dyn Error>>;
+    fn decode_msg(bz: [u8])
 }
 
 pub struct ConsensusReactorImpl {}
@@ -59,10 +60,22 @@ impl ConsensusReactor for ConsensusReactorImpl {
 
     fn receive(ch_id: ChannelId, src: Peer, msg: Message) -> Result<(), Box<dyn Error>> {
         match ch_id {
-            STATE_CHANNEL => Ok(()),
-            DATA_CHANNEL => Ok(()),
-            VOTE_CHANNEL => Ok(()),
-            VOTE_SET_BITS_CHANNEL => Ok(()),
+            STATE_CHANNEL => {
+                // TODO: handle this message
+                Ok(())
+            }
+            DATA_CHANNEL => {
+                // TODO: handle this message
+                Ok(())
+            }
+            VOTE_CHANNEL => {
+                // TODO: handle this message
+                Ok(())
+            }
+            VOTE_SET_BITS_CHANNEL => {
+                // TODO: handle this message
+                Ok(())
+            }
             _ => Err(UnknownChannelIdError.into()),
         }
     }
