@@ -154,22 +154,24 @@ The above consensus algorithm could be explained in more detail:
 - The `upon` rule 9 helps it catching up the latest round of other processes.
 
 ## Consensus reactor
-Consensus reactor exposes an interface `ConsensusReactor.Receive()` for `p2p` using to send messages. 
-
-`ConsensusReactor.Receive()` processes incoming messages and might update peer state. Then it forwards them to `ConsensusState.peerMsgQueue`, the consensus engine processes each message on the queue in ordered which might make state transition. For more details, see [messages specification](./messages.md#processing-messages). 
-
-TODO: convert model to Rust
 ```go
+pub trait ConsensusReactor {
+    fn new() -> Self;
+    fn switch_to_consensus() -> ();
+    fn set_priv_validator() -> ();
+    fn get_priv_validator() -> ();
+    fn get_validators() -> ();
 
-type ConsensusReactor struct {
-	p2p.BaseReactor // BaseService + p2p.Switch
-	conS            *ConsensusState
-	waitSync        bool
-	targetPending   int
-	mtx             sync.RWMutex
-	eventBus        *types.EventBus
+    fn add_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
+    fn remove_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
+    fn receive(ch_id: ChannelId, src: Peer, msg: Message) -> Result<(), Box<dyn Error>>;
 }
 ```
+Consensus reactor interfaces: 
+- `receive()`: an interface for network layer (`p2p`) using to send messages to. It processes incoming messages and might update peer state. Then it forwards them to `ConsensusState.peerMsgQueue`, the consensus engine processes each message on the queue in ordered which might make state transition. See [messages specification](./messages.md). 
+- `add_peer()`: an interface to add a peer. It re-creates peer's round state and starts gossiping processes. See [gossiping specification](gossiping.md).
+- `remove_peer()`: an interface to remove a peer. It stops gossiping and clean up peer state in memory.
+- ...
 
 ## Consensus state
 TODO: convert model to Rust
