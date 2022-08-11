@@ -20,14 +20,11 @@ path = "source/client/src/main.rs"
 # kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
 kai-proto = { path = "packages/proto" }
+kai-types = { path = "packages/types" }
 # kai-db = { path = "packages/db" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }
 # kai-utils = { path = "packages/utils" }
 # kai-vm = { path = "packages/vm" }
-prost = "0.10"
-tonic = "0.7"
 
 [build-dependencies]
-prost-build = "0.10"
-tonic-build = "0.7"
