@@ -15,4 +15,8 @@ primitive-types = "0.11.1"
 secp256k1 = "0.24.0"
 ed25519-consensus   = { version = "2.0.1",  default-features = false }
 ed25519-dalek = { version="1.0.1" } 
-flume = {version = "0.10.14" }
+flume = { version = "0.10.14" }
+
+p256 = { version = "0.11.1", features = ["ecdsa-core", "arithmetic"] }
+hex = { version = "0.4.3" }
+thiserror = { version = "1.0.32" }
