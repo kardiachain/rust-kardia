@@ -1,4 +1,3 @@
-use core::slice::SlicePattern;
 use std::error::Error;
 
 use kai_proto::consensus::Message as ConsensusMessageProto;
@@ -37,7 +36,7 @@ pub trait ConsensusReactor {
 
     fn add_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
     fn remove_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
-    fn receive(ch_id: ChannelId, src: Peer, msg: PeerMessage) -> Result<(), Box<dyn Error>>;
+    fn receive(&self, ch_id: ChannelId, src: Peer, msg: PeerMessage) -> Result<(), Box<dyn Error>>;
 }
 
 #[derive(Default)]
@@ -63,65 +62,13 @@ impl ConsensusReactor for ConsensusReactorImpl {
         todo!()
     }
 
-    fn receive(ch_id: ChannelId, src: Peer, msg: PeerMessage) -> Result<(), Box<dyn Error>> {
+    fn receive(&self, ch_id: ChannelId, src: Peer, msg: PeerMessage) -> Result<(), Box<dyn Error>> {
         match ConsensusReactorImpl::decode_msg(msg.as_slice()) {
-            Ok(msg) => match ch_id {
-                STATE_CHANNEL => {
-                    match msg {
-                        NewRoundStepMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        NewValidBlockMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        HasVoteMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        VoteSetMaj23Message => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        _ => Err(UnknownMessageTypeError.into()),
-                    }
-                }
-                DATA_CHANNEL => {
-                    match msg {
-                        ProposalMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        ProposalPOLMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        BlockPartMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        _ => Err(UnknownMessageTypeError.into()),
-                    }
-                }
-                VOTE_CHANNEL => {
-                    match msg {
-                        VoteMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        _ => Err(UnknownMessageTypeError.into()),
-                    }
-                }
-                VOTE_SET_BITS_CHANNEL => {
-                    match msg {
-                        VoteSetBitsMessage => {
-                            // TODO: handle this message
-                            Ok(())
-                        }
-                        _ => Err(UnknownMessageTypeError.into()),
-                    }
-                }
+            Ok(decoded_msg) => match ch_id {
+                STATE_CHANNEL => self.handle_state_message(decoded_msg),
+                DATA_CHANNEL => self.handle_data_message(decoded_msg),
+                VOTE_CHANNEL => self.handle_vote_message(decoded_msg),
+                VOTE_SET_BITS_CHANNEL => self.handle_vote_set_bits_message(decoded_msg),
                 _ => Err(UnknownChannelIdError.into()),
             },
             Err(err) => Err(Box::new(err)),
@@ -151,6 +98,63 @@ impl ConsensusReactorImpl {
             msg_from_proto(proto_msg)
         } else {
             Err(DecodeProtoError.into())
+        }
+    }
+
+    fn handle_state_message(&self, msg: Box<dyn InternalConsensusMessage>) -> Result<(), Box<dyn Error>> {
+        match msg {
+            NewRoundStepMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            NewValidBlockMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            HasVoteMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            VoteSetMaj23Message => {
+                // TODO: handle this message
+                Ok(())
+            }
+            _ => Err(UnknownMessageTypeError.into()),
+        }
+    }
+    fn handle_data_message(&self, msg: Box<dyn InternalConsensusMessage>) -> Result<(), Box<dyn Error>> {
+        match msg {
+            ProposalMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            ProposalPOLMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            BlockPartMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            _ => Err(UnknownMessageTypeError.into()),
+        }
+    }
+    fn handle_vote_message(&self, msg: Box<dyn InternalConsensusMessage>) -> Result<(), Box<dyn Error>> {
+        match msg {
+            VoteMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            _ => Err(UnknownMessageTypeError.into()),
+        }
+    }
+    fn handle_vote_set_bits_message(&self, msg: Box<dyn InternalConsensusMessage>) -> Result<(), Box<dyn Error>> {
+        match msg {
+            VoteSetBitsMessage => {
+                // TODO: handle this message
+                Ok(())
+            }
+            _ => Err(UnknownMessageTypeError.into()),
         }
     }
 }
