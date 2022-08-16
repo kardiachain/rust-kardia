@@ -1,4 +1,4 @@
-use super::error::{DecodeProtoError, EncodeProtoError};
+use super::error::{ConsensusReactorError};
 use kai_proto::consensus::{message::Sum, Message as ConsensusMessageProto};
 use std::error::Error;
 
@@ -7,12 +7,12 @@ use std::error::Error;
 */
 pub trait Message {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>>;
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError>;
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>>;
 }
 
 pub fn msg_from_proto(
     msg_proto: ConsensusMessageProto,
-) -> Result<Box<dyn Message>, DecodeProtoError> {
+) -> Result<Box<dyn Message>, Box<ConsensusReactorError>> {
     if let Some(sum) = msg_proto.sum {
         match sum {
             Sum::NewRoundStep(m) => Ok(Box::new(NewRoundStepMessage::from(m))),
@@ -24,10 +24,10 @@ pub fn msg_from_proto(
             Sum::HasVote(m) => Ok(Box::new(HasVoteMessage::from(m))),
             Sum::VoteSetMaj23(m) => Ok(Box::new(VoteSetMaj23Message::from(m))),
             Sum::VoteSetBits(m) => Ok(Box::new(VoteSetBitsMessage::from(m))),
-            _ => Err(DecodeProtoError.into()),
+            _ => Err(Box::new(ConsensusReactorError::DecodeProtoError)),
         }
     } else {
-        Err(DecodeProtoError.into())
+        Err(Box::new(ConsensusReactorError::DecodeProtoError))
     }
 }
 
@@ -45,7 +45,7 @@ impl Message for NewRoundStepMessage {
         todo!()
     }
 
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::NewRoundStep(NewRoundStepMessage::into(self.clone()))),
         })
@@ -89,7 +89,7 @@ impl Message for NewValidBlockMessage {
     fn validate_basic(&self) -> Result<(), Box<(dyn Error)>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::NewValidBlock(NewValidBlockMessage::into(self.clone()))),
         })
@@ -132,7 +132,7 @@ impl Message for HasVoteMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::HasVote(HasVoteMessage::into(self.clone()))),
         })
@@ -173,7 +173,7 @@ impl Message for VoteSetMaj23Message {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::VoteSetMaj23(VoteSetMaj23Message::into(self.clone()))),
         })
@@ -211,7 +211,7 @@ impl Message for ProposalMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::Proposal(ProposalMessage::into(self.clone()))),
         })
@@ -245,7 +245,7 @@ impl Message for ProposalPOLMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::ProposalPol(ProposalPOLMessage::into(self.clone()))),
         })
@@ -283,7 +283,7 @@ impl Message for BlockPartMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::BlockPart(BlockPartMessage::into(self.clone()))),
         })
@@ -318,7 +318,7 @@ impl Message for VoteMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::Vote(VoteMessage::into(self.clone()))),
         })
@@ -349,7 +349,7 @@ impl Message for VoteSetBitsMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, EncodeProtoError> {
+    fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::VoteSetBits(VoteSetBitsMessage::into(self.clone()))),
         })

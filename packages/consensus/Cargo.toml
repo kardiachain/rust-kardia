@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-"kai-proto"= { path = "../proto"}
-"kai-types"= { path = "../types"}
+"kai-proto" = { path = "../proto" }
+"kai-types" = { path = "../types" }
 "prost" = "0.11.0"
+"thiserror" = "1.0.32"
+"anyhow" = "1.0"
