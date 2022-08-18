@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 kai-proto= { path = "../proto"}
 prost-types = "0.11.1"
+bitvec = "1"

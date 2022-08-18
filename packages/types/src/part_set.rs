@@ -1,5 +1,12 @@
+use crate::crypto::Proof;
+
 pub struct Part {
     pub index: u32,
-    pub bytes: ::prost::alloc::vec::Vec<u8>,
-    pub proof: ::core::option::Option<super::crypto::Proof>,
+    pub bytes: Vec<u8>,
+    pub proof: Option<Proof>,
+}
+
+pub struct PartSetHeader {
+    pub total: u32,
+    pub hash: Vec<u8>,
 }

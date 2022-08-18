@@ -1,8 +1,9 @@
 
 pub mod block;
 pub mod proposal;
-pub mod bits;
+pub mod bit_array;
 pub mod vote;
+pub mod crypto;
 
 #[cfg(test)]
 mod tests {

@@ -12,6 +12,15 @@ impl From<kai_proto::types::PartSetHeader> for PartSetHeader {
     }
 }
 
+impl Into<kai_proto::types::PartSetHeader> for PartSetHeader {
+    fn into(self) -> kai_proto::types::PartSetHeader {
+        kai_proto::types::PartSetHeader {
+            total: self.total,
+            hash: self.hash,
+        }
+    }
+}
+
 pub struct BlockId {
     pub hash: Vec<u8>,
     pub part_set_header: Option<PartSetHeader>,
@@ -22,6 +31,15 @@ impl From<kai_proto::types::BlockId> for BlockId {
         Self {
             hash: m.hash,
             part_set_header: m.part_set_header.map(|psh| psh.into()),
+        }
+    }
+}
+
+impl Into<kai_proto::types::BlockId> for BlockId {
+    fn into(self) -> kai_proto::types::BlockId {
+        kai_proto::types::BlockId {
+            hash: self.hash,
+            part_set_header: self.part_set_header.map(|psh| psh.into()),
         }
     }
 }
