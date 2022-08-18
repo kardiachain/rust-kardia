@@ -80,7 +80,7 @@ impl Into<kai_proto::consensus::NewRoundStep> for NewRoundStepMessage {
 pub struct NewValidBlockMessage {
     pub height: u64,
     pub round: u32,
-    pub block_part_set_header: Option<kai_proto::types::PartSetHeader>,
+    pub block_parts_header: Option<kai_proto::types::PartSetHeader>,
     pub block_parts: Option<kai_proto::types::BitArray>,
     pub is_commit: bool,
 }
@@ -101,7 +101,7 @@ impl From<kai_proto::consensus::NewValidBlock> for NewValidBlockMessage {
         Self {
             height: m.height,
             round: m.round,
-            block_part_set_header: m.block_part_set_header,
+            block_parts_header: m.block_part_set_header,
             block_parts: m.block_parts,
             is_commit: m.is_commit,
         }
@@ -113,7 +113,7 @@ impl Into<kai_proto::consensus::NewValidBlock> for NewValidBlockMessage {
         kai_proto::consensus::NewValidBlock {
             height: self.height,
             round: self.round,
-            block_part_set_header: self.block_part_set_header,
+            block_part_set_header: self.block_parts_header,
             block_parts: self.block_parts,
             is_commit: self.is_commit,
         }
