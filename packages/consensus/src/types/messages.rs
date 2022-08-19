@@ -1,5 +1,6 @@
-use super::error::{ConsensusReactorError};
+use super::{error::{ConsensusReactorError}, round::RoundStep};
 use kai_proto::consensus::{message::Sum, Message as ConsensusMessageProto};
+use num::FromPrimitive;
 use std::error::Error;
 
 /**
@@ -35,7 +36,7 @@ pub fn msg_from_proto(
 pub struct NewRoundStepMessage {
     pub height: u64,
     pub round: u32,
-    pub step: u32,
+    pub step: RoundStep,
     pub seconds_since_start_time: u64,
     pub last_commit_round: u32,
 }
@@ -57,7 +58,11 @@ impl From<kai_proto::consensus::NewRoundStep> for NewRoundStepMessage {
         Self {
             height: m.height,
             round: m.round,
-            step: m.step,
+            step: match m.step{
+                1 => RoundStep::Propose,
+                2 => RoundStep::Prevote,
+                3 => RoundStep::Precommit,
+            },
             seconds_since_start_time: m.seconds_since_start_time,
             last_commit_round: m.last_commit_round,
         }
@@ -69,7 +74,7 @@ impl Into<kai_proto::consensus::NewRoundStep> for NewRoundStepMessage {
         kai_proto::consensus::NewRoundStep {
             height: self.height,
             round: self.round,
-            step: self.step,
+            step: self.step as u32,
             seconds_since_start_time: self.seconds_since_start_time,
             last_commit_round: self.last_commit_round,
         }

@@ -1,6 +1,7 @@
 mod types;
 mod reactor;
 mod state;
+mod utils;
 
 #[cfg(test)]
 mod tests {
