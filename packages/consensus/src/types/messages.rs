@@ -1,6 +1,8 @@
-use super::{error::{ConsensusReactorError}, round::RoundStep};
-use kai_proto::consensus::{message::Sum, Message as ConsensusMessageProto};
-use num::FromPrimitive;
+use super::{error::ConsensusReactorError, round::RoundStep};
+use kai_proto::{
+    consensus::{message::Sum, Message as ConsensusMessageProto},
+    types::SignedMsgType,
+};
 use std::error::Error;
 
 /**
@@ -58,10 +60,11 @@ impl From<kai_proto::consensus::NewRoundStep> for NewRoundStepMessage {
         Self {
             height: m.height,
             round: m.round,
-            step: match m.step{
-                1 => RoundStep::Propose,
-                2 => RoundStep::Prevote,
-                3 => RoundStep::Precommit,
+            step: match m.step {
+                11 | 1 | 2 | 3 => RoundStep::Propose,
+                12 | 4 | 5 => RoundStep::Prevote,
+                13 | 6 | 7 | 8 => RoundStep::Precommit,
+                _ => RoundStep::Unknown,
             },
             seconds_since_start_time: m.seconds_since_start_time,
             last_commit_round: m.last_commit_round,
@@ -129,7 +132,7 @@ impl Into<kai_proto::consensus::NewValidBlock> for NewValidBlockMessage {
 pub struct HasVoteMessage {
     pub height: u64,
     pub round: u32,
-    pub r#type: i32,
+    pub r#type: SignedMsgType,
     pub index: u32,
 }
 
@@ -149,7 +152,12 @@ impl From<kai_proto::consensus::HasVote> for HasVoteMessage {
         Self {
             height: m.height,
             round: m.round,
-            r#type: m.r#type,
+            r#type: match m.r#type {
+                1 => SignedMsgType::Prevote,
+                2 => SignedMsgType::Precommit,
+                32 => SignedMsgType::Proposal,
+                _ => SignedMsgType::Unknown,
+            },
             index: m.index,
         }
     }
@@ -160,7 +168,7 @@ impl Into<kai_proto::consensus::HasVote> for HasVoteMessage {
         kai_proto::consensus::HasVote {
             height: self.height,
             round: self.round,
-            r#type: self.r#type,
+            r#type: self.r#type.into(),
             index: self.index,
         }
     }
@@ -170,7 +178,7 @@ impl Into<kai_proto::consensus::HasVote> for HasVoteMessage {
 pub struct VoteSetMaj23Message {
     pub height: u64,
     pub round: u32,
-    pub r#type: i32,
+    pub r#type: SignedMsgType,
     pub block_id: Option<kai_proto::types::BlockId>,
 }
 
@@ -190,7 +198,12 @@ impl From<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
         Self {
             height: m.height,
             round: m.round,
-            r#type: m.r#type,
+            r#type: match m.r#type {
+                1 => SignedMsgType::Prevote,
+                2 => SignedMsgType::Precommit,
+                32 => SignedMsgType::Proposal,
+                _ => SignedMsgType::Unknown,
+            },
             block_id: m.block_id,
         }
     }
@@ -201,7 +214,7 @@ impl Into<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
         kai_proto::consensus::VoteSetMaj23 {
             height: self.height,
             round: self.round,
-            r#type: self.r#type,
+            r#type: self.r#type.into(),
             block_id: self.block_id,
         }
     }
@@ -345,7 +358,7 @@ impl Into<kai_proto::consensus::Vote> for VoteMessage {
 pub struct VoteSetBitsMessage {
     pub height: u64,
     pub round: u32,
-    pub r#type: i32,
+    pub r#type: SignedMsgType,
     pub block_id: Option<kai_proto::types::BlockId>,
     pub votes: Option<kai_proto::types::BitArray>,
 }
@@ -366,7 +379,12 @@ impl From<kai_proto::consensus::VoteSetBits> for VoteSetBitsMessage {
         Self {
             height: m.height,
             round: m.round,
-            r#type: m.r#type,
+            r#type: match m.r#type {
+                1 => SignedMsgType::Prevote,
+                2 => SignedMsgType::Precommit,
+                32 => SignedMsgType::Proposal,
+                _ => SignedMsgType::Unknown,
+            },
             block_id: m.block_id,
             votes: m.votes,
         }
@@ -378,7 +396,7 @@ impl Into<kai_proto::consensus::VoteSetBits> for VoteSetBitsMessage {
         kai_proto::consensus::VoteSetBits {
             height: self.height,
             round: self.round,
-            r#type: self.r#type,
+            r#type: self.r#type.into(),
             block_id: self.block_id,
             votes: self.votes,
         }

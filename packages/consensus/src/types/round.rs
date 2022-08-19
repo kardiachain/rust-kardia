@@ -30,9 +30,10 @@ impl From<CanonicalRoundStep> for RoundStep {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, FromPrimitive)]
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, FromPrimitive)]
 pub enum RoundStep {
-    Propose = 1,
-    Prevote = 2,
-    Precommit = 3,
+    Unknown = 0,
+    Propose = 11,
+    Prevote = 12,
+    Precommit = 13,
 }
