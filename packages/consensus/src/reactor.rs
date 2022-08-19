@@ -1,9 +1,9 @@
-use std::any::{Any, TypeId};
+use std::{sync::{Arc, Mutex}, thread};
 
 use crate::types::{
     error::ConsensusReactorError,
-    messages::{msg_from_proto, ConsensusMessage, NewRoundStepMessage},
-    peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState},
+    messages::{msg_from_proto, ConsensusMessage},
+    peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState, PeerState},
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use prost::Message;
@@ -67,12 +67,13 @@ impl ConsensusReactor for ConsensusReactorImpl {
     }
 
     fn add_peer(self: &ConsensusReactorImpl, peer: Peer) -> Result<(), Box<ConsensusReactorError>> {
-        let mut lock = peer.ps.lock();
-        if let Ok(ref mut ps) = lock {
+        let lock = peer.ps.prs.lock();
+        if let Ok(mut prs) = lock {
             // ensure peer round state is fresh
-            ps.prs = PeerRoundState::new();
+            *prs = PeerRoundState::new();
 
             // TODO: start gossiping threads
+
             Ok(())
         } else {
             Err(Box::new(ConsensusReactorError::AddPeerError(String::from(
@@ -110,9 +111,7 @@ impl ConsensusReactor for ConsensusReactorImpl {
 }
 
 impl ConsensusReactorImpl {
-    fn decode_msg(
-        bz: &[u8],
-    ) -> Result<Box<ConsensusMessage>, Box<ConsensusReactorError>> {
+    fn decode_msg(bz: &[u8]) -> Result<Box<ConsensusMessage>, Box<ConsensusReactorError>> {
         if let Ok(proto_msg) = ConsensusMessageProto::decode(bz) {
             msg_from_proto(proto_msg)
         } else {
@@ -127,15 +126,8 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
             ConsensusMessage::NewRoundStepMessage(_msg) => {
-                let mut lock = src.ps.lock();
-                if let Ok(ref mut ps) = lock {
-                    ps.apply_new_round_step_message(_msg);
-                    Ok(())
-                } else {
-                    Err(Box::new(ConsensusReactorError::AddPeerError(String::from(
-                        "lock failed: peer state has been poisoned",
-                    ))))
-                }
+                // ps.apply_new_round_step_message(_msg);
+                Ok(())
             }
             ConsensusMessage::NewValidBlockMessage(_msg) => {
                 // TODO: handle this message
@@ -204,42 +196,42 @@ impl ConsensusReactorImpl {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
-        types::{
-            messages::{NewRoundStepMessage, Message},
-            peer::Peer,
-            round::RoundStep,
-        },
-    };
-    use kai_proto::consensus::Message as ConsensusMessageProto;
-    use prost::Message as ProstMessage;
+// #[cfg(test)]
+// mod tests {
+//     use crate::{
+//         reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
+//         types::{
+//             messages::{Message, NewRoundStepMessage},
+//             peer::Peer,
+//             round::RoundStep,
+//         },
+//     };
+//     use kai_proto::consensus::Message as ConsensusMessageProto;
+//     use prost::Message as ProstMessage;
 
-    #[test]
-    fn handle_new_round_step_msg() {
-        // arrange
-        let reactor: ConsensusReactorImpl = ConsensusReactorImpl::new();
-        let m = NewRoundStepMessage {
-            height: 1,
-            round: 1,
-            step: RoundStep::Propose,
-            seconds_since_start_time: 1000,
-            last_commit_round: 0,
-        };
-        let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
-        let peer_msg = m_proto.encode_to_vec();
-        let peer_id = String::from("peerid");
-        let mut peer = Peer::new(peer_id);
-        reactor.add_peer(peer);
+//     #[test]
+//     fn handle_new_round_step_msg() {
+//         // arrange
+//         let reactor: ConsensusReactorImpl = ConsensusReactorImpl::new();
+//         let m = NewRoundStepMessage {
+//             height: 1,
+//             round: 1,
+//             step: RoundStep::Propose,
+//             seconds_since_start_time: 1000,
+//             last_commit_round: 0,
+//         };
+//         let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
+//         let peer_msg = m_proto.encode_to_vec();
+//         let peer_id = String::from("peerid");
+//         let mut peer = Peer::new(peer_id);
+//         reactor.add_peer(peer);
 
-        // act
-        let rs = reactor.receive(STATE_CHANNEL, peer, peer_msg);
+//         // act
+//         let rs = reactor.receive(STATE_CHANNEL, peer, peer_msg);
 
-        // assert
-        assert!(rs.is_ok_and(|&x| x == 1));
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+//         // assert
+//         assert!(rs.is_ok_and(|&x| x == 1));
+//         let result = 2 + 2;
+//         assert_eq!(result, 4);
+//     }
+// }

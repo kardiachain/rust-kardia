@@ -2,6 +2,7 @@ use bitvec::prelude::*;
 
 // pub type BitArray = BitArr!(for 64, in u64, Msb0);
 
+#[derive(Debug, Clone)]
 pub struct BitArray {
     pub bits: i64,
     pub elems: Vec<u64>,

@@ -1,20 +1,21 @@
-use crate::utils::compare_hrs;
+// use crate::utils::compare_hrs;
 
 use super::{
-    messages::{HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage},
+    error::ConsensusReactorError,
+    // messages::{
+    // HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalPOLMessage,
+    // VoteSetBitsMessage,
+    // },
     round::RoundStep,
 };
-use kai_proto::types::SignedMsgType;
+// use kai_proto::types::SignedMsgType;
 use kai_types::{
     bit_array::BitArray,
     block::PartSetHeader,
-    proposal::Proposal,
-    vote::{is_valid_vote_type, Vote},
+    // proposal::Proposal,
+    // vote::{is_valid_vote_type, Vote},
 };
-use std::{
-    sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::sync::{Arc, Mutex};
 
 pub type ChannelId = u8;
 pub type Message = Vec<u8>;
@@ -25,213 +26,251 @@ pub struct Peer {
     /**
        peer state
     */
-    pub ps: Arc<Mutex<PeerState>>,
+    pub ps: PeerState,
 }
 
 impl Peer {
     pub fn new(id: PeerId) -> Self {
         Self {
             id,
-            ps: Arc::new(Mutex::new(PeerState::new())),
+            ps: PeerState::new(),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct PeerState {
     /**
        peer round state
     */
-    pub prs: PeerRoundState,
+    pub prs: Arc<Mutex<PeerRoundState>>,
 }
 
 impl PeerState {
     pub fn new() -> Self {
         Self {
-            prs: PeerRoundState::new(),
+            prs: Arc::new(Mutex::new(PeerRoundState::new())),
         }
     }
 
-    pub fn get_round_state(self) -> Box<PeerRoundState> {
-        Box::new(self.prs)
-    }
-
-    pub fn set_has_proposal(mut self, proposal: Proposal) {
-        if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
-            return;
-        }
-
-        if self.prs.proposal {
-            return;
-        }
-
-        self.prs.proposal = true;
-
-        if self.prs.proposal_block_parts.is_some() {
-            return;
-        }
-
-        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
-        self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
-        self.prs.proposal_pol_round = proposal.pol_round;
-        self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
-    }
-
-    pub fn set_has_proposal_block_part(self, height: u64, round: u32, index: usize) {
-        if (self.prs.height != height) || (self.prs.round != round) {
-            return;
-        }
-
-        if let Some(pbp) = self.prs.proposal_block_parts {
-            // TODO: implement BitArray.set_index for Proposal Block Parts
-            pbp.set_index(index, true);
+    pub fn get_round_state(self) -> Result<PeerRoundState, Box<ConsensusReactorError>> {
+        let lock = self.prs.lock();
+        if let Ok(prs) = lock {
+            Ok(prs.clone())
+        } else {
+            Err(Box::new(ConsensusReactorError::AddPeerError(String::from(
+                "lock failed: peer state has been poisoned",
+            ))))
         }
     }
 
-    pub fn apply_new_valid_block_message(mut self, msg: NewValidBlockMessage) {
-        if self.prs.height != msg.height {
-            return;
-        }
+    // pub fn set_has_proposal(mut self, proposal: Proposal) {
+    //     if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
+    //         return;
+    //     }
 
-        if self.prs.round != msg.round && !msg.is_commit {
-            return;
-        }
+    //     if self.prs.proposal {
+    //         return;
+    //     }
 
-        self.prs.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
-        self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
-    }
+    //     self.prs.proposal = true;
 
-    pub fn set_has_vote(mut self, vote: Vote) {
-        if let Some(ps_votes) = self.get_vote_bit_array(vote.height, vote.round, vote.r#type) {
-            ps_votes.set_index(vote.validator_index.try_into().unwrap(), true);
-        }
-    }
+    //     if self.prs.proposal_block_parts.is_some() {
+    //         return;
+    //     }
 
-    pub fn apply_new_round_step_message(mut self, msg: NewRoundStepMessage) {
-        if compare_hrs(
-            self.prs.height,
-            self.prs.round,
-            self.prs.step,
-            msg.height,
-            msg.round,
-            msg.step,
-        ) <= 0
-        {
-            return;
-        }
+    //     self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
+    //     self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
+    //     self.prs.proposal_pol_round = proposal.pol_round;
+    //     self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
+    // }
 
-        // temp values
-        let ps_height = self.prs.height;
-        let ps_round = self.prs.round;
-        let ps_catchup_commit_round = self.prs.catchup_commit_round;
-        let ps_catchup_commit = self.prs.catchup_commit;
+    // pub fn set_has_proposal_block_part(self, height: u64, round: u32, index: usize) {
+    //     if (self.prs.height != height) || (self.prs.round != round) {
+    //         return;
+    //     }
 
-        let start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            - msg.seconds_since_start_time;
-        self.prs.height = msg.height;
-        self.prs.round = msg.round;
-        self.prs.step = msg.step;
-        self.prs.start_time = start_time;
+    //     if let Some(pbp) = self.prs.proposal_block_parts {
+    //         // TODO: implement BitArray.set_index for Proposal Block Parts
+    //         pbp.set_index(index, true);
+    //     }
+    // }
 
-        if (ps_height != msg.height) || (ps_round != msg.round) {
-            self.prs.proposal = false;
-            self.prs.proposal_block_parts_header = None;
-            self.prs.proposal_block_parts = None;
-            self.prs.proposal_pol_round = 0;
-            self.prs.proposal_pol = None;
-            self.prs.prevotes = None;
-            self.prs.precommits = None;
-        }
-        if (ps_height == msg.height)
-            && (ps_round != msg.round)
-            && (msg.round == ps_catchup_commit_round)
-        {
-            self.prs.precommits = ps_catchup_commit;
-        }
-        if ps_height != msg.height {
-            // shift precommits to lastcommit.
-            if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
-                self.prs.last_commit_round = msg.last_commit_round;
-                self.prs.last_commit = self.prs.precommits;
-            } else {
-                self.prs.last_commit_round = msg.last_commit_round;
-                self.prs.last_commit = None
-            }
-            self.prs.catchup_commit_round = 0;
-            self.prs.catchup_commit = None;
-        }
-    }
+    // pub fn apply_new_valid_block_message(mut self, msg: NewValidBlockMessage) {
+    //     if self.prs.height != msg.height {
+    //         return;
+    //     }
 
-    pub fn apply_has_vote_message(mut self, msg: HasVoteMessage) {
-        if self.prs.height != msg.height {
-            return;
-        }
+    //     if self.prs.round != msg.round && !msg.is_commit {
+    //         return;
+    //     }
 
-        self._set_has_vote(msg.height, msg.round, msg.r#type, msg.index);
-    }
+    //     self.prs.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
+    //     self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
+    // }
 
-    fn get_vote_bit_array(
-        self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-    ) -> Option<BitArray> {
-        if !is_valid_vote_type(signed_msg_type) {
-            return None;
-        }
+    // pub fn set_has_vote(mut self, vote: Vote) {
+    //     if let Some(ps_votes) = self.get_vote_bit_array(vote.height, vote.round, vote.r#type) {
+    //         ps_votes.set_index(vote.validator_index.try_into().unwrap(), true);
+    //     }
+    // }
 
-        if self.prs.height == height {
-            if self.prs.round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.prevotes,
-                    SignedMsgType::Precommit => self.prs.precommits,
-                    _ => None,
-                };
-            }
-            if self.prs.catchup_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.catchup_commit,
-                    _ => None,
-                };
-            }
-            if self.prs.proposal_pol_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.proposal_pol,
-                    _ => None,
-                };
-            }
-        }
+    // pub fn apply_new_round_step_message(mut self, msg: NewRoundStepMessage) {
+    //     if compare_hrs(
+    //         self.prs.height,
+    //         self.prs.round,
+    //         self.prs.step,
+    //         msg.height,
+    //         msg.round,
+    //         msg.step,
+    //     ) <= 0
+    //     {
+    //         return;
+    //     }
 
-        if self.prs.height == height + 1 {
-            if self.prs.last_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.last_commit,
-                    _ => None,
-                };
-            }
-        }
+    //     // temp values
+    //     let ps_height = self.prs.height;
+    //     let ps_round = self.prs.round;
+    //     let ps_catchup_commit_round = self.prs.catchup_commit_round;
+    //     let ps_catchup_commit = self.prs.catchup_commit;
 
-        return None;
-    }
+    //     let start_time = SystemTime::now()
+    //         .duration_since(UNIX_EPOCH)
+    //         .unwrap()
+    //         .as_secs()
+    //         - msg.seconds_since_start_time;
+    //     self.prs.height = msg.height;
+    //     self.prs.round = msg.round;
+    //     self.prs.step = msg.step;
+    //     self.prs.start_time = start_time;
 
-    fn _set_has_vote(
-        mut self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-        index: u32,
-    ) {
-        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
-            ps_votes.set_index(index.try_into().unwrap(), true);
-        }
-    }
+    //     if (ps_height != msg.height) || (ps_round != msg.round) {
+    //         self.prs.proposal = false;
+    //         self.prs.proposal_block_parts_header = None;
+    //         self.prs.proposal_block_parts = None;
+    //         self.prs.proposal_pol_round = 0;
+    //         self.prs.proposal_pol = None;
+    //         self.prs.prevotes = None;
+    //         self.prs.precommits = None;
+    //     }
+    //     if (ps_height == msg.height)
+    //         && (ps_round != msg.round)
+    //         && (msg.round == ps_catchup_commit_round)
+    //     {
+    //         self.prs.precommits = ps_catchup_commit;
+    //     }
+    //     if ps_height != msg.height {
+    //         // shift precommits to lastcommit.
+    //         if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
+    //             self.prs.last_commit_round = msg.last_commit_round;
+    //             self.prs.last_commit = self.prs.precommits;
+    //         } else {
+    //             self.prs.last_commit_round = msg.last_commit_round;
+    //             self.prs.last_commit = None
+    //         }
+    //         self.prs.catchup_commit_round = 0;
+    //         self.prs.catchup_commit = None;
+    //     }
+    // }
+
+    // pub fn apply_has_vote_message(mut self, msg: HasVoteMessage) {
+    //     if self.prs.height != msg.height {
+    //         return;
+    //     }
+
+    //     self._set_has_vote(msg.height, msg.round, msg.r#type, msg.index);
+    // }
+
+    // pub fn apply_vote_set_bits_message(
+    //     mut self,
+    //     msg: VoteSetBitsMessage,
+    //     our_votes: Option<BitArray>,
+    // ) {
+    //     if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
+    //         if let Some(_our_votes) = our_votes {
+    //             // TODO: implement sub(), or(), update() for BitArray
+    //             // let other_votes = votes.sub(_our_votes);
+    //             // let has_votes = other_votes.or(msg.votes);
+    //             // votes.update(has_votes);
+    //         } else {
+    //             // TODO:
+    //             // votes.Update(msg.votes)
+    //         }
+    //     }
+    // }
+
+    // pub fn apply_proposal_pol_message(mut self, msg: ProposalPOLMessage) {
+    //     if self.prs.height != msg.height {
+    //         return;
+    //     }
+    //     if self.prs.proposal_pol_round != msg.proposal_pol_round {
+    //         return;
+    //     }
+
+    //     self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
+    // }
+
+    // fn get_vote_bit_array(
+    //     self,
+    //     height: u64,
+    //     round: u32,
+    //     signed_msg_type: SignedMsgType,
+    // ) -> Option<BitArray> {
+    //     if !is_valid_vote_type(signed_msg_type) {
+    //         return None;
+    //     }
+
+    //     if self.prs.height == height {
+    //         if self.prs.round == round {
+    //             return match signed_msg_type {
+    //                 SignedMsgType::Prevote => self.prs.prevotes,
+    //                 SignedMsgType::Precommit => self.prs.precommits,
+    //                 _ => None,
+    //             };
+    //         }
+    //         if self.prs.catchup_commit_round == round {
+    //             return match signed_msg_type {
+    //                 SignedMsgType::Precommit => self.prs.catchup_commit,
+    //                 _ => None,
+    //             };
+    //         }
+    //         if self.prs.proposal_pol_round == round {
+    //             return match signed_msg_type {
+    //                 SignedMsgType::Prevote => self.prs.proposal_pol,
+    //                 _ => None,
+    //             };
+    //         }
+    //     }
+
+    //     if self.prs.height == height + 1 {
+    //         if self.prs.last_commit_round == round {
+    //             return match signed_msg_type {
+    //                 SignedMsgType::Precommit => self.prs.last_commit,
+    //                 _ => None,
+    //             };
+    //         }
+    //     }
+
+    //     return None;
+    // }
+
+    // fn _set_has_vote(
+    //     mut self,
+    //     height: u64,
+    //     round: u32,
+    //     signed_msg_type: SignedMsgType,
+    //     index: u32,
+    // ) {
+    //     if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+    //         ps_votes.set_index(index.try_into().unwrap(), true);
+    //     }
+    // }
 }
 
 /**
 PeerRoundState contains the known state of a peer.
 */
+#[derive(Debug, Clone)]
 pub struct PeerRoundState {
     height: u64,
     round: u32,
@@ -269,5 +308,49 @@ impl PeerRoundState {
             catchup_commit_round: 0,
             catchup_commit: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::time;
+    use std::{sync::Arc, thread};
+
+    use crate::types::peer::Peer;
+
+    #[test]
+    fn get_round_state_ok() {
+        // arrange
+        let peer_id = String::from("peer1");
+        let peer = Peer::new(peer_id);
+
+        // act
+        let prs = peer.ps.get_round_state();
+
+        // assert
+        assert!(prs.is_ok());
+        assert_eq!(prs.unwrap().height, 0);
+    }
+
+    #[test]
+    fn get_round_state_failed() {
+        // arrange
+        let peer_id = String::from("peer1");
+        let peer = Peer::new(peer_id);
+        let prs = peer.ps.prs;
+        let c_mutex = Arc::clone(&prs);
+
+        thread::spawn(move || {
+            if let Ok(mut prs) = c_mutex.lock() {
+                prs.height = 10;
+            }
+            thread::sleep(time::Duration::from_millis(500))
+        });
+
+        thread::spawn(move || {
+            if let Ok(another_prs) = peer.ps.get_round_state() {
+                assert_eq!(another_prs.height, 10);
+            }
+        });
     }
 }

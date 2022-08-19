@@ -1,3 +1,5 @@
+
+#[derive(Debug, Clone)]
 pub struct PartSetHeader {
     pub total: u32,
     pub hash: Vec<u8>,
@@ -21,6 +23,7 @@ impl Into<kai_proto::types::PartSetHeader> for PartSetHeader {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockId {
     pub hash: Vec<u8>,
     pub part_set_header: Option<PartSetHeader>,
