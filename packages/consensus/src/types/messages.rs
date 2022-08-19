@@ -3,7 +3,7 @@ use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
-use std::error::Error;
+use std::{any::Any, error::Error};
 
 /**
    Message is a message that can be sent and received on the `ConsensusReactor`
@@ -11,22 +11,53 @@ use std::error::Error;
 pub trait Message {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>>;
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>>;
+    fn as_any(&self) -> &dyn Any;
+}
+
+pub enum ConsensusMessage {
+    NewRoundStepMessage(NewRoundStepMessage),
+    NewValidBlockMessage(NewValidBlockMessage),
+    ProposalMessage(ProposalMessage),
+    ProposalPOLMessage(ProposalPOLMessage),
+    BlockPartMessage(BlockPartMessage),
+    VoteMessage(VoteMessage),
+    HasVoteMessage(HasVoteMessage),
+    VoteSetMaj23Message(VoteSetMaj23Message),
+    VoteSetBitsMessage(VoteSetBitsMessage),
 }
 
 pub fn msg_from_proto(
     msg_proto: ConsensusMessageProto,
-) -> Result<Box<dyn Message>, Box<ConsensusReactorError>> {
+) -> Result<Box<ConsensusMessage>, Box<ConsensusReactorError>> {
     if let Some(sum) = msg_proto.sum {
         match sum {
-            Sum::NewRoundStep(m) => Ok(Box::new(NewRoundStepMessage::from(m))),
-            Sum::NewValidBlock(m) => Ok(Box::new(NewValidBlockMessage::from(m))),
-            Sum::Proposal(m) => Ok(Box::new(ProposalMessage::from(m))),
-            Sum::ProposalPol(m) => Ok(Box::new(ProposalPOLMessage::from(m))),
-            Sum::BlockPart(m) => Ok(Box::new(BlockPartMessage::from(m))),
-            Sum::Vote(m) => Ok(Box::new(VoteMessage::from(m))),
-            Sum::HasVote(m) => Ok(Box::new(HasVoteMessage::from(m))),
-            Sum::VoteSetMaj23(m) => Ok(Box::new(VoteSetMaj23Message::from(m))),
-            Sum::VoteSetBits(m) => Ok(Box::new(VoteSetBitsMessage::from(m))),
+            Sum::NewRoundStep(m) => Ok(Box::new(ConsensusMessage::NewRoundStepMessage(
+                NewRoundStepMessage::from(m),
+            ))),
+            Sum::NewValidBlock(m) => Ok(Box::new(ConsensusMessage::NewValidBlockMessage(
+                NewValidBlockMessage::from(m),
+            ))),
+            Sum::Proposal(m) => Ok(Box::new(ConsensusMessage::ProposalMessage(
+                ProposalMessage::from(m),
+            ))),
+            Sum::ProposalPol(m) => Ok(Box::new(ConsensusMessage::ProposalPOLMessage(
+                ProposalPOLMessage::from(m),
+            ))),
+            Sum::BlockPart(m) => Ok(Box::new(ConsensusMessage::BlockPartMessage(
+                BlockPartMessage::from(m),
+            ))),
+            Sum::Vote(m) => Ok(Box::new(ConsensusMessage::VoteMessage(VoteMessage::from(
+                m,
+            )))),
+            Sum::HasVote(m) => Ok(Box::new(ConsensusMessage::HasVoteMessage(
+                HasVoteMessage::from(m),
+            ))),
+            Sum::VoteSetMaj23(m) => Ok(Box::new(ConsensusMessage::VoteSetMaj23Message(
+                VoteSetMaj23Message::from(m),
+            ))),
+            Sum::VoteSetBits(m) => Ok(Box::new(ConsensusMessage::VoteSetBitsMessage(
+                VoteSetBitsMessage::from(m),
+            ))),
             _ => Err(Box::new(ConsensusReactorError::DecodeProtoError)),
         }
     } else {
@@ -47,11 +78,13 @@ impl Message for NewRoundStepMessage {
     fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
         todo!()
     }
-
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::NewRoundStep(NewRoundStepMessage::into(self.clone()))),
         })
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -102,6 +135,9 @@ impl Message for NewValidBlockMessage {
             sum: Some(Sum::NewValidBlock(NewValidBlockMessage::into(self.clone()))),
         })
     }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl From<kai_proto::consensus::NewValidBlock> for NewValidBlockMessage {
@@ -144,6 +180,9 @@ impl Message for HasVoteMessage {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::HasVote(HasVoteMessage::into(self.clone()))),
         })
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -191,6 +230,9 @@ impl Message for VoteSetMaj23Message {
             sum: Some(Sum::VoteSetMaj23(VoteSetMaj23Message::into(self.clone()))),
         })
     }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl From<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
@@ -234,6 +276,9 @@ impl Message for ProposalMessage {
             sum: Some(Sum::Proposal(ProposalMessage::into(self.clone()))),
         })
     }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl From<kai_proto::consensus::Proposal> for ProposalMessage {
@@ -267,6 +312,9 @@ impl Message for ProposalPOLMessage {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::ProposalPol(ProposalPOLMessage::into(self.clone()))),
         })
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -306,6 +354,9 @@ impl Message for BlockPartMessage {
             sum: Some(Sum::BlockPart(BlockPartMessage::into(self.clone()))),
         })
     }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl From<kai_proto::consensus::BlockPart> for BlockPartMessage {
@@ -341,6 +392,9 @@ impl Message for VoteMessage {
             sum: Some(Sum::Vote(VoteMessage::into(self.clone()))),
         })
     }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl From<kai_proto::consensus::Vote> for VoteMessage {
@@ -371,6 +425,9 @@ impl Message for VoteSetBitsMessage {
         Ok(ConsensusMessageProto {
             sum: Some(Sum::VoteSetBits(VoteSetBitsMessage::into(self.clone()))),
         })
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
