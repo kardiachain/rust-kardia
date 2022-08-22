@@ -249,6 +249,10 @@ mod tests {
 
         assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
         let prs = Arc::clone(&rs.unwrap().unwrap());
-        assert_eq!(prs.height, 1)
+        assert_eq!(prs.height, 1);
+        assert_eq!(prs.height, 1);
+        assert_eq!(prs.round, 1);
+        assert_eq!(prs.step, RoundStep::Propose);
+        assert_eq!(prs.last_commit_round, 0);
     }
 }
