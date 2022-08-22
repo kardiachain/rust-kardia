@@ -1,20 +1,14 @@
-// use crate::utils::compare_hrs;
-
+use core::fmt::Debug;
 use crate::utils::compare_hrs;
 
 use super::{
     messages::{
-        BlockPartMessage, HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage,
+        BlockPartMessage, NewRoundStepMessage, NewValidBlockMessage,
         ProposalMessage, ProposalPOLMessage,
     },
-    // messages::{
-    // HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalPOLMessage,
-    // VoteSetBitsMessage,
-    // },
     round::RoundStep,
 };
 use kai_proto::types::SignedMsgType;
-// use kai_proto::types::SignedMsgType;
 use kai_types::{bit_array::BitArray, block::PartSetHeader, vote::is_valid_vote_type};
 use std::{
     sync::{Arc, Mutex},
@@ -30,39 +24,117 @@ pub struct Peer {
     /**
        peer state
     */
-    pub ps: Arc<Mutex<PeerState>>,
+    pub ps: Arc<Mutex<dyn PeerState>>,
 }
 
 impl Peer {
     pub fn new(id: PeerId) -> Self {
         Self {
             id,
-            ps: Arc::new(Mutex::new(PeerState::new())),
+            ps: Arc::new(Mutex::new(PeerStateImpl::new())),
         }
     }
 }
 
-#[derive(Clone)]
-pub struct PeerState {
+pub trait PeerState: Debug + Sync + Send + 'static {
+    fn set_prs(&mut self, new_prs: PeerRoundState);
+    fn get_prs(&self) -> PeerRoundState;
+    fn set_has_proposal(&mut self, msg: ProposalMessage);
+    fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage);
+    fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage);
+    fn set_has_vote(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+        index: usize,
+    );
+    fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage);
+    fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage);
+}
+
+#[derive(Debug, Clone)]
+pub struct PeerStateImpl {
     /**
-       peer round state
+    peer round state
     */
     pub prs: PeerRoundState,
 }
 
-impl PeerState {
+impl PeerStateImpl {
     pub fn new() -> Self {
         Self {
             prs: PeerRoundState::new(),
-            // prs: Arc::new(Mutex::new(PeerRoundState::new())),
         }
     }
 
-    pub fn get_round_state(&self) -> PeerRoundState {
+    fn get_vote_bit_array(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+    ) -> Option<BitArray> {
+        if !is_valid_vote_type(signed_msg_type) {
+            return None;
+        }
+
+        if self.prs.height == height {
+            if self.prs.round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prs.prevotes.clone(),
+                    SignedMsgType::Precommit => self.prs.precommits.clone(),
+                    _ => None,
+                };
+            }
+            if self.prs.catchup_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.prs.catchup_commit.clone(),
+                    _ => None,
+                };
+            }
+            if self.prs.proposal_pol_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prs.proposal_pol.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        if self.prs.height == height + 1 {
+            if self.prs.last_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.prs.last_commit.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        return None;
+    }
+
+    fn _set_has_vote(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+        index: u32,
+    ) {
+        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+            ps_votes.set_index(index.try_into().unwrap(), true);
+        }
+    }
+}
+
+impl PeerState for PeerStateImpl {
+    fn set_prs(&mut self, new_prs: PeerRoundState) {
+        self.prs = new_prs;
+    }
+
+    fn get_prs(&self) -> PeerRoundState {
         self.prs.clone()
     }
 
-    pub fn set_has_proposal(&mut self, msg: ProposalMessage) {
+    fn set_has_proposal(&mut self, msg: ProposalMessage) {
         let proposal = msg.proposal.unwrap();
 
         if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
@@ -85,7 +157,7 @@ impl PeerState {
         self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
     }
 
-    pub fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage) {
+    fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage) {
         if (self.prs.height != msg.height) || (self.prs.round != msg.round) {
             return;
         }
@@ -96,7 +168,7 @@ impl PeerState {
         }
     }
 
-    pub fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
+    fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
         if self.prs.height != msg.height {
             return;
         }
@@ -109,7 +181,7 @@ impl PeerState {
         self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
     }
 
-    pub fn set_has_vote(
+    fn set_has_vote(
         &mut self,
         height: u64,
         round: u32,
@@ -121,7 +193,7 @@ impl PeerState {
         }
     }
 
-    pub fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
+    fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
         if compare_hrs(
             msg.height,
             msg.round,
@@ -197,7 +269,7 @@ impl PeerState {
     //     }
     // }
 
-    pub fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
+    fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
         if self.prs.height != msg.height {
             return;
         }
@@ -206,62 +278,6 @@ impl PeerState {
         }
 
         self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
-    }
-
-    fn get_vote_bit_array(
-        &mut self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-    ) -> Option<BitArray> {
-        if !is_valid_vote_type(signed_msg_type) {
-            return None;
-        }
-
-        if self.prs.height == height {
-            if self.prs.round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.prevotes.clone(),
-                    SignedMsgType::Precommit => self.prs.precommits.clone(),
-                    _ => None,
-                };
-            }
-            if self.prs.catchup_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.catchup_commit.clone(),
-                    _ => None,
-                };
-            }
-            if self.prs.proposal_pol_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.proposal_pol.clone(),
-                    _ => None,
-                };
-            }
-        }
-
-        if self.prs.height == height + 1 {
-            if self.prs.last_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.last_commit.clone(),
-                    _ => None,
-                };
-            }
-        }
-
-        return None;
-    }
-
-    fn _set_has_vote(
-        &mut self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-        index: u32,
-    ) {
-        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
-            ps_votes.set_index(index.try_into().unwrap(), true);
-        }
     }
 }
 
@@ -316,6 +332,8 @@ mod tests {
 
     use crate::types::peer::Peer;
 
+    use super::PeerRoundState;
+
     #[test]
     fn get_round_state_ok() {
         // arrange
@@ -325,7 +343,7 @@ mod tests {
         // act
         if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
             // assert
-            assert_eq!(ps_guard.prs.height, 0);
+            assert_eq!(ps_guard.get_prs().height, 0);
         }
     }
 
@@ -341,7 +359,9 @@ mod tests {
         // this thread locks peer state for 500ms
         thread::spawn(move || {
             if let Ok(mut ps_guard) = ps_1.lock() {
-                ps_guard.prs.height = 10;
+                let mut new_prs = PeerRoundState::new();
+                new_prs.height = 10;
+                ps_guard.set_prs(new_prs);
                 drop(ps_guard);
             }
             thread::sleep(time::Duration::from_millis(500));
@@ -354,7 +374,7 @@ mod tests {
         // this thread wait until thread #1 release the lock and read values
         thread::spawn(move || {
             if let Ok(ps_guard) = ps_3.lock() {
-                assert_eq!(ps_guard.prs.height, 10);
+                assert_eq!(ps_guard.get_prs().height, 10);
             }
         });
     }

@@ -75,7 +75,7 @@ impl ConsensusReactor for ConsensusReactorImpl {
         let lock = peer.ps.lock();
         if let Ok(mut ps_guard) = lock {
             // ensure peer round state is fresh
-            ps_guard.prs = PeerRoundState::new();
+            ps_guard.set_prs(PeerRoundState::new());
 
             // TODO: start gossiping threads
 
@@ -339,7 +339,48 @@ mod tests {
 
         let rs = thread::spawn(move || {
             if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
-                Ok(Arc::new(ps_guard.get_round_state()))
+                Ok(Arc::new(ps_guard.get_prs()))
+            } else {
+                Err("err")
+            }
+        })
+        .join();
+
+        assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
+        let prs = Arc::clone(&rs.unwrap().unwrap());
+        assert_eq!(prs.height, 1);
+        assert_eq!(prs.height, 1);
+        assert_eq!(prs.round, 1);
+        assert_eq!(prs.step, RoundStep::Propose);
+        assert_eq!(prs.last_commit_round, 0);
+    }
+
+    #[test]
+    fn handle_new_valid_block_msg() {
+        // arrange
+        let reactor: ConsensusReactorImpl = ConsensusReactorImpl::new();
+        let m = NewRoundStepMessage {
+            height: 1,
+            round: 1,
+            step: RoundStep::Propose,
+            seconds_since_start_time: 1000,
+            last_commit_round: 0,
+        };
+        let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
+        let peer_msg = m_proto.encode_to_vec();
+        let peer_id = String::from("peerid");
+        let peer = Arc::new(Peer::new(peer_id));
+        _ = reactor.add_peer(Arc::clone(&peer));
+
+        // act
+        let rs = reactor.receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+
+        // assert
+        assert!(rs.is_ok());
+
+        let rs = thread::spawn(move || {
+            if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
+                Ok(Arc::new(ps_guard.get_prs()))
             } else {
                 Err("err")
             }
