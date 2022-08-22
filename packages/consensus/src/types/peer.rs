@@ -4,18 +4,19 @@ use crate::utils::compare_hrs;
 
 use super::{
     error::ConsensusReactorError,
-    messages::NewRoundStepMessage,
+    messages::{NewRoundStepMessage, NewValidBlockMessage, HasVoteMessage},
     // messages::{
     // HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalPOLMessage,
     // VoteSetBitsMessage,
     // },
     round::RoundStep,
 };
+use kai_proto::types::SignedMsgType;
 // use kai_proto::types::SignedMsgType;
 use kai_types::{
     bit_array::BitArray,
     block::PartSetHeader,
-    proposal::Proposal,
+    proposal::Proposal, vote::is_valid_vote_type,
     // proposal::Proposal,
     // vote::{is_valid_vote_type, Vote},
 };
@@ -97,24 +98,24 @@ impl PeerState {
     //     }
     // }
 
-    // pub fn apply_new_valid_block_message(mut self, msg: NewValidBlockMessage) {
-    //     if self.prs.height != msg.height {
-    //         return;
-    //     }
+    pub fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
+        if self.prs.height != msg.height {
+            return;
+        }
 
-    //     if self.prs.round != msg.round && !msg.is_commit {
-    //         return;
-    //     }
+        if self.prs.round != msg.round && !msg.is_commit {
+            return;
+        }
 
-    //     self.prs.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
-    //     self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
-    // }
+        self.prs.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
+        self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
+    }
 
-    // pub fn set_has_vote(mut self, vote: Vote) {
-    //     if let Some(ps_votes) = self.get_vote_bit_array(vote.height, vote.round, vote.r#type) {
-    //         ps_votes.set_index(vote.validator_index.try_into().unwrap(), true);
-    //     }
-    // }
+    pub fn set_has_vote(&mut self, msg: HasVoteMessage) {
+        if let Some(ps_votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
+            ps_votes.set_index(msg.index.try_into().unwrap(), true);
+        }
+    }
 
     pub fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
         if compare_hrs(
@@ -211,61 +212,61 @@ impl PeerState {
     //     self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
     // }
 
-    // fn get_vote_bit_array(
-    //     self,
-    //     height: u64,
-    //     round: u32,
-    //     signed_msg_type: SignedMsgType,
-    // ) -> Option<BitArray> {
-    //     if !is_valid_vote_type(signed_msg_type) {
-    //         return None;
-    //     }
+    fn get_vote_bit_array(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+    ) -> Option<BitArray> {
+        if !is_valid_vote_type(signed_msg_type) {
+            return None;
+        }
 
-    //     if self.prs.height == height {
-    //         if self.prs.round == round {
-    //             return match signed_msg_type {
-    //                 SignedMsgType::Prevote => self.prs.prevotes,
-    //                 SignedMsgType::Precommit => self.prs.precommits,
-    //                 _ => None,
-    //             };
-    //         }
-    //         if self.prs.catchup_commit_round == round {
-    //             return match signed_msg_type {
-    //                 SignedMsgType::Precommit => self.prs.catchup_commit,
-    //                 _ => None,
-    //             };
-    //         }
-    //         if self.prs.proposal_pol_round == round {
-    //             return match signed_msg_type {
-    //                 SignedMsgType::Prevote => self.prs.proposal_pol,
-    //                 _ => None,
-    //             };
-    //         }
-    //     }
+        if self.prs.height == height {
+            if self.prs.round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prs.prevotes.clone(),
+                    SignedMsgType::Precommit => self.prs.precommits.clone(),
+                    _ => None,
+                };
+            }
+            if self.prs.catchup_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.prs.catchup_commit.clone(),
+                    _ => None,
+                };
+            }
+            if self.prs.proposal_pol_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prs.proposal_pol.clone(),
+                    _ => None,
+                };
+            }
+        }
 
-    //     if self.prs.height == height + 1 {
-    //         if self.prs.last_commit_round == round {
-    //             return match signed_msg_type {
-    //                 SignedMsgType::Precommit => self.prs.last_commit,
-    //                 _ => None,
-    //             };
-    //         }
-    //     }
+        if self.prs.height == height + 1 {
+            if self.prs.last_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.prs.last_commit.clone(),
+                    _ => None,
+                };
+            }
+        }
 
-    //     return None;
-    // }
+        return None;
+    }
 
-    // fn _set_has_vote(
-    //     mut self,
-    //     height: u64,
-    //     round: u32,
-    //     signed_msg_type: SignedMsgType,
-    //     index: u32,
-    // ) {
-    //     if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
-    //         ps_votes.set_index(index.try_into().unwrap(), true);
-    //     }
-    // }
+    fn _set_has_vote(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+        index: u32,
+    ) {
+        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+            ps_votes.set_index(index.try_into().unwrap(), true);
+        }
+    }
 }
 
 /**

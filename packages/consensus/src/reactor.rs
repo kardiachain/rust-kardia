@@ -125,6 +125,8 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
             ConsensusMessage::NewRoundStepMessage(_msg) => {
+                // TODO: do validations
+
                 thread::spawn(move || {
                     if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                         ps_guard.apply_new_round_step_message(_msg);
@@ -135,12 +137,24 @@ impl ConsensusReactorImpl {
                 }).join().unwrap()
             }
             ConsensusMessage::NewValidBlockMessage(_msg) => {
-                // TODO: handle this message
-                Ok(())
+                thread::spawn(move || {
+                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                        ps_guard.apply_new_valid_block_message(_msg);
+                        Ok(())
+                    } else {
+                        Err(Box::new(ConsensusReactorError::LockFailed("peer state".to_string())))
+                    }
+                }).join().unwrap()
             }
             ConsensusMessage::HasVoteMessage(_msg) => {
-                // TODO: handle this message
-                Ok(())
+                thread::spawn(move || {
+                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                        ps_guard.set_has_vote(_msg);
+                        Ok(())
+                    } else {
+                        Err(Box::new(ConsensusReactorError::LockFailed("peer state".to_string())))
+                    }
+                }).join().unwrap()
             }
             ConsensusMessage::VoteSetMaj23Message(_msg) => {
                 // TODO: handle this message
