@@ -3,18 +3,18 @@ use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
-use std::{any::Any, error::Error};
+use std::any::Any;
 
 /**
    Message is a message that can be sent and received on the `ConsensusReactor`
 */
-pub trait Message {
+pub trait ConsensusMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>>;
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>>;
     fn as_any(&self) -> &dyn Any;
 }
 
-pub enum ConsensusMessage {
+pub enum ConsensusMessageType {
     NewRoundStepMessage(NewRoundStepMessage),
     NewValidBlockMessage(NewValidBlockMessage),
     ProposalMessage(ProposalMessage),
@@ -28,34 +28,34 @@ pub enum ConsensusMessage {
 
 pub fn msg_from_proto(
     msg_proto: ConsensusMessageProto,
-) -> Result<Box<ConsensusMessage>, Box<ConsensusReactorError>> {
+) -> Result<Box<ConsensusMessageType>, Box<ConsensusReactorError>> {
     if let Some(sum) = msg_proto.sum {
         match sum {
-            Sum::NewRoundStep(m) => Ok(Box::new(ConsensusMessage::NewRoundStepMessage(
+            Sum::NewRoundStep(m) => Ok(Box::new(ConsensusMessageType::NewRoundStepMessage(
                 NewRoundStepMessage::from(m),
             ))),
-            Sum::NewValidBlock(m) => Ok(Box::new(ConsensusMessage::NewValidBlockMessage(
+            Sum::NewValidBlock(m) => Ok(Box::new(ConsensusMessageType::NewValidBlockMessage(
                 NewValidBlockMessage::from(m),
             ))),
-            Sum::Proposal(m) => Ok(Box::new(ConsensusMessage::ProposalMessage(
+            Sum::Proposal(m) => Ok(Box::new(ConsensusMessageType::ProposalMessage(
                 ProposalMessage::from(m),
             ))),
-            Sum::ProposalPol(m) => Ok(Box::new(ConsensusMessage::ProposalPOLMessage(
+            Sum::ProposalPol(m) => Ok(Box::new(ConsensusMessageType::ProposalPOLMessage(
                 ProposalPOLMessage::from(m),
             ))),
-            Sum::BlockPart(m) => Ok(Box::new(ConsensusMessage::BlockPartMessage(
+            Sum::BlockPart(m) => Ok(Box::new(ConsensusMessageType::BlockPartMessage(
                 BlockPartMessage::from(m),
             ))),
-            Sum::Vote(m) => Ok(Box::new(ConsensusMessage::VoteMessage(VoteMessage::from(
-                m,
-            )))),
-            Sum::HasVote(m) => Ok(Box::new(ConsensusMessage::HasVoteMessage(
+            Sum::Vote(m) => Ok(Box::new(ConsensusMessageType::VoteMessage(
+                VoteMessage::from(m),
+            ))),
+            Sum::HasVote(m) => Ok(Box::new(ConsensusMessageType::HasVoteMessage(
                 HasVoteMessage::from(m),
             ))),
-            Sum::VoteSetMaj23(m) => Ok(Box::new(ConsensusMessage::VoteSetMaj23Message(
+            Sum::VoteSetMaj23(m) => Ok(Box::new(ConsensusMessageType::VoteSetMaj23Message(
                 VoteSetMaj23Message::from(m),
             ))),
-            Sum::VoteSetBits(m) => Ok(Box::new(ConsensusMessage::VoteSetBitsMessage(
+            Sum::VoteSetBits(m) => Ok(Box::new(ConsensusMessageType::VoteSetBitsMessage(
                 VoteSetBitsMessage::from(m),
             ))),
             _ => Err(Box::new(ConsensusReactorError::DecodeProtoError)),
@@ -74,7 +74,7 @@ pub struct NewRoundStepMessage {
     pub last_commit_round: u32,
 }
 
-impl Message for NewRoundStepMessage {
+impl ConsensusMessage for NewRoundStepMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         if self.step.is_valid() {
             Ok(())
@@ -130,7 +130,7 @@ pub struct NewValidBlockMessage {
     pub is_commit: bool,
 }
 
-impl Message for NewValidBlockMessage {
+impl ConsensusMessage for NewValidBlockMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -176,7 +176,7 @@ pub struct HasVoteMessage {
     pub index: u32,
 }
 
-impl Message for HasVoteMessage {
+impl ConsensusMessage for HasVoteMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -225,7 +225,7 @@ pub struct VoteSetMaj23Message {
     pub block_id: Option<kai_proto::types::BlockId>,
 }
 
-impl Message for VoteSetMaj23Message {
+impl ConsensusMessage for VoteSetMaj23Message {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -271,7 +271,7 @@ pub struct ProposalMessage {
     pub proposal: Option<kai_types::proposal::Proposal>,
 }
 
-impl Message for ProposalMessage {
+impl ConsensusMessage for ProposalMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -308,7 +308,7 @@ pub struct ProposalPOLMessage {
     pub proposal_pol: Option<kai_proto::types::BitArray>,
 }
 
-impl Message for ProposalPOLMessage {
+impl ConsensusMessage for ProposalPOLMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -349,7 +349,7 @@ pub struct BlockPartMessage {
     pub part: Option<kai_proto::types::Part>,
 }
 
-impl Message for BlockPartMessage {
+impl ConsensusMessage for BlockPartMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -387,7 +387,7 @@ pub struct VoteMessage {
     pub vote: Option<kai_types::vote::Vote>,
 }
 
-impl Message for VoteMessage {
+impl ConsensusMessage for VoteMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
@@ -425,7 +425,7 @@ pub struct VoteSetBitsMessage {
     pub votes: Option<kai_proto::types::BitArray>,
 }
 
-impl Message for VoteSetBitsMessage {
+impl ConsensusMessage for VoteSetBitsMessage {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }

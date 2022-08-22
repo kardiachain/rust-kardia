@@ -1,6 +1,6 @@
 use crate::types::{
     error::ConsensusReactorError,
-    messages::{msg_from_proto, ConsensusMessage},
+    messages::{msg_from_proto, ConsensusMessageType, ConsensusMessage},
     peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState},
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
@@ -114,7 +114,7 @@ impl ConsensusReactor for ConsensusReactorImpl {
 }
 
 impl ConsensusReactorImpl {
-    fn decode_msg(bz: &[u8]) -> Result<Box<ConsensusMessage>, Box<ConsensusReactorError>> {
+    fn decode_msg(bz: &[u8]) -> Result<Box<ConsensusMessageType>, Box<ConsensusReactorError>> {
         if let Ok(proto_msg) = ConsensusMessageProto::decode(bz) {
             msg_from_proto(proto_msg)
         } else {
@@ -125,11 +125,11 @@ impl ConsensusReactorImpl {
     fn handle_state_message(
         &self,
         src: Arc<Peer>,
-        msg: Box<ConsensusMessage>,
+        msg: Box<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
-            ConsensusMessage::NewRoundStepMessage(_msg) => {
-                if let Err(e) = crate::types::messages::Message::validate_basic(&_msg) {
+            ConsensusMessageType::NewRoundStepMessage(_msg) => {
+                if let Err(e) = _msg.validate_basic() {
                     return Err(e);
                 }
 
@@ -142,7 +142,7 @@ impl ConsensusReactorImpl {
                     )));
                 }
             }
-            ConsensusMessage::NewValidBlockMessage(_msg) => thread::spawn(move || {
+            ConsensusMessageType::NewValidBlockMessage(_msg) => thread::spawn(move || {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.apply_new_valid_block_message(_msg);
                     Ok(())
@@ -154,7 +154,7 @@ impl ConsensusReactorImpl {
             })
             .join()
             .unwrap(),
-            ConsensusMessage::HasVoteMessage(_msg) => thread::spawn(move || {
+            ConsensusMessageType::HasVoteMessage(_msg) => thread::spawn(move || {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.set_has_vote(
                         _msg.height,
@@ -171,7 +171,7 @@ impl ConsensusReactorImpl {
             })
             .join()
             .unwrap(),
-            ConsensusMessage::VoteSetMaj23Message(_msg) => {
+            ConsensusMessageType::VoteSetMaj23Message(_msg) => {
                 // TODO: handle this message
                 Ok(())
             }
@@ -182,10 +182,10 @@ impl ConsensusReactorImpl {
     fn handle_data_message(
         &self,
         src: Arc<Peer>,
-        msg: Box<ConsensusMessage>,
+        msg: Box<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
-            ConsensusMessage::ProposalMessage(_msg) => {
+            ConsensusMessageType::ProposalMessage(_msg) => {
                 thread::spawn(move || {
                     if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                         ps_guard.set_has_proposal(_msg);
@@ -201,7 +201,7 @@ impl ConsensusReactorImpl {
 
                 // TODO:conR.conS.peerMsgQueue <- msgInfo{msg, src.ID()}
             }
-            ConsensusMessage::ProposalPOLMessage(_msg) => thread::spawn(move || {
+            ConsensusMessageType::ProposalPOLMessage(_msg) => thread::spawn(move || {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.apply_proposal_pol_message(_msg);
                     Ok(())
@@ -213,7 +213,7 @@ impl ConsensusReactorImpl {
             })
             .join()
             .unwrap(),
-            ConsensusMessage::BlockPartMessage(_msg) => {
+            ConsensusMessageType::BlockPartMessage(_msg) => {
                 thread::spawn(move || {
                     if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                         ps_guard.set_has_proposal_block_part(_msg);
@@ -235,10 +235,10 @@ impl ConsensusReactorImpl {
     fn handle_vote_message(
         &self,
         src: Arc<Peer>,
-        msg: Box<ConsensusMessage>,
+        msg: Box<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
-            ConsensusMessage::VoteMessage(_msg) => {
+            ConsensusMessageType::VoteMessage(_msg) => {
                 if let Some(vote) = _msg.vote {
                     thread::spawn(move || {
                         if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
@@ -269,10 +269,10 @@ impl ConsensusReactorImpl {
     fn handle_vote_set_bits_message(
         &self,
         src: Arc<Peer>,
-        msg: Box<ConsensusMessage>,
+        msg: Box<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
-            ConsensusMessage::VoteSetBitsMessage(_msg) => {
+            ConsensusMessageType::VoteSetBitsMessage(_msg) => {
                 // TODO: get height, votes of consensus state
                 // let height = 0;
                 // let votes: HeightVoteSet = self.s;
@@ -305,7 +305,7 @@ mod tests {
     use crate::{
         reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
         types::{
-            messages::{Message, NewRoundStepMessage},
+            messages::{ConsensusMessage, NewRoundStepMessage},
             peer::Peer,
             round::RoundStep,
         },
