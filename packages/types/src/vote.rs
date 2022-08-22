@@ -2,6 +2,7 @@ use crate::block::BlockId;
 use kai_proto::types::SignedMsgType;
 use prost_types::Timestamp;
 
+#[derive(Debug, Clone)]
 pub struct Vote {
     pub r#type: SignedMsgType,
     pub height: u64,
@@ -30,6 +31,21 @@ impl From<kai_proto::types::Vote> for Vote {
             validator_address: m.validator_address,
             validator_index: m.validator_index,
             signature: m.signature,
+        }
+    }
+}
+
+impl Into<kai_proto::types::Vote> for Vote {
+    fn into(self) -> kai_proto::types::Vote {
+        kai_proto::types::Vote {
+            r#type: self.r#type.into(),
+            height: self.height,
+            round: self.round,
+            block_id: self.block_id.map(|x| x.into()),
+            timestamp: self.timestamp,
+            validator_address: self.validator_address,
+            validator_index: self.validator_index,
+            signature: self.signature,
         }
     }
 }

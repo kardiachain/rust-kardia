@@ -264,7 +264,7 @@ impl Into<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
 
 #[derive(Debug, Clone)]
 pub struct ProposalMessage {
-    pub proposal: Option<kai_proto::types::Proposal>,
+    pub proposal: Option<kai_types::proposal::Proposal>,
 }
 
 impl Message for ProposalMessage {
@@ -284,7 +284,7 @@ impl Message for ProposalMessage {
 impl From<kai_proto::consensus::Proposal> for ProposalMessage {
     fn from(m: kai_proto::consensus::Proposal) -> Self {
         Self {
-            proposal: m.proposal,
+            proposal: m.proposal.map(|p| p.into()),
         }
     }
 }
@@ -292,7 +292,7 @@ impl From<kai_proto::consensus::Proposal> for ProposalMessage {
 impl Into<kai_proto::consensus::Proposal> for ProposalMessage {
     fn into(self: Self) -> kai_proto::consensus::Proposal {
         kai_proto::consensus::Proposal {
-            proposal: self.proposal,
+            proposal: self.proposal.map(|p| p.into()),
         }
     }
 }
@@ -380,7 +380,7 @@ impl Into<kai_proto::consensus::BlockPart> for BlockPartMessage {
 
 #[derive(Debug, Clone)]
 pub struct VoteMessage {
-    pub vote: Option<kai_proto::types::Vote>,
+    pub vote: Option<kai_types::vote::Vote>,
 }
 
 impl Message for VoteMessage {
@@ -399,12 +399,16 @@ impl Message for VoteMessage {
 
 impl From<kai_proto::consensus::Vote> for VoteMessage {
     fn from(m: kai_proto::consensus::Vote) -> Self {
-        Self { vote: m.vote }
+        Self {
+            vote: m.vote.map(|v| v.into()),
+        }
     }
 }
 impl Into<kai_proto::consensus::Vote> for VoteMessage {
     fn into(self: Self) -> kai_proto::consensus::Vote {
-        kai_proto::consensus::Vote { vote: self.vote }
+        kai_proto::consensus::Vote {
+            vote: self.vote.map(|v| v.into()),
+        }
     }
 }
 

@@ -3,8 +3,10 @@
 use crate::utils::compare_hrs;
 
 use super::{
-    error::ConsensusReactorError,
-    messages::{NewRoundStepMessage, NewValidBlockMessage, HasVoteMessage},
+    messages::{
+        BlockPartMessage, HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage,
+        ProposalMessage, ProposalPOLMessage,
+    },
     // messages::{
     // HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalPOLMessage,
     // VoteSetBitsMessage,
@@ -13,13 +15,7 @@ use super::{
 };
 use kai_proto::types::SignedMsgType;
 // use kai_proto::types::SignedMsgType;
-use kai_types::{
-    bit_array::BitArray,
-    block::PartSetHeader,
-    proposal::Proposal, vote::is_valid_vote_type,
-    // proposal::Proposal,
-    // vote::{is_valid_vote_type, Vote},
-};
+use kai_types::{bit_array::BitArray, block::PartSetHeader, vote::is_valid_vote_type};
 use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
@@ -66,7 +62,9 @@ impl PeerState {
         self.prs.clone()
     }
 
-    pub fn set_has_proposal(&mut self, proposal: Proposal) {
+    pub fn set_has_proposal(&mut self, msg: ProposalMessage) {
+        let proposal = msg.proposal.unwrap();
+
         if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
             return;
         }
@@ -87,16 +85,16 @@ impl PeerState {
         self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
     }
 
-    // pub fn set_has_proposal_block_part(self, height: u64, round: u32, index: usize) {
-    //     if (self.prs.height != height) || (self.prs.round != round) {
-    //         return;
-    //     }
+    pub fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage) {
+        if (self.prs.height != msg.height) || (self.prs.round != msg.round) {
+            return;
+        }
 
-    //     if let Some(pbp) = self.prs.proposal_block_parts {
-    //         // TODO: implement BitArray.set_index for Proposal Block Parts
-    //         pbp.set_index(index, true);
-    //     }
-    // }
+        if let Some(pbp) = self.prs.proposal_block_parts.clone() {
+            // TODO: implement BitArray.set_index for Proposal Block Parts
+            pbp.set_index(msg.part.unwrap().index.try_into().unwrap(), true);
+        }
+    }
 
     pub fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
         if self.prs.height != msg.height {
@@ -111,9 +109,15 @@ impl PeerState {
         self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
     }
 
-    pub fn set_has_vote(&mut self, msg: HasVoteMessage) {
-        if let Some(ps_votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
-            ps_votes.set_index(msg.index.try_into().unwrap(), true);
+    pub fn set_has_vote(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+        index: usize,
+    ) {
+        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+            ps_votes.set_index(index.try_into().unwrap(), true);
         }
     }
 
@@ -175,14 +179,6 @@ impl PeerState {
         }
     }
 
-    // pub fn apply_has_vote_message(mut self, msg: HasVoteMessage) {
-    //     if self.prs.height != msg.height {
-    //         return;
-    //     }
-
-    //     self._set_has_vote(msg.height, msg.round, msg.r#type, msg.index);
-    // }
-
     // pub fn apply_vote_set_bits_message(
     //     mut self,
     //     msg: VoteSetBitsMessage,
@@ -201,16 +197,16 @@ impl PeerState {
     //     }
     // }
 
-    // pub fn apply_proposal_pol_message(mut self, msg: ProposalPOLMessage) {
-    //     if self.prs.height != msg.height {
-    //         return;
-    //     }
-    //     if self.prs.proposal_pol_round != msg.proposal_pol_round {
-    //         return;
-    //     }
+    pub fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
+        if self.prs.height != msg.height {
+            return;
+        }
+        if self.prs.proposal_pol_round != msg.proposal_pol_round {
+            return;
+        }
 
-    //     self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
-    // }
+        self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
+    }
 
     fn get_vote_bit_array(
         &mut self,
