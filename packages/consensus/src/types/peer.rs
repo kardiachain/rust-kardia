@@ -11,7 +11,7 @@ use super::{
 // use kai_proto::types::SignedMsgType;
 use kai_types::{
     bit_array::BitArray,
-    block::PartSetHeader,
+    block::PartSetHeader, proposal::Proposal,
     // proposal::Proposal,
     // vote::{is_valid_vote_type, Vote},
 };
@@ -58,26 +58,26 @@ impl PeerState {
         self.prs.clone()
     }
 
-    // pub fn set_has_proposal(mut self, proposal: Proposal) {
-    //     if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
-    //         return;
-    //     }
+    pub fn set_has_proposal(mut self, proposal: Proposal) {
+        if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
+            return;
+        }
 
-    //     if self.prs.proposal {
-    //         return;
-    //     }
+        if self.prs.proposal {
+            return;
+        }
 
-    //     self.prs.proposal = true;
+        self.prs.proposal = true;
 
-    //     if self.prs.proposal_block_parts.is_some() {
-    //         return;
-    //     }
+        if self.prs.proposal_block_parts.is_some() {
+            return;
+        }
 
-    //     self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
-    //     self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
-    //     self.prs.proposal_pol_round = proposal.pol_round;
-    //     self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
-    // }
+        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
+        self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
+        self.prs.proposal_pol_round = proposal.pol_round;
+        self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
+    }
 
     // pub fn set_has_proposal_block_part(self, height: u64, round: u32, index: usize) {
     //     if (self.prs.height != height) || (self.prs.round != round) {
@@ -332,16 +332,24 @@ mod tests {
         let peer = Peer::new(peer_id);
         let ps_1 = Arc::clone(&peer.ps);
         let ps_2 = Arc::clone(&peer.ps);
+        let ps_3 = Arc::clone(&peer.ps);
 
+        // this thread locks peer state for 500ms
         thread::spawn(move || {
-            if let Ok(mut ps_guard) = ps_2.lock() {
+            if let Ok(mut ps_guard) = ps_1.lock() {
                 ps_guard.prs.height = 10;
                 drop(ps_guard);
             }
             thread::sleep(time::Duration::from_millis(500));
         });
+        // this thread try lock failed
         thread::spawn(move || {
-            if let Ok(ps_guard) = ps_1.lock() {
+            let ps_guard = ps_2.try_lock();
+            assert!(ps_guard.is_err());
+        });
+        // this thread wait until thread #1 release the lock and read values
+        thread::spawn(move || {
+            if let Ok(ps_guard) = ps_3.lock() {
                 assert_eq!(ps_guard.prs.height, 10);
             }
         });
