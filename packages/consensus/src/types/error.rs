@@ -15,4 +15,6 @@ pub enum ConsensusReactorError {
     DecodeProtoError,
     #[error("encode proto error")]
     EncodeProtoError,
+    #[error("invalid step")]
+    ErrInvalidStep,
 }

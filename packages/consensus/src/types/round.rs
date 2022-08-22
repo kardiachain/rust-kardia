@@ -37,3 +37,9 @@ pub enum RoundStep {
     Prevote = 12,
     Precommit = 13,
 }
+
+impl RoundStep {
+    pub fn is_valid(self) -> bool {
+        return self != Self::Unknown
+    }
+}

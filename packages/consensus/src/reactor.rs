@@ -1,12 +1,13 @@
 use crate::types::{
     error::ConsensusReactorError,
     messages::{msg_from_proto, ConsensusMessage},
-    peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState, PeerState},
+    peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState},
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use prost::Message;
 use std::result::Result::Ok;
 use std::{sync::Arc, thread};
+
 pub const STATE_CHANNEL: u8 = 0x20;
 pub const DATA_CHANNEL: u8 = 0x21;
 pub const VOTE_CHANNEL: u8 = 0x22;
@@ -128,20 +129,18 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
             ConsensusMessage::NewRoundStepMessage(_msg) => {
-                // TODO: do validations
+                if let Err(e) = crate::types::messages::Message::validate_basic(&_msg) {
+                    return Err(e);
+                }
 
-                thread::spawn(move || {
-                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
-                        ps_guard.apply_new_round_step_message(_msg);
-                        Ok(())
-                    } else {
-                        Err(Box::new(ConsensusReactorError::LockFailed(
-                            "peer state".to_string(),
-                        )))
-                    }
-                })
-                .join()
-                .unwrap()
+                if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                    ps_guard.apply_new_round_step_message(_msg);
+                    return Ok(());
+                } else {
+                    return Err(Box::new(ConsensusReactorError::LockFailed(
+                        "peer state".to_string(),
+                    )));
+                }
             }
             ConsensusMessage::NewValidBlockMessage(_msg) => thread::spawn(move || {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {

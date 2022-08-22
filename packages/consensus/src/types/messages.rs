@@ -9,7 +9,7 @@ use std::{any::Any, error::Error};
    Message is a message that can be sent and received on the `ConsensusReactor`
 */
 pub trait Message {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>>;
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>>;
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>>;
     fn as_any(&self) -> &dyn Any;
 }
@@ -75,8 +75,12 @@ pub struct NewRoundStepMessage {
 }
 
 impl Message for NewRoundStepMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
-        todo!()
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
+        if self.step.is_valid() {
+            Ok(())
+        } else {
+            Err(Box::new(ConsensusReactorError::ErrInvalidStep))
+        }
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
         Ok(ConsensusMessageProto {
@@ -127,7 +131,7 @@ pub struct NewValidBlockMessage {
 }
 
 impl Message for NewValidBlockMessage {
-    fn validate_basic(&self) -> Result<(), Box<(dyn Error)>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -173,7 +177,7 @@ pub struct HasVoteMessage {
 }
 
 impl Message for HasVoteMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -222,7 +226,7 @@ pub struct VoteSetMaj23Message {
 }
 
 impl Message for VoteSetMaj23Message {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -268,7 +272,7 @@ pub struct ProposalMessage {
 }
 
 impl Message for ProposalMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -305,7 +309,7 @@ pub struct ProposalPOLMessage {
 }
 
 impl Message for ProposalPOLMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -346,7 +350,7 @@ pub struct BlockPartMessage {
 }
 
 impl Message for BlockPartMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -384,7 +388,7 @@ pub struct VoteMessage {
 }
 
 impl Message for VoteMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
@@ -422,7 +426,7 @@ pub struct VoteSetBitsMessage {
 }
 
 impl Message for VoteSetBitsMessage {
-    fn validate_basic(&self) -> Result<(), Box<dyn Error>> {
+    fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>> {
