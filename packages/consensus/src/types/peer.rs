@@ -1,7 +1,10 @@
 // use crate::utils::compare_hrs;
 
+use crate::utils::compare_hrs;
+
 use super::{
     error::ConsensusReactorError,
+    messages::NewRoundStepMessage,
     // messages::{
     // HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalPOLMessage,
     // VoteSetBitsMessage,
@@ -11,11 +14,15 @@ use super::{
 // use kai_proto::types::SignedMsgType;
 use kai_types::{
     bit_array::BitArray,
-    block::PartSetHeader, proposal::Proposal,
+    block::PartSetHeader,
+    proposal::Proposal,
     // proposal::Proposal,
     // vote::{is_valid_vote_type, Vote},
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub type ChannelId = u8;
 pub type Message = Vec<u8>;
@@ -54,11 +61,11 @@ impl PeerState {
         }
     }
 
-    pub fn get_round_state(self) -> PeerRoundState {
+    pub fn get_round_state(&self) -> PeerRoundState {
         self.prs.clone()
     }
 
-    pub fn set_has_proposal(mut self, proposal: Proposal) {
+    pub fn set_has_proposal(&mut self, proposal: Proposal) {
         if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
             return;
         }
@@ -109,63 +116,63 @@ impl PeerState {
     //     }
     // }
 
-    // pub fn apply_new_round_step_message(mut self, msg: NewRoundStepMessage) {
-    //     if compare_hrs(
-    //         self.prs.height,
-    //         self.prs.round,
-    //         self.prs.step,
-    //         msg.height,
-    //         msg.round,
-    //         msg.step,
-    //     ) <= 0
-    //     {
-    //         return;
-    //     }
+    pub fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
+        if compare_hrs(
+            msg.height,
+            msg.round,
+            msg.step,
+            self.prs.height,
+            self.prs.round,
+            self.prs.step,
+        ) <= 0
+        {
+            return;
+        }
 
-    //     // temp values
-    //     let ps_height = self.prs.height;
-    //     let ps_round = self.prs.round;
-    //     let ps_catchup_commit_round = self.prs.catchup_commit_round;
-    //     let ps_catchup_commit = self.prs.catchup_commit;
+        // temp values
+        let ps_height = self.prs.height;
+        let ps_round = self.prs.round;
+        let ps_catchup_commit_round = self.prs.catchup_commit_round;
+        let ps_catchup_commit = self.prs.catchup_commit.clone();
 
-    //     let start_time = SystemTime::now()
-    //         .duration_since(UNIX_EPOCH)
-    //         .unwrap()
-    //         .as_secs()
-    //         - msg.seconds_since_start_time;
-    //     self.prs.height = msg.height;
-    //     self.prs.round = msg.round;
-    //     self.prs.step = msg.step;
-    //     self.prs.start_time = start_time;
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            - msg.seconds_since_start_time;
+        self.prs.height = msg.height;
+        self.prs.round = msg.round;
+        self.prs.step = msg.step;
+        self.prs.start_time = start_time;
 
-    //     if (ps_height != msg.height) || (ps_round != msg.round) {
-    //         self.prs.proposal = false;
-    //         self.prs.proposal_block_parts_header = None;
-    //         self.prs.proposal_block_parts = None;
-    //         self.prs.proposal_pol_round = 0;
-    //         self.prs.proposal_pol = None;
-    //         self.prs.prevotes = None;
-    //         self.prs.precommits = None;
-    //     }
-    //     if (ps_height == msg.height)
-    //         && (ps_round != msg.round)
-    //         && (msg.round == ps_catchup_commit_round)
-    //     {
-    //         self.prs.precommits = ps_catchup_commit;
-    //     }
-    //     if ps_height != msg.height {
-    //         // shift precommits to lastcommit.
-    //         if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
-    //             self.prs.last_commit_round = msg.last_commit_round;
-    //             self.prs.last_commit = self.prs.precommits;
-    //         } else {
-    //             self.prs.last_commit_round = msg.last_commit_round;
-    //             self.prs.last_commit = None
-    //         }
-    //         self.prs.catchup_commit_round = 0;
-    //         self.prs.catchup_commit = None;
-    //     }
-    // }
+        if (ps_height != msg.height) || (ps_round != msg.round) {
+            self.prs.proposal = false;
+            self.prs.proposal_block_parts_header = None;
+            self.prs.proposal_block_parts = None;
+            self.prs.proposal_pol_round = 0;
+            self.prs.proposal_pol = None;
+            self.prs.prevotes = None;
+            self.prs.precommits = None;
+        }
+        if (ps_height == msg.height)
+            && (ps_round != msg.round)
+            && (msg.round == ps_catchup_commit_round)
+        {
+            self.prs.precommits = ps_catchup_commit;
+        }
+        if ps_height != msg.height {
+            // shift precommits to lastcommit.
+            if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
+                self.prs.last_commit_round = msg.last_commit_round;
+                self.prs.last_commit = self.prs.precommits.clone();
+            } else {
+                self.prs.last_commit_round = msg.last_commit_round;
+                self.prs.last_commit = None
+            }
+            self.prs.catchup_commit_round = 0;
+            self.prs.catchup_commit = None;
+        }
+    }
 
     // pub fn apply_has_vote_message(mut self, msg: HasVoteMessage) {
     //     if self.prs.height != msg.height {
@@ -266,21 +273,21 @@ PeerRoundState contains the known state of a peer.
 */
 #[derive(Debug, Clone)]
 pub struct PeerRoundState {
-    height: u64,
-    round: u32,
-    step: RoundStep,
-    start_time: u64,
-    proposal: bool,
-    proposal_block_parts_header: Option<PartSetHeader>,
-    proposal_block_parts: Option<BitArray>,
-    proposal_pol_round: u32,
-    proposal_pol: Option<BitArray>,
-    prevotes: Option<BitArray>,
-    precommits: Option<BitArray>,
-    last_commit_round: u32,
-    last_commit: Option<BitArray>,
-    catchup_commit_round: u32,
-    catchup_commit: Option<BitArray>,
+    pub height: u64,
+    pub round: u32,
+    pub step: RoundStep,
+    pub start_time: u64,
+    pub proposal: bool,
+    pub proposal_block_parts_header: Option<PartSetHeader>,
+    pub proposal_block_parts: Option<BitArray>,
+    pub proposal_pol_round: u32,
+    pub proposal_pol: Option<BitArray>,
+    pub prevotes: Option<BitArray>,
+    pub precommits: Option<BitArray>,
+    pub last_commit_round: u32,
+    pub last_commit: Option<BitArray>,
+    pub catchup_commit_round: u32,
+    pub catchup_commit: Option<BitArray>,
 }
 
 impl PeerRoundState {
