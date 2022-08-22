@@ -67,10 +67,10 @@ impl ConsensusReactor for ConsensusReactorImpl {
     }
 
     fn add_peer(self: &ConsensusReactorImpl, peer: Peer) -> Result<(), Box<ConsensusReactorError>> {
-        let lock = peer.ps.prs.lock();
-        if let Ok(mut prs) = lock {
+        let lock = peer.ps.lock();
+        if let Ok(mut ps_guard) = lock {
             // ensure peer round state is fresh
-            *prs = PeerRoundState::new();
+            ps_guard.prs = PeerRoundState::new();
 
             // TODO: start gossiping threads
 

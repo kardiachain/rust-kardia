@@ -26,14 +26,14 @@ pub struct Peer {
     /**
        peer state
     */
-    pub ps: PeerState,
+    pub ps: Arc<Mutex<PeerState>>,
 }
 
 impl Peer {
     pub fn new(id: PeerId) -> Self {
         Self {
             id,
-            ps: PeerState::new(),
+            ps: Arc::new(Mutex::new(PeerState::new())),
         }
     }
 }
@@ -43,25 +43,19 @@ pub struct PeerState {
     /**
        peer round state
     */
-    pub prs: Arc<Mutex<PeerRoundState>>,
+    pub prs: PeerRoundState,
 }
 
 impl PeerState {
     pub fn new() -> Self {
         Self {
-            prs: Arc::new(Mutex::new(PeerRoundState::new())),
+            prs: PeerRoundState::new(),
+            // prs: Arc::new(Mutex::new(PeerRoundState::new())),
         }
     }
 
-    pub fn get_round_state(self) -> Result<PeerRoundState, Box<ConsensusReactorError>> {
-        let lock = self.prs.lock();
-        if let Ok(prs) = lock {
-            Ok(prs.clone())
-        } else {
-            Err(Box::new(ConsensusReactorError::AddPeerError(String::from(
-                "lock failed: peer state has been poisoned",
-            ))))
-        }
+    pub fn get_round_state(self) -> PeerRoundState {
+        self.prs.clone()
     }
 
     // pub fn set_has_proposal(mut self, proposal: Proposal) {
@@ -325,11 +319,10 @@ mod tests {
         let peer = Peer::new(peer_id);
 
         // act
-        let prs = peer.ps.get_round_state();
-
-        // assert
-        assert!(prs.is_ok());
-        assert_eq!(prs.unwrap().height, 0);
+        if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
+            // assert
+            assert_eq!(ps_guard.prs.height, 0);
+        }
     }
 
     #[test]
@@ -337,19 +330,19 @@ mod tests {
         // arrange
         let peer_id = String::from("peer1");
         let peer = Peer::new(peer_id);
-        let prs = peer.ps.prs;
-        let c_mutex = Arc::clone(&prs);
+        let ps_1 = Arc::clone(&peer.ps);
+        let ps_2 = Arc::clone(&peer.ps);
 
         thread::spawn(move || {
-            if let Ok(mut prs) = c_mutex.lock() {
-                prs.height = 10;
+            if let Ok(mut ps_guard) = ps_2.lock() {
+                ps_guard.prs.height = 10;
+                drop(ps_guard);
             }
-            thread::sleep(time::Duration::from_millis(500))
+            thread::sleep(time::Duration::from_millis(500));
         });
-
         thread::spawn(move || {
-            if let Ok(another_prs) = peer.ps.get_round_state() {
-                assert_eq!(another_prs.height, 10);
+            if let Ok(ps_guard) = ps_1.lock() {
+                assert_eq!(ps_guard.prs.height, 10);
             }
         });
     }
