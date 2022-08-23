@@ -22,6 +22,6 @@ pub enum RoundStep {
 
 impl RoundStep {
     pub fn is_valid(self) -> bool {
-        return self != Self::Unknown
+        self != Self::Unknown
     }
 }
