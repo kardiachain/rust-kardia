@@ -8,8 +8,8 @@ use crate::{
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use prost::Message;
-use std::result::Result::Ok;
 use std::sync::Arc;
+use std::{result::Result::Ok, thread};
 
 pub const STATE_CHANNEL: u8 = 0x20;
 pub const DATA_CHANNEL: u8 = 0x21;
@@ -83,7 +83,9 @@ impl ConsensusReactor for ConsensusReactorImpl {
             // ensure peer round state is fresh
             ps_guard.set_prs(PeerRoundState::new());
 
-            // TODO: start gossiping threads
+            self.gossip_data(peer.clone());
+            self.gossip_votes(peer.clone());
+            self.query_maj23(peer.clone());
 
             Ok(())
         } else {
@@ -290,6 +292,23 @@ impl ConsensusReactorImpl {
             }
             _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
         }
+    }
+
+    fn gossip_data(&self, peer: Arc<Peer>) {
+        // TODO: need to handle stop this thread when peer is dead, removed
+        todo!()
+    }
+    
+    fn gossip_votes(&self, peer: Arc<Peer>) {
+        // TODO: need to handle stop this thread when peer is dead, removed
+
+        todo!()
+    }
+
+    fn query_maj23(&self, peer: Arc<Peer>) {
+        // TODO: need to handle stop this thread when peer is dead, removed
+
+        todo!()
     }
 }
 
