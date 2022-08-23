@@ -1,12 +1,12 @@
 use crate::types::{
     error::ConsensusReactorError,
-    messages::{msg_from_proto, ConsensusMessageType, ConsensusMessage},
+    messages::{msg_from_proto, ConsensusMessage, ConsensusMessageType},
     peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState},
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use prost::Message;
 use std::result::Result::Ok;
-use std::{sync::Arc, thread};
+use std::sync::Arc;
 
 pub const STATE_CHANNEL: u8 = 0x20;
 pub const DATA_CHANNEL: u8 = 0x21;
@@ -142,7 +142,7 @@ impl ConsensusReactorImpl {
                     )));
                 }
             }
-            ConsensusMessageType::NewValidBlockMessage(_msg) => thread::spawn(move || {
+            ConsensusMessageType::NewValidBlockMessage(_msg) => {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.apply_new_valid_block_message(_msg);
                     Ok(())
@@ -151,10 +151,8 @@ impl ConsensusReactorImpl {
                         "peer state".to_string(),
                     )))
                 }
-            })
-            .join()
-            .unwrap(),
-            ConsensusMessageType::HasVoteMessage(_msg) => thread::spawn(move || {
+            }
+            ConsensusMessageType::HasVoteMessage(_msg) => {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.set_has_vote(
                         _msg.height,
@@ -168,9 +166,7 @@ impl ConsensusReactorImpl {
                         "peer state".to_string(),
                     )))
                 }
-            })
-            .join()
-            .unwrap(),
+            }
             ConsensusMessageType::VoteSetMaj23Message(_msg) => {
                 // TODO: handle this message
                 Ok(())
@@ -186,22 +182,17 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match *msg {
             ConsensusMessageType::ProposalMessage(_msg) => {
-                thread::spawn(move || {
-                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
-                        ps_guard.set_has_proposal(_msg);
-                        Ok(())
-                    } else {
-                        Err(Box::new(ConsensusReactorError::LockFailed(
-                            "peer state".to_string(),
-                        )))
-                    }
-                })
-                .join()
-                .unwrap()
-
+                if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                    ps_guard.set_has_proposal(_msg);
+                    Ok(())
+                } else {
+                    Err(Box::new(ConsensusReactorError::LockFailed(
+                        "peer state".to_string(),
+                    )))
+                }
                 // TODO:conR.conS.peerMsgQueue <- msgInfo{msg, src.ID()}
             }
-            ConsensusMessageType::ProposalPOLMessage(_msg) => thread::spawn(move || {
+            ConsensusMessageType::ProposalPOLMessage(_msg) => {
                 if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
                     ps_guard.apply_proposal_pol_message(_msg);
                     Ok(())
@@ -210,22 +201,16 @@ impl ConsensusReactorImpl {
                         "peer state".to_string(),
                     )))
                 }
-            })
-            .join()
-            .unwrap(),
+            }
             ConsensusMessageType::BlockPartMessage(_msg) => {
-                thread::spawn(move || {
-                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
-                        ps_guard.set_has_proposal_block_part(_msg);
-                        Ok(())
-                    } else {
-                        Err(Box::new(ConsensusReactorError::LockFailed(
-                            "peer state".to_string(),
-                        )))
-                    }
-                })
-                .join()
-                .unwrap()
+                if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                    ps_guard.set_has_proposal_block_part(_msg);
+                    Ok(())
+                } else {
+                    Err(Box::new(ConsensusReactorError::LockFailed(
+                        "peer state".to_string(),
+                    )))
+                }
                 // TODO: conR.conS.peerMsgQueue <- msgInfo{msg, src.ID()}
             }
             _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
@@ -240,23 +225,19 @@ impl ConsensusReactorImpl {
         match *msg {
             ConsensusMessageType::VoteMessage(_msg) => {
                 if let Some(vote) = _msg.vote {
-                    thread::spawn(move || {
-                        if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
-                            ps_guard.set_has_vote(
-                                vote.height,
-                                vote.round,
-                                vote.r#type,
-                                vote.validator_index.try_into().unwrap(),
-                            );
-                            Ok(())
-                        } else {
-                            Err(Box::new(ConsensusReactorError::LockFailed(
-                                "peer state".to_string(),
-                            )))
-                        }
-                    })
-                    .join()
-                    .unwrap()
+                    if let Ok(mut ps_guard) = Arc::clone(&src.ps).lock() {
+                        ps_guard.set_has_vote(
+                            vote.height,
+                            vote.round,
+                            vote.r#type,
+                            vote.validator_index.try_into().unwrap(),
+                        );
+                        Ok(())
+                    } else {
+                        Err(Box::new(ConsensusReactorError::LockFailed(
+                            "peer state".to_string(),
+                        )))
+                    }
                     // TODO: conR.conS.peerMsgQueue <- msgInfo{msg, src.ID()}
                 } else {
                     Ok(())
