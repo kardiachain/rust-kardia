@@ -1,4 +1,4 @@
-use crate::types::round::RoundStep;
+use kai_types::round::RoundStep;
 
 pub fn compare_hrs(h1: u64, r1: u32, s1: RoundStep, h2: u64, r2: u32, s2: RoundStep) -> isize {
     if h1 < h2 {

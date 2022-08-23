@@ -4,6 +4,7 @@ pub mod proposal;
 pub mod bit_array;
 pub mod vote;
 pub mod crypto;
+pub mod round;
 
 #[cfg(test)]
 mod tests {

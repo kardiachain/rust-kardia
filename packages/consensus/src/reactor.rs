@@ -288,10 +288,10 @@ mod tests {
         types::{
             messages::{ConsensusMessage, NewRoundStepMessage},
             peer::Peer,
-            round::RoundStep,
         },
     };
     use kai_proto::consensus::Message as ConsensusMessageProto;
+    use kai_types::round::RoundStep;
     use prost::Message as ProstMessage;
 
     #[test]
