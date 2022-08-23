@@ -118,12 +118,6 @@ impl ConsensusReactor for ConsensusReactorImpl {
     }
 }
 
-impl Default for ConsensusReactorImpl {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ConsensusReactorImpl {
     fn decode_msg(bz: &[u8]) -> Result<Arc<ConsensusMessageType>, Box<ConsensusReactorError>> {
         if let Ok(proto_msg) = ConsensusMessageProto::decode(bz) {
