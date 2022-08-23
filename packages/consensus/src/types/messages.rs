@@ -1,20 +1,22 @@
-use super::error::ConsensusReactorError;
+use super::{error::ConsensusReactorError, peer::PeerId};
 use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
 use kai_types::round::RoundStep;
-use std::any::Any;
+use std::{any::Any, sync::Arc};
+use std::fmt::Debug;
 
 /**
    Message is a message that can be sent and received on the `ConsensusReactor`
 */
-pub trait ConsensusMessage {
+pub trait ConsensusMessage: Debug + Send + Sync + 'static {
     fn validate_basic(&self) -> Result<(), Box<ConsensusReactorError>>;
     fn msg_to_proto(&self) -> Result<ConsensusMessageProto, Box<ConsensusReactorError>>;
     fn as_any(&self) -> &dyn Any;
 }
 
+#[derive(Debug, Clone)]
 pub enum ConsensusMessageType {
     NewRoundStepMessage(NewRoundStepMessage),
     NewValidBlockMessage(NewValidBlockMessage),
@@ -27,36 +29,41 @@ pub enum ConsensusMessageType {
     VoteSetBitsMessage(VoteSetBitsMessage),
 }
 
+pub struct MessageInfo {
+    pub msg: Arc<ConsensusMessageType>,
+    pub peer_id: PeerId,
+}
+
 pub fn msg_from_proto(
     msg_proto: ConsensusMessageProto,
-) -> Result<Box<ConsensusMessageType>, Box<ConsensusReactorError>> {
+) -> Result<Arc<ConsensusMessageType>, Box<ConsensusReactorError>> {
     if let Some(sum) = msg_proto.sum {
         match sum {
-            Sum::NewRoundStep(m) => Ok(Box::new(ConsensusMessageType::NewRoundStepMessage(
+            Sum::NewRoundStep(m) => Ok(Arc::new(ConsensusMessageType::NewRoundStepMessage(
                 NewRoundStepMessage::from(m),
             ))),
-            Sum::NewValidBlock(m) => Ok(Box::new(ConsensusMessageType::NewValidBlockMessage(
+            Sum::NewValidBlock(m) => Ok(Arc::new(ConsensusMessageType::NewValidBlockMessage(
                 NewValidBlockMessage::from(m),
             ))),
-            Sum::Proposal(m) => Ok(Box::new(ConsensusMessageType::ProposalMessage(
+            Sum::Proposal(m) => Ok(Arc::new(ConsensusMessageType::ProposalMessage(
                 ProposalMessage::from(m),
             ))),
-            Sum::ProposalPol(m) => Ok(Box::new(ConsensusMessageType::ProposalPOLMessage(
+            Sum::ProposalPol(m) => Ok(Arc::new(ConsensusMessageType::ProposalPOLMessage(
                 ProposalPOLMessage::from(m),
             ))),
-            Sum::BlockPart(m) => Ok(Box::new(ConsensusMessageType::BlockPartMessage(
+            Sum::BlockPart(m) => Ok(Arc::new(ConsensusMessageType::BlockPartMessage(
                 BlockPartMessage::from(m),
             ))),
-            Sum::Vote(m) => Ok(Box::new(ConsensusMessageType::VoteMessage(
+            Sum::Vote(m) => Ok(Arc::new(ConsensusMessageType::VoteMessage(
                 VoteMessage::from(m),
             ))),
-            Sum::HasVote(m) => Ok(Box::new(ConsensusMessageType::HasVoteMessage(
+            Sum::HasVote(m) => Ok(Arc::new(ConsensusMessageType::HasVoteMessage(
                 HasVoteMessage::from(m),
             ))),
-            Sum::VoteSetMaj23(m) => Ok(Box::new(ConsensusMessageType::VoteSetMaj23Message(
+            Sum::VoteSetMaj23(m) => Ok(Arc::new(ConsensusMessageType::VoteSetMaj23Message(
                 VoteSetMaj23Message::from(m),
             ))),
-            Sum::VoteSetBits(m) => Ok(Box::new(ConsensusMessageType::VoteSetBitsMessage(
+            Sum::VoteSetBits(m) => Ok(Arc::new(ConsensusMessageType::VoteSetBitsMessage(
                 VoteSetBitsMessage::from(m),
             ))),
             _ => Err(Box::new(ConsensusReactorError::DecodeProtoError)),

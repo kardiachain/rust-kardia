@@ -16,6 +16,10 @@ pub type ChannelId = u8;
 pub type Message = Vec<u8>;
 pub type PeerId = String;
 
+pub fn internal_peerid() -> PeerId {
+    "".to_string()
+}
+
 pub struct Peer {
     pub id: PeerId,
     /**
