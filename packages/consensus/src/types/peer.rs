@@ -1,14 +1,11 @@
-use core::fmt::Debug;
-use crate::utils::compare_hrs;
-
-use super::{
-    messages::{
-        BlockPartMessage, NewRoundStepMessage, NewValidBlockMessage,
-        ProposalMessage, ProposalPOLMessage,
-    },
-    round::RoundStep,
+use super::messages::{
+    BlockPartMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
+    ProposalPOLMessage,
 };
+use crate::utils::compare_hrs;
+use core::fmt::Debug;
 use kai_proto::types::SignedMsgType;
+use kai_types::round::RoundStep;
 use kai_types::{bit_array::BitArray, block::PartSetHeader, vote::is_valid_vote_type};
 use std::{
     sync::{Arc, Mutex},

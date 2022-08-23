@@ -1,8 +1,9 @@
-use super::{error::ConsensusReactorError, round::RoundStep};
+use super::error::ConsensusReactorError;
 use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
+use kai_types::round::RoundStep;
 use std::any::Any;
 
 /**

@@ -123,9 +123,6 @@ dependencies = [
  "bitvec",
  "kai-proto",
  "kai-types",
- "num",
- "num-derive",
- "num-traits",
  "prost",
  "thiserror",
 ]
@@ -147,6 +144,9 @@ version = "0.1.0"
 dependencies = [
  "bitvec",
  "kai-proto",
+ "num",
+ "num-derive",
+ "num-traits",
  "prost-types",
 ]
 
