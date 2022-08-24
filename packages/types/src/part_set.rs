@@ -7,6 +7,26 @@ pub struct Part {
     pub proof: Option<Proof>,
 }
 
+impl From<kai_proto::types::Part> for Part {
+    fn from(m: kai_proto::types::Part) -> Self {
+        Self {
+            index: m.index,
+            bytes: m.bytes,
+            proof: m.proof.map(|p| p.into()),
+        }
+    }
+}
+
+impl Into<kai_proto::types::Part> for Part {
+    fn into(self) -> kai_proto::types::Part {
+        kai_proto::types::Part {
+            index: self.index,
+            bytes: self.bytes,
+            proof: self.proof.map(|p| p.into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PartSetHeader {
     pub total: u32,
@@ -59,5 +79,9 @@ impl PartSet {
 
     pub fn has_header(&self, header: PartSetHeader) -> bool {
         return self.header().eq(&header);
+    }
+
+    pub fn get_part(&self, index: usize) -> Part {
+        self.parts[index].clone()
     }
 }

@@ -3,7 +3,7 @@ use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
-use kai_types::round::RoundStep;
+use kai_types::{round::RoundStep, part_set::Part};
 use std::{any::Any, sync::Arc};
 use std::fmt::Debug;
 
@@ -354,7 +354,7 @@ impl Into<kai_proto::consensus::ProposalPol> for ProposalPOLMessage {
 pub struct BlockPartMessage {
     pub height: u64,
     pub round: u32,
-    pub part: Option<kai_proto::types::Part>,
+    pub part: Option<Part>,
 }
 
 impl ConsensusMessage for BlockPartMessage {
@@ -376,7 +376,7 @@ impl From<kai_proto::consensus::BlockPart> for BlockPartMessage {
         Self {
             height: m.height,
             round: m.round,
-            part: m.part,
+            part: m.part.map(|p| p.into()),
         }
     }
 }
@@ -385,7 +385,7 @@ impl Into<kai_proto::consensus::BlockPart> for BlockPartMessage {
         kai_proto::consensus::BlockPart {
             height: self.height,
             round: self.round,
-            part: self.part,
+            part: self.part.map(|p| p.into()),
         }
     }
 }
