@@ -2,7 +2,7 @@ use crate::{
     state::{ConsensusState, ConsensusStateImpl},
     types::{
         error::ConsensusReactorError,
-        messages::{msg_from_proto, ConsensusMessage, ConsensusMessageType, MessageInfo},
+        messages::{msg_from_proto, ConsensusMessage, ConsensusMessageType, MessageInfo, BlockPartMessage},
         peer::{ChannelId, Message as PeerMessage, Peer, PeerRoundState},
     },
 };
@@ -305,10 +305,33 @@ impl ConsensusReactorImpl {
                 let prs = peer.ps.lock().unwrap().get_prs();
 
                 // send proposal block parts if any
-                if rs
-                    .proposal_block_parts_header
+                if rs.clone()
+                    .proposal_block_parts.map(|pbp| pbp.header())
                     .eq(&prs.proposal_block_parts_header)
-                {}
+                {
+                    if let Some(index) = rs.clone()
+                        .proposal_block_parts
+                        .unwrap()
+                        .parts_bit_array.unwrap()
+                        .sub(prs.proposal_block_parts.unwrap())
+                        .unwrap()
+                        .pick_random()
+                    {
+                        // TODO: asldkfjdalsfkj
+                        let part = rs.proposal_block_parts.unwrap().get_part(index);
+                        let msg = BlockPartMessage{
+                            height: rs.height,
+                            round: rs.round,
+                            part: Some(part),
+                        };
+                        // logger
+                        // if peer.Send(DataChannel, MustEncode(msg)) {
+                        //     ps.SetHasProposalBlockPart(prs.Height, prs.Round, index)
+                        // }
+
+                        continue
+                    }
+                }
 
                 // thread sleep with r.state.config.PeerGossipSleepDuration
                 // thread::sleep(dur)
