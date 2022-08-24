@@ -32,50 +32,51 @@ pub const VOTE_SET_BITS_CHANNEL: u8 = 0x23;
 */
 pub trait ConsensusReactor {
     fn new() -> Self;
-    fn switch_to_consensus(&self) -> ();
-    fn set_priv_validator(&self) -> ();
-    fn get_priv_validator(&self) -> ();
-    fn get_validators(&self) -> ();
-    fn add_peer(&self, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>>;
-    fn remove_peer(&self, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>>;
+    fn switch_to_consensus(self: Arc<Self>) -> ();
+    fn set_priv_validator(self: Arc<Self>) -> ();
+    fn get_priv_validator(self: Arc<Self>) -> ();
+    fn get_validators(self: Arc<Self>) -> ();
+    fn add_peer(self: Arc<Self>, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>>;
+    fn remove_peer(self: Arc<Self>, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>>;
     fn receive(
-        &self,
+        self: Arc<Self>,
         ch_id: ChannelId,
         src: Arc<Peer>,
         msg: PeerMessage,
     ) -> Result<(), Box<ConsensusReactorError>>;
+    fn get_cs(self: Arc<Self>) -> Arc<Box<dyn ConsensusState>>;
 }
 
 #[derive(Debug)]
 pub struct ConsensusReactorImpl {
-    pub cs: Box<dyn ConsensusState>,
+    cs: Arc<Box<dyn ConsensusState>>,
 }
 
 impl ConsensusReactor for ConsensusReactorImpl {
     fn new() -> Self {
         Self {
-            cs: Box::new(ConsensusStateImpl::new()),
+            cs: Arc::new(Box::new(ConsensusStateImpl::new())),
         }
     }
 
-    fn switch_to_consensus(&self) -> () {
+    fn switch_to_consensus(self: Arc<Self>) -> () {
         todo!()
     }
 
-    fn set_priv_validator(&self) -> () {
+    fn set_priv_validator(self: Arc<Self>) -> () {
         todo!()
     }
 
-    fn get_priv_validator(&self) -> () {
+    fn get_priv_validator(self: Arc<Self>) -> () {
         todo!()
     }
 
-    fn get_validators(&self) -> () {
+    fn get_validators(self: Arc<Self>) -> () {
         todo!()
     }
 
     fn add_peer(
-        self: &ConsensusReactorImpl,
+        self: Arc<Self>,
         peer: Arc<Peer>,
     ) -> Result<(), Box<ConsensusReactorError>> {
         let lock = peer.ps.lock();
@@ -83,9 +84,9 @@ impl ConsensusReactor for ConsensusReactorImpl {
             // ensure peer round state is fresh
             ps_guard.set_prs(PeerRoundState::new());
 
-            self.gossip_data(peer.clone());
-            self.gossip_votes(peer.clone());
-            self.query_maj23(peer.clone());
+            self.clone().gossip_data(peer.clone());
+            self.clone().gossip_votes(peer.clone());
+            self.clone().query_maj23(peer.clone());
 
             Ok(())
         } else {
@@ -95,12 +96,12 @@ impl ConsensusReactor for ConsensusReactorImpl {
         }
     }
 
-    fn remove_peer(&self, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>> {
+    fn remove_peer(self: Arc<Self>, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
 
     fn receive(
-        &self,
+        self: Arc<Self>,
         ch_id: ChannelId,
         src: Arc<Peer>,
         msg: PeerMessage,
@@ -118,6 +119,10 @@ impl ConsensusReactor for ConsensusReactorImpl {
             Err(err) => Err(err),
         }
     }
+
+    fn get_cs(self: Arc<Self>) -> Arc<Box<dyn ConsensusState>> {
+        self.cs.clone()
+    }
 }
 
 impl ConsensusReactorImpl {
@@ -130,7 +135,7 @@ impl ConsensusReactorImpl {
     }
 
     fn handle_state_message(
-        &self,
+        self: Arc<Self>,
         src: Arc<Peer>,
         msg: Arc<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
@@ -183,7 +188,7 @@ impl ConsensusReactorImpl {
     }
 
     fn handle_data_message(
-        &self,
+        self: Arc<Self>,
         src: Arc<Peer>,
         msg: Arc<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
@@ -231,7 +236,7 @@ impl ConsensusReactorImpl {
     }
 
     fn handle_vote_message(
-        &self,
+        self: Arc<Self>,
         src: Arc<Peer>,
         msg: Arc<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
@@ -264,7 +269,7 @@ impl ConsensusReactorImpl {
     }
 
     fn handle_vote_set_bits_message(
-        &self,
+        self: Arc<Self>,
         src: Arc<Peer>,
         msg: Arc<ConsensusMessageType>,
     ) -> Result<(), Box<ConsensusReactorError>> {
@@ -294,18 +299,26 @@ impl ConsensusReactorImpl {
         }
     }
 
-    fn gossip_data(&self, peer: Arc<Peer>) {
+    fn gossip_data(self: Arc<Self>, peer: Arc<Peer>) {
         // TODO: need to handle stop this thread when peer is dead, removed
-        todo!()
+        thread::spawn(move || {
+            loop {
+                // self.cs
+                let ps = self.clone().get_cs().get_rs();
+                let prs = peer.ps.lock().unwrap().get_prs();
+
+                // thread sleep with r.state.config.PeerGossipSleepDuration
+            }
+        });
     }
-    
-    fn gossip_votes(&self, peer: Arc<Peer>) {
+
+    fn gossip_votes(self: Arc<Self>, peer: Arc<Peer>) {
         // TODO: need to handle stop this thread when peer is dead, removed
 
         todo!()
     }
 
-    fn query_maj23(&self, peer: Arc<Peer>) {
+    fn query_maj23(self: Arc<Self>, peer: Arc<Peer>) {
         // TODO: need to handle stop this thread when peer is dead, removed
 
         todo!()
@@ -330,7 +343,7 @@ mod tests {
     #[test]
     fn handle_new_round_step_msg() {
         // arrange
-        let reactor: ConsensusReactorImpl = ConsensusReactorImpl::new();
+        let reactor = Arc::new(ConsensusReactorImpl::new());
         let m = NewRoundStepMessage {
             height: 1,
             round: 1,
@@ -342,10 +355,10 @@ mod tests {
         let peer_msg = m_proto.encode_to_vec();
         let peer_id = String::from("peerid");
         let peer = Arc::new(Peer::new(peer_id));
-        _ = reactor.add_peer(Arc::clone(&peer));
+        _ = reactor.clone().add_peer(Arc::clone(&peer));
 
         // act
-        let rs = reactor.receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+        let rs = reactor.clone().receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
 
         // assert
         assert!(rs.is_ok());
@@ -371,7 +384,7 @@ mod tests {
     #[test]
     fn handle_new_valid_block_msg() {
         // arrange
-        let reactor: ConsensusReactorImpl = ConsensusReactorImpl::new();
+        let reactor = Arc::new(ConsensusReactorImpl::new());
         let m = NewRoundStepMessage {
             height: 1,
             round: 1,
@@ -383,7 +396,7 @@ mod tests {
         let peer_msg = m_proto.encode_to_vec();
         let peer_id = String::from("peerid");
         let peer = Arc::new(Peer::new(peer_id));
-        _ = reactor.add_peer(Arc::clone(&peer));
+        _ = reactor.clone().add_peer(Arc::clone(&peer));
 
         // act
         let rs = reactor.receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
