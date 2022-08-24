@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub struct Proof {
     pub total: u64,
     pub index: u64,

@@ -5,8 +5,9 @@ use super::messages::{
 use crate::utils::compare_hrs;
 use core::fmt::Debug;
 use kai_proto::types::SignedMsgType;
+use kai_types::part_set::PartSetHeader;
 use kai_types::round::RoundStep;
-use kai_types::{bit_array::BitArray, block::PartSetHeader, vote::is_valid_vote_type};
+use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
 use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},

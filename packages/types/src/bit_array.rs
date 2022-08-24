@@ -1,5 +1,4 @@
 use bitvec::prelude::*;
-
 // pub type BitArray = BitArr!(for 64, in u64, Msb0);
 
 #[derive(Debug, Clone)]
@@ -32,5 +31,13 @@ impl BitArray {
         }
 
         return true
+    }
+
+    pub fn sub(self, bp: Self) -> Option<Self> {
+        todo!()
+    }
+
+    pub fn pick_random(self) -> Option<usize> {
+        todo!()
     }
 }

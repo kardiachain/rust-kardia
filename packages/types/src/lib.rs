@@ -5,6 +5,7 @@ pub mod bit_array;
 pub mod vote;
 pub mod crypto;
 pub mod round;
+pub mod part_set;
 
 #[cfg(test)]
 mod tests {
