@@ -75,10 +75,7 @@ impl ConsensusReactor for ConsensusReactorImpl {
         todo!()
     }
 
-    fn add_peer(
-        self: Arc<Self>,
-        peer: Arc<Peer>,
-    ) -> Result<(), Box<ConsensusReactorError>> {
+    fn add_peer(self: Arc<Self>, peer: Arc<Peer>) -> Result<(), Box<ConsensusReactorError>> {
         let lock = peer.ps.lock();
         if let Ok(mut ps_guard) = lock {
             // ensure peer round state is fresh
@@ -304,10 +301,17 @@ impl ConsensusReactorImpl {
         thread::spawn(move || {
             loop {
                 // self.cs
-                let ps = self.clone().get_cs().get_rs();
+                let rs = self.clone().get_cs().get_rs();
                 let prs = peer.ps.lock().unwrap().get_prs();
 
+                // send proposal block parts if any
+                if rs
+                    .proposal_block_parts_header
+                    .eq(&prs.proposal_block_parts_header)
+                {}
+
                 // thread sleep with r.state.config.PeerGossipSleepDuration
+                // thread::sleep(dur)
             }
         });
     }
@@ -358,7 +362,9 @@ mod tests {
         _ = reactor.clone().add_peer(Arc::clone(&peer));
 
         // act
-        let rs = reactor.clone().receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+        let rs = reactor
+            .clone()
+            .receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
 
         // assert
         assert!(rs.is_ok());

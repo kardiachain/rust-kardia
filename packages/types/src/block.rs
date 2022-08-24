@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct PartSetHeader {
     pub total: u32,
@@ -22,6 +21,14 @@ impl Into<kai_proto::types::PartSetHeader> for PartSetHeader {
         }
     }
 }
+
+impl PartialEq for PartSetHeader {
+    fn eq(&self, other: &Self) -> bool {
+        self.total == other.total && self.hash == other.hash
+    }
+}
+
+impl Eq for PartSetHeader {}
 
 #[derive(Debug, Clone)]
 pub struct BlockId {
