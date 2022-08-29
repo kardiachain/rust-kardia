@@ -21,7 +21,13 @@ pub fn internal_peerid() -> PeerId {
     "".to_string()
 }
 
-pub struct Peer {
+pub trait Peer {
+    fn get_id(&self) -> PeerId;
+    fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
+    fn send(&self) -> bool;
+}
+
+pub struct PeerImpl {
     pub id: PeerId,
     /**
        peer state
@@ -29,7 +35,21 @@ pub struct Peer {
     pub ps: Arc<Mutex<dyn PeerState>>,
 }
 
-impl Peer {
+impl Peer for PeerImpl {
+    fn get_id(&self) -> PeerId {
+        self.id.clone()
+    }
+
+    fn get_ps(&self) -> Arc<Mutex<dyn PeerState>> {
+        self.ps.clone()
+    }
+
+    fn send(&self) -> bool {
+        todo!()
+    }
+}
+
+impl PeerImpl {
     pub fn new(id: PeerId) -> Self {
         Self {
             id,
@@ -332,7 +352,7 @@ mod tests {
     use core::time;
     use std::{sync::Arc, thread};
 
-    use crate::types::peer::Peer;
+    use crate::types::peer::PeerImpl;
 
     use super::PeerRoundState;
 
@@ -340,7 +360,7 @@ mod tests {
     fn get_round_state_ok() {
         // arrange
         let peer_id = String::from("peer1");
-        let peer = Peer::new(peer_id);
+        let peer = PeerImpl::new(peer_id);
 
         // act
         if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
@@ -353,7 +373,7 @@ mod tests {
     fn get_round_state_failed() {
         // arrange
         let peer_id = String::from("peer1");
-        let peer = Peer::new(peer_id);
+        let peer = PeerImpl::new(peer_id);
         let ps_1 = Arc::clone(&peer.ps);
         let ps_2 = Arc::clone(&peer.ps);
         let ps_3 = Arc::clone(&peer.ps);
