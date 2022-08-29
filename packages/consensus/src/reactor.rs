@@ -429,7 +429,7 @@ mod tests {
         let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
         let peer_msg = m_proto.encode_to_vec();
         let peer_id = String::from("peerid");
-        let peer = Arc::new(PeerImpl::new(peer_id));
+        let peer = PeerImpl::new(peer_id);
         _ = reactor.clone().add_peer(Arc::clone(&peer));
 
         // act
