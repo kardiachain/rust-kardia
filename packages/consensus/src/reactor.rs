@@ -3,13 +3,15 @@ use crate::{
     types::{
         error::{self, ConsensusReactorError},
         messages::{
-            msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
+            msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
+            ProposalMessage, ProposalPOLMessage,
         },
         peer::{ChannelId, Message as PeerMessage, Peer, PeerImpl, PeerRoundState},
-        round_state::{RoundState, RoundStateImpl},
+        round_state::RoundState,
     },
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
+use kai_types::proposal::Proposal;
 use prost::Message;
 use std::sync::{Arc, MutexGuard};
 use std::{result::Result::Ok, thread};
@@ -286,117 +288,120 @@ impl ConsensusReactorImpl {
         thread::spawn(move || {
             loop {
                 let cs = self.clone().get_cs();
-                if let Ok(rs_guard) = cs.get_rs().clone().lock() {
-                    if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                        let prs = ps_guard.get_prs();
-
-                        // send proposal block parts if any
-                        if rs_guard
-                            .clone()
+                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                    // send proposal block parts if any
+                    if rs
+                        .proposal_block_parts
+                        .clone()
+                        .map(|pbp| pbp.header())
+                        .eq(&prs.proposal_block_parts_header)
+                    {
+                        if let Some(index) = rs
                             .proposal_block_parts
-                            .map(|pbp| pbp.header())
-                            .eq(&prs.proposal_block_parts_header)
+                            .clone()
+                            .unwrap()
+                            .parts_bit_array
+                            .unwrap()
+                            .sub(prs.proposal_block_parts.clone().unwrap())
+                            .unwrap()
+                            .pick_random()
                         {
-                            if let Some(index) = rs_guard
-                                .clone()
-                                .proposal_block_parts
-                                .unwrap()
-                                .parts_bit_array
-                                .unwrap()
-                                .sub(prs.proposal_block_parts.unwrap())
-                                .unwrap()
-                                .pick_random()
-                            {
-                                let part = rs_guard
-                                    .clone()
-                                    .proposal_block_parts
-                                    .unwrap()
-                                    .get_part(index);
-                                let msg = BlockPartMessage {
-                                    height: rs_guard.height,
-                                    round: rs_guard.round,
-                                    part: Some(part),
-                                };
+                            let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
+                            let msg = BlockPartMessage {
+                                height: rs.height,
+                                round: rs.round,
+                                part: Some(part),
+                            };
 
-                                log::debug!(
-                                    "sending block part: height={} round={}",
-                                    prs.height,
-                                    prs.round
-                                );
-                                if peer.send(
-                                    DATA_CHANNEL, 
-                                    msg.msg_to_proto().unwrap().encode_to_vec()
-                                ) {
+                            log::debug!(
+                                "sending block part: height={} round={}",
+                                prs.height,
+                                prs.round
+                            );
+                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
+                            {
+                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
                                     ps_guard.set_has_proposal_block_part(msg);
                                     drop(ps_guard)
                                 }
-
-                                continue;
                             }
+
+                            continue;
+                        }
+                    }
+
+                    // TODO: if the peer is on a previous height, help catch up.
+                    if prs.height > 0 && prs.height < rs.height
+                    // TODO: need to implement this?
+                    // && (prs.Height >= conR.conS.blockOperations.Base())
+                    {
+                        if prs.proposal_block_parts.clone().is_none() {
+                            // TODO: reimplement this
+                            // blockMeta := conR.conS.blockOperations.LoadBlockMeta(prs.Height)
+                            // if blockMeta == nil {
+                            //     logger.Error("Failed to load block meta",
+                            //         "blockstoreBase", conR.conS.blockOperations.Base(), "blockstoreHeight", conR.conS.blockOperations.Height())
+                            //     time.Sleep(conR.conS.config.PeerGossipSleepDuration)
+                            // } else {
+                            //     ps.InitProposalBlockParts(blockMeta.BlockID.PartsHeader)
+                            // }
+                            continue;
                         }
 
-                        // TODO: if the peer is on a previous height, help catch up.
-                        if prs.height > 0 && prs.height < rs_guard.height
-                        // TODO: need to implement this?
-                        // && (prs.Height >= conR.conS.blockOperations.Base())
+                        self.clone().gossip_data_for_catch_up(rs, peer.clone());
+                        continue;
+                    }
+
+                    // if "our and their" height and round don't match, sleep.
+                    if rs.height != prs.height || rs.round != prs.round {
+                        log::trace!(
+                            "peer height|round mismatch, sleeping. peer: id={} height={} round={}",
+                            peer.get_id(),
+                            prs.height,
+                            prs.round,
+                        );
+                        thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                        continue;
+                    }
+
+                    // TODO: send proposal or proposal POL
+                    if rs.proposal.is_some() && !prs.proposal {
+                        // proposal: share the proposal metadata with peer
                         {
-                            if ps_guard.get_prs().proposal_block_parts.clone().is_none() {
-                                // TODO: reimplement this
-                                // blockMeta := conR.conS.blockOperations.LoadBlockMeta(prs.Height)
-                                // if blockMeta == nil {
-                                //     logger.Error("Failed to load block meta",
-                                //         "blockstoreBase", conR.conS.blockOperations.Base(), "blockstoreHeight", conR.conS.blockOperations.Height())
-                                //     time.Sleep(conR.conS.config.PeerGossipSleepDuration)
-                                // } else {
-                                //     ps.InitProposalBlockParts(blockMeta.BlockID.PartsHeader)
-                                // }
-                                continue;
-                            }
-
-                            self.clone()
-                                .gossip_data_for_catch_up(rs_guard, peer.clone());
-                            continue;
-                        }
-
-                        // if "our and their" height and round don't match, sleep.
-                        if rs_guard.height != prs.height || rs_guard.round != prs.round {
-                            log::trace!(
-                                "peer height|round mismatch, sleeping. peer: id={} height={} round={}", 
-                                peer.get_id(), 
-                                prs.height, 
-                                prs.round,
+                            let msg = ProposalMessage {
+                                proposal: rs.proposal.clone(),
+                            };
+                            log::debug!(
+                                "sending proposal: height={} round={}",
+                                prs.height,
+                                prs.round
                             );
-                            thread::sleep(cs.get_config().peer_gossip_sleep_duration);
-                            continue;
-                        }
-
-                        // TODO: send proposal or proposal POL
-                        if rs_guard.proposal.is_some() && !ps_guard.get_prs().proposal {
-                            // proposal: share the proposal metadata with peer
+                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
                             {
-                                let msg = ProposalMessage{
-                                    proposal: rs_guard.proposal.clone()
-                                };
-                                log::debug!(
-                                    "sending proposal: height={} round={}",
-                                    prs.height,
-                                    prs.round
-                                );
-                                if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
+                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
                                     ps_guard.set_has_proposal(msg);
                                     drop(ps_guard)
                                 }
                             }
                         }
-
-                        // TODO: nothing to do, sleep.
-                        // thread sleep with r.state.config.PeerGossipSleepDuration
-                        // thread::sleep(dur)
-                    } else {
-                        log::error!("cannot lock peer round state");
+                        if let Some(proposal) = rs.proposal && proposal.pol_round > 0 {
+                            let msg = ProposalPOLMessage{
+                                height: rs.height,
+                                proposal_pol_round: proposal.pol_round,
+                                //TODO: ProposalPOL:      rs.Votes.Prevotes(rs.Proposal.POLRound).BitArray(),
+                                proposal_pol: None,
+                            };
+                            log::debug!("sending POL: height={} round={}", prs.height, prs.round);
+                            peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec());
+                        }
+                        continue;
                     }
+
+                    // nothing to do, sleep.
+                    thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                    continue
                 } else {
-                    log::error!("cannot lock consensus round state");
+                    log::error!("cannot lock either consensus round state or peer round state");
                 }
             }
         });
@@ -414,11 +419,7 @@ impl ConsensusReactorImpl {
         todo!()
     }
 
-    fn gossip_data_for_catch_up(
-        self: Arc<Self>,
-        rs_guard: MutexGuard<RoundStateImpl>,
-        peer: Arc<dyn Peer>,
-    ) {
+    fn gossip_data_for_catch_up(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) {
         todo!()
     }
 }
