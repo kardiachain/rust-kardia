@@ -1,8 +1,10 @@
 // most of TCP functions are in this file
 
+use kai_utils::crypto::crypto;
+
 use crate::key::{Id, ID_BYTE_LENGTH};
 use crate::errors::{self, Error::*};
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs, Ipv4Addr};
 use std::error::Error;
 
 // EmptyNetAddress defines the string representation of an empty NetAddress
@@ -102,14 +104,6 @@ pub fn new_net_address(id : Id, addr : &str) -> NetAddress {
     // parse into SocketAddr
     let socket_addr : SocketAddr = addr.parse().expect("cannot parse into SocketAddr");
 
-    // validate id
-    // match validate_id(&id) {
-    //     Some(Box::new(dyn Error)) => {
-    //         panic!("Invalid ID");
-    //     },
-    //     _ => {}
-    // }
-
     let ip = socket_addr.ip();
     let port = socket_addr.port();
     let mut na = new_net_address_ip_port(ip, port);
@@ -123,7 +117,7 @@ pub fn new_net_address(id : Id, addr : &str) -> NetAddress {
 // the form of "ID@IP:Port".
 // Also resolves the host if host is not an IP.
 // Errors are of type ErrNetAddressXxx where Xxx is in (NoID, Invalid, Lookup)
-pub fn new_net_address_string(addr : &str) -> Result<&NetAddress, Box<dyn Error>> {
+pub fn new_net_address_string(addr : &str) -> Result<NetAddress, Box<dyn Error>> {
     let mut addr_without_protocol = remove_protocol_if_defined(addr);
     let spl: Vec<&str> = addr_without_protocol.split("@").collect();
     if spl.len() != 2 {
@@ -131,10 +125,27 @@ pub fn new_net_address_string(addr : &str) -> Result<&NetAddress, Box<dyn Error>
     }
 
     // get ID 
-    validate_id(spl[0].to_string());
-    // Ok(())
-    todo!()
+    match validate_id(spl[0].to_string()) {
+        Ok(()) => {},
+        Err(e) => {
+            return Err(e)
+        }
+    }
 
+    let id: Id = spl[0].to_string();
+    addr_without_protocol = spl[1];
+
+    // get host and port from addr_without_protocol
+    let (host, port) = crypto::split_host_port(addr_without_protocol)?;
+
+    if host.len() == 0 {
+        return Err(Box::new(ErrNetAddressInvalid { addr: addr_without_protocol.to_string(), err: "host is empty".to_string() }))
+    }
+
+    let mut na = new_net_address_ip_port(host.parse::<IpAddr>()?, 1);
+    na.id = Some(id);
+
+    Ok(na)
 }
 
 pub fn new_net_address_strings(addrs : Vec<&str>) -> Option<&NetAddress> {
@@ -182,9 +193,6 @@ fn validate_id(id : Id) -> Result<(), Box<dyn Error>> {
 
     // hex decode string Id
     let id_bytes = hex::decode(&id)?;
-    // if id_bytes.is_err() {
-    //     return Err(Box::new(id_bytes.err().unwrap()))
-    // }
 
     // len id_bytes == ID_BYTE_LENGTH
     if id_bytes.len() as i32 != ID_BYTE_LENGTH {
