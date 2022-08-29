@@ -1,16 +1,17 @@
 use crate::{
     state::{ConsensusState, ConsensusStateImpl},
     types::{
-        error::ConsensusReactorError,
+        error::{self, ConsensusReactorError},
         messages::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
         },
         peer::{ChannelId, Message as PeerMessage, Peer, PeerImpl, PeerRoundState},
+        round_state::{RoundState, RoundStateImpl},
     },
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use prost::Message;
-use std::sync::Arc;
+use std::sync::{Arc, MutexGuard};
 use std::{result::Result::Ok, thread};
 
 pub const STATE_CHANNEL: u8 = 0x20;
@@ -18,22 +19,7 @@ pub const DATA_CHANNEL: u8 = 0x21;
 pub const VOTE_CHANNEL: u8 = 0x22;
 pub const VOTE_SET_BITS_CHANNEL: u8 = 0x23;
 
-/**
-  Trait for [Consensus Reactor](../spec/consensus#consensus-reactor)
-
-  Methods: TODO:
-
-   ```
-   pub newReactor(), OnStart(), OnStop(), SwitchToConsensus()
-   pub SetPrivValidator(), GetPrivValidator(), GetValidators()
-   pub InitPeer(), AddPeer()
-   processDataCh(), processVoteCh(), processVoteSetBitsCh()
-   pub handleMessage(), handleStateMessage(), handleDataMessage(), handleVoteMessage(), handleVoteSetBitsMessage()
-   broadcastNewRoundStepMessage(), broadcastNewValidBlockMessage(), broadcastHasVoteMessage(), subscribeToBroadcastEvents()
-   ```
-*/
 pub trait ConsensusReactor {
-    fn new() -> Self;
     fn switch_to_consensus(self: Arc<Self>) -> ();
     fn set_priv_validator(self: Arc<Self>) -> ();
     fn get_priv_validator(self: Arc<Self>) -> ();
@@ -55,12 +41,6 @@ pub struct ConsensusReactorImpl {
 }
 
 impl ConsensusReactor for ConsensusReactorImpl {
-    fn new() -> Self {
-        Self {
-            cs: Arc::new(Box::new(ConsensusStateImpl::new())),
-        }
-    }
-
     fn switch_to_consensus(self: Arc<Self>) -> () {
         todo!()
     }
@@ -124,6 +104,10 @@ impl ConsensusReactor for ConsensusReactorImpl {
 }
 
 impl ConsensusReactorImpl {
+    fn new(_cs: Box<dyn ConsensusState>) -> Self {
+        Self { cs: Arc::new(_cs) }
+    }
+
     fn decode_msg(bz: &[u8]) -> Result<Arc<ConsensusMessageType>, Box<ConsensusReactorError>> {
         if let Ok(proto_msg) = ConsensusMessageProto::decode(bz) {
             msg_from_proto(proto_msg)
@@ -301,45 +285,98 @@ impl ConsensusReactorImpl {
         // TODO: need to handle stop this thread when peer is dead, removed
         thread::spawn(move || {
             loop {
-                let rs = self.clone().get_cs().get_rs();
-                let prs = peer.get_ps().clone().lock().unwrap().get_prs();
+                if let Ok(rs_guard) = self.clone().get_cs().get_rs().clone().lock() {
+                    if let Ok(ps_guard) = peer.get_ps().clone().lock() {
+                        let prs = ps_guard.get_prs();
 
-                // send proposal block parts if any
-                if rs
-                    .clone()
-                    .proposal_block_parts
-                    .map(|pbp| pbp.header())
-                    .eq(&prs.proposal_block_parts_header)
-                {
-                    if let Some(index) = rs
-                        .clone()
-                        .proposal_block_parts
-                        .unwrap()
-                        .parts_bit_array
-                        .unwrap()
-                        .sub(prs.proposal_block_parts.unwrap())
-                        .unwrap()
-                        .pick_random()
-                    {
-                        let part = rs.proposal_block_parts.unwrap().get_part(index);
-                        let msg = BlockPartMessage {
-                            height: rs.height,
-                            round: rs.round,
-                            part: Some(part),
-                        };
-                        // TODO: add logger
-                        if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
-                            if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                                ps_guard.set_has_proposal_block_part(msg)
+                        // send proposal block parts if any
+                        if rs_guard
+                            .clone()
+                            .proposal_block_parts
+                            .map(|pbp| pbp.header())
+                            .eq(&prs.proposal_block_parts_header)
+                        {
+                            if let Some(index) = rs_guard
+                                .clone()
+                                .proposal_block_parts
+                                .unwrap()
+                                .parts_bit_array
+                                .unwrap()
+                                .sub(prs.proposal_block_parts.unwrap())
+                                .unwrap()
+                                .pick_random()
+                            {
+                                let part = rs_guard
+                                    .clone()
+                                    .proposal_block_parts
+                                    .unwrap()
+                                    .get_part(index);
+                                let msg = BlockPartMessage {
+                                    height: rs_guard.height,
+                                    round: rs_guard.round,
+                                    part: Some(part),
+                                };
+
+                                log::debug!(
+                                    "sending block part: height={} round={}",
+                                    prs.height,
+                                    prs.round
+                                );
+                                if peer
+                                    .send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
+                                {
+                                    if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
+                                        ps_guard.set_has_proposal_block_part(msg);
+                                        drop(ps_guard)
+                                    }
+                                }
+
+                                continue;
                             }
                         }
 
-                        continue;
-                    }
-                }
+                        // TODO: if the peer is on a previous height, help catch up.
+                        if prs.height > 0 && prs.height < rs_guard.height
+                        // TODO: need to implement this?
+                        // && (prs.Height >= conR.conS.blockOperations.Base())
+                        {
+                            if ps_guard.get_prs().proposal_block_parts.clone().is_none() {
+                                // TODO: reimplement this
+                                // blockMeta := conR.conS.blockOperations.LoadBlockMeta(prs.Height)
+                                // if blockMeta == nil {
+                                //     logger.Error("Failed to load block meta",
+                                //         "blockstoreBase", conR.conS.blockOperations.Base(), "blockstoreHeight", conR.conS.blockOperations.Height())
+                                //     time.Sleep(conR.conS.config.PeerGossipSleepDuration)
+                                // } else {
+                                //     ps.InitProposalBlockParts(blockMeta.BlockID.PartsHeader)
+                                // }
+                                continue;
+                            }
 
-                // TODO: thread sleep with r.state.config.PeerGossipSleepDuration
-                // thread::sleep(dur)
+                            self.clone()
+                                .gossip_data_for_catch_up(rs_guard, peer.clone());
+                            continue;
+                        }
+
+                        // TODO: if "our and their" height and round don't match, sleep.
+                        if rs_guard.height != prs.height || rs_guard.round != prs.round {
+                            log::trace!("peer height|round mismatch, sleeping. peer: id={} height={} round={}", peer.get_id(), prs.height, prs.round);
+                            // TODO: thread sleep
+                            // thread::sleep(dur)
+                            continue;
+                        }
+
+                        // TODO: send proposal or proposal POL
+
+                        // TODO: nothing to do, sleep.
+                        // thread sleep with r.state.config.PeerGossipSleepDuration
+                        // thread::sleep(dur)
+                    } else {
+                        log::error!("cannot lock peer round state");
+                    }
+                } else {
+                    log::error!("cannot lock consensus round state");
+                }
             }
         });
     }
@@ -355,6 +392,14 @@ impl ConsensusReactorImpl {
 
         todo!()
     }
+
+    fn gossip_data_for_catch_up(
+        self: Arc<Self>,
+        rs_guard: MutexGuard<RoundStateImpl>,
+        peer: Arc<dyn Peer>,
+    ) {
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -363,7 +408,9 @@ mod tests {
 
     use crate::{
         reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
+        state::ConsensusStateImpl,
         types::{
+            config::ConsensusConfig,
             messages::{ConsensusMessage, NewRoundStepMessage},
             peer::{Peer, PeerImpl},
         },
@@ -375,7 +422,9 @@ mod tests {
     #[test]
     fn handle_new_round_step_msg() {
         // arrange
-        let reactor = Arc::new(ConsensusReactorImpl::new());
+        let cs_config = ConsensusConfig::new_default();
+        let cs = ConsensusStateImpl::new(cs_config);
+        let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
         let m = NewRoundStepMessage {
             height: 1,
             round: 1,
@@ -418,7 +467,9 @@ mod tests {
     #[test]
     fn handle_new_valid_block_msg() {
         // arrange
-        let reactor = Arc::new(ConsensusReactorImpl::new());
+        let cs_config = ConsensusConfig::new_default();
+        let cs = ConsensusStateImpl::new(cs_config);
+        let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
         let m = NewRoundStepMessage {
             height: 1,
             round: 1,

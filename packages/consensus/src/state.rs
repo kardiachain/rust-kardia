@@ -1,6 +1,6 @@
 use crate::types::{
     messages::{ConsensusMessage, MessageInfo},
-    round_state::{RoundState, RoundStateImpl},
+    round_state::{RoundState, RoundStateImpl}, config::ConsensusConfig,
 };
 use std::{
     fmt::Debug,
@@ -18,8 +18,8 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
 
 #[derive(Debug)]
 pub struct ConsensusStateImpl {
-    pub rs: RoundStateImpl,
-    // pub votes: HeightVoteSet;
+    pub config: Arc<ConsensusConfig>,
+    pub rs: Arc<Mutex<RoundStateImpl>>,
     pub peer_msg_chan: (
         Sender<Box<dyn ConsensusMessage>>,
         Receiver<Box<dyn ConsensusMessage>>,
@@ -28,12 +28,15 @@ pub struct ConsensusStateImpl {
         Sender<Box<dyn ConsensusMessage>>,
         Receiver<Box<dyn ConsensusMessage>>,
     ),
+
+    // pub votes: HeightVoteSet;
 }
 
 impl ConsensusStateImpl {
-    pub fn new() -> Self {
+    pub fn new(config: ConsensusConfig) -> Self {
         Self {
-            rs: RoundStateImpl::new(),
+            config: Arc::new(config),
+            rs: Arc::new(Mutex::new(RoundStateImpl::new())),
             peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
             internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
         }
