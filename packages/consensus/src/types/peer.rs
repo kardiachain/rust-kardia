@@ -24,6 +24,7 @@ pub fn internal_peerid() -> PeerId {
 pub trait Peer: Debug + Send + Sync + 'static {
     fn get_id(&self) -> PeerId;
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
+    fn get_prs(&self) -> Option<PeerRoundState>;
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
 }
 
@@ -43,6 +44,16 @@ impl Peer for PeerImpl {
 
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>> {
         self.ps.clone()
+    }
+
+    fn get_prs(&self) -> Option<PeerRoundState> {
+        if let Ok(ps_guard) = self.get_ps().lock() {
+            let prs = ps_guard.get_prs().clone();
+            drop(ps_guard);
+            Some(prs)
+        } else {
+            None
+        }
     }
 
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {

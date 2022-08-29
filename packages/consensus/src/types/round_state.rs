@@ -2,10 +2,8 @@ use kai_proto::types::Block;
 use kai_types::{part_set::PartSet, proposal::Proposal, round::RoundStep};
 use std::fmt::Debug;
 
-pub trait RoundState: Debug + Sync + Send + 'static {}
-
 #[derive(Debug, Clone)]
-pub struct RoundStateImpl {
+pub struct RoundState {
     pub height: u64,
     pub round: u32,
     pub step: RoundStep,
@@ -28,9 +26,7 @@ pub struct RoundStateImpl {
     // pub last_validators: Option<ValidatorSet>,
 }
 
-impl RoundState for RoundStateImpl {}
-
-impl RoundStateImpl {
+impl RoundState {
     pub fn new() -> Self {
         Self {
             height: todo!(),

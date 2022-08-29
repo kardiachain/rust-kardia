@@ -32,7 +32,7 @@ impl BitArray {
         return true
     }
 
-    pub fn sub(self, bp: Self) -> Option<Self> {
+    pub fn sub(self, o: Self) -> Option<Self> {
         todo!()
     }
 

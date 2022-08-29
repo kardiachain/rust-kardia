@@ -1,3 +1,5 @@
+#![feature(is_some_with)]
+
 mod types;
 mod reactor;
 mod state;
