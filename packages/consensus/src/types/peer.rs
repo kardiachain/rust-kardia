@@ -21,12 +21,13 @@ pub fn internal_peerid() -> PeerId {
     "".to_string()
 }
 
-pub trait Peer {
+pub trait Peer: Debug + Send + Sync + 'static {
     fn get_id(&self) -> PeerId;
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
-    fn send(&self) -> bool;
+    fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
 }
 
+#[derive(Debug)]
 pub struct PeerImpl {
     pub id: PeerId,
     /**
@@ -44,17 +45,17 @@ impl Peer for PeerImpl {
         self.ps.clone()
     }
 
-    fn send(&self) -> bool {
+    fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {
         todo!()
     }
 }
 
 impl PeerImpl {
-    pub fn new(id: PeerId) -> Self {
-        Self {
+    pub fn new(id: PeerId) -> Arc<dyn Peer> {
+        Arc::new(Self {
             id,
             ps: Arc::new(Mutex::new(PeerStateImpl::new())),
-        }
+        })
     }
 }
 
@@ -363,7 +364,7 @@ mod tests {
         let peer = PeerImpl::new(peer_id);
 
         // act
-        if let Ok(ps_guard) = Arc::clone(&peer.ps).lock() {
+        if let Ok(ps_guard) = peer.get_ps().clone().lock() {
             // assert
             assert_eq!(ps_guard.get_prs().height, 0);
         }
@@ -374,9 +375,9 @@ mod tests {
         // arrange
         let peer_id = String::from("peer1");
         let peer = PeerImpl::new(peer_id);
-        let ps_1 = Arc::clone(&peer.ps);
-        let ps_2 = Arc::clone(&peer.ps);
-        let ps_3 = Arc::clone(&peer.ps);
+        let ps_1 = peer.get_ps().clone();
+        let ps_2 = peer.get_ps().clone();
+        let ps_3 = peer.get_ps().clone();
 
         // this thread locks peer state for 500ms
         thread::spawn(move || {
