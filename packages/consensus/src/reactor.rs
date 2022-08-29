@@ -3,7 +3,7 @@ use crate::{
     types::{
         error::{self, ConsensusReactorError},
         messages::{
-            msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
+            msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         },
         peer::{ChannelId, Message as PeerMessage, Peer, PeerImpl, PeerRoundState},
         round_state::{RoundState, RoundStateImpl},
@@ -285,8 +285,9 @@ impl ConsensusReactorImpl {
         // TODO: need to handle stop this thread when peer is dead, removed
         thread::spawn(move || {
             loop {
-                if let Ok(rs_guard) = self.clone().get_cs().get_rs().clone().lock() {
-                    if let Ok(ps_guard) = peer.get_ps().clone().lock() {
+                let cs = self.clone().get_cs();
+                if let Ok(rs_guard) = cs.get_rs().clone().lock() {
+                    if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
                         let prs = ps_guard.get_prs();
 
                         // send proposal block parts if any
@@ -322,13 +323,12 @@ impl ConsensusReactorImpl {
                                     prs.height,
                                     prs.round
                                 );
-                                if peer
-                                    .send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
-                                {
-                                    if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                                        ps_guard.set_has_proposal_block_part(msg);
-                                        drop(ps_guard)
-                                    }
+                                if peer.send(
+                                    DATA_CHANNEL, 
+                                    msg.msg_to_proto().unwrap().encode_to_vec()
+                                ) {
+                                    ps_guard.set_has_proposal_block_part(msg);
+                                    drop(ps_guard)
                                 }
 
                                 continue;
@@ -358,15 +358,36 @@ impl ConsensusReactorImpl {
                             continue;
                         }
 
-                        // TODO: if "our and their" height and round don't match, sleep.
+                        // if "our and their" height and round don't match, sleep.
                         if rs_guard.height != prs.height || rs_guard.round != prs.round {
-                            log::trace!("peer height|round mismatch, sleeping. peer: id={} height={} round={}", peer.get_id(), prs.height, prs.round);
-                            // TODO: thread sleep
-                            // thread::sleep(dur)
+                            log::trace!(
+                                "peer height|round mismatch, sleeping. peer: id={} height={} round={}", 
+                                peer.get_id(), 
+                                prs.height, 
+                                prs.round,
+                            );
+                            thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                             continue;
                         }
 
                         // TODO: send proposal or proposal POL
+                        if rs_guard.proposal.is_some() && !ps_guard.get_prs().proposal {
+                            // proposal: share the proposal metadata with peer
+                            {
+                                let msg = ProposalMessage{
+                                    proposal: rs_guard.proposal.clone()
+                                };
+                                log::debug!(
+                                    "sending proposal: height={} round={}",
+                                    prs.height,
+                                    prs.round
+                                );
+                                if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
+                                    ps_guard.set_has_proposal(msg);
+                                    drop(ps_guard)
+                                }
+                            }
+                        }
 
                         // TODO: nothing to do, sleep.
                         // thread sleep with r.state.config.PeerGossipSleepDuration

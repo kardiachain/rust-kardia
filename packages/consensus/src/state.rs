@@ -11,7 +11,8 @@ use tokio::sync::mpsc::{Receiver, Sender};
 const MSG_QUEUE_SIZE: usize = 1000;
 
 pub trait ConsensusState: Debug + Send + Sync + 'static {
-    fn get_rs(&self) -> RoundStateImpl;
+    fn get_config(&self) -> Arc<ConsensusConfig>;
+    fn get_rs(&self) -> Arc<Mutex<RoundStateImpl>>;
     fn send_peer_msg_chan(&self, msg_info: MessageInfo);
     fn send_internal_msg_chan(&self, msg_info: MessageInfo);
 }
@@ -44,7 +45,11 @@ impl ConsensusStateImpl {
 }
 
 impl ConsensusState for ConsensusStateImpl {
-    fn get_rs(&self) -> RoundStateImpl {
+    fn get_config(&self) -> Arc<ConsensusConfig> {
+        self.config.clone()
+    } 
+
+    fn get_rs(&self) -> Arc<Mutex<RoundStateImpl>> {
         self.rs.clone()
     }
 
