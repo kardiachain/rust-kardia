@@ -303,7 +303,6 @@ impl ConsensusReactorImpl {
                             .parts_bit_array
                             .unwrap()
                             .sub(prs.proposal_block_parts.clone().unwrap())
-                            .unwrap()
                             .pick_random()
                         {
                             let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
@@ -330,24 +329,11 @@ impl ConsensusReactorImpl {
                         }
                     }
 
-                    // TODO: if the peer is on a previous height, help catch up.
-                    if prs.height > 0 && prs.height < rs.height
-                    // TODO: need to implement this?
-                    // && (prs.Height >= conR.conS.blockOperations.Base())
+                    // if the peer is on a previous height, help catch up.
+                    if prs.height > 0
+                        && prs.height < rs.height
+                        && prs.height >= cs.get_block_operations().base()
                     {
-                        if prs.proposal_block_parts.clone().is_none() {
-                            // TODO: reimplement this
-                            // blockMeta := conR.conS.blockOperations.LoadBlockMeta(prs.Height)
-                            // if blockMeta == nil {
-                            //     logger.Error("Failed to load block meta",
-                            //         "blockstoreBase", conR.conS.blockOperations.Base(), "blockstoreHeight", conR.conS.blockOperations.Height())
-                            //     time.Sleep(conR.conS.config.PeerGossipSleepDuration)
-                            // } else {
-                            //     ps.InitProposalBlockParts(blockMeta.BlockID.PartsHeader)
-                            // }
-                            continue;
-                        }
-
                         self.clone().gossip_data_for_catch_up(rs, peer.clone());
                         continue;
                     }
@@ -364,7 +350,7 @@ impl ConsensusReactorImpl {
                         continue;
                     }
 
-                    // TODO: send proposal or proposal POL
+                    // send proposal or proposal POL
                     if rs.proposal.is_some() && !prs.proposal {
                         // proposal: share the proposal metadata with peer
                         {
@@ -399,7 +385,7 @@ impl ConsensusReactorImpl {
 
                     // nothing to do, sleep.
                     thread::sleep(cs.get_config().peer_gossip_sleep_duration);
-                    continue
+                    continue;
                 } else {
                     log::error!("cannot lock either consensus round state or peer round state");
                 }
@@ -420,7 +406,77 @@ impl ConsensusReactorImpl {
     }
 
     fn gossip_data_for_catch_up(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) {
-        todo!()
+        if let Some(prs) = peer.get_prs() {
+            if let Some(index) = peer
+                .get_prs()
+                .unwrap()
+                .proposal_block_parts
+                .unwrap()
+                .not()
+                .pick_random()
+            {
+                let cs = self.clone().get_cs();
+                let block_ops = cs.get_block_operations();
+
+                // ensure that the peer's PartSetHeader is correct
+                if let Some(block_meta) = block_ops.load_block_meta(prs.height) {
+                    if block_meta
+                        .block_id
+                        .parts_header
+                        .eq(&prs.proposal_block_parts_header)
+                    {
+                        // load the part
+                        if let Some(part) = block_ops.load_block_part(prs.height, index) {
+                            let msg = BlockPartMessage {
+                                height: prs.height,
+                                round: prs.round,
+                                part: Some(part),
+                            };
+                            log::debug!(
+                                "sending block part for catchup: round={} index={}",
+                                prs.round,
+                                index
+                            );
+                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
+                            {
+                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
+                                    ps_guard.set_has_proposal_block_part(msg);
+                                    drop(ps_guard)
+                                } else {
+                                    log::debug!("sending block part for catchup failed");
+                                }
+                            }
+                        } else {
+                            log::error!(
+                                "could not load part: index={} blockPartsHeader={:?} peerBlockPartsHeader={:?}",
+                                index,
+                                block_meta.block_id.parts_header,
+                                prs.proposal_block_parts_header
+                            );
+                            thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                            return;
+                        }
+                    } else {
+                        log::info!(
+                            "peer ProposalBlockPartsHeader mismatch, sleeping: blockPartsHeader={:?}, blockMeta.BlockID.PartsHeader={:?}"
+                            , block_meta.block_id.parts_header
+                            , prs.proposal_block_parts_header);
+                        thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                        return;
+                    }
+                } else {
+                    log::error!(
+                        "failed to load block meta: ourHeight={} blockstoreHeight={}",
+                        rs.height,
+                        block_ops.height()
+                    );
+                    thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                    return;
+                }
+            }
+        } else {
+            log::error!("cannot get peer round state: peer={}", peer.get_id());
+        }
     }
 }
 
