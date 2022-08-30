@@ -7,6 +7,7 @@ use core::fmt::Debug;
 use kai_proto::types::SignedMsgType;
 use kai_types::part_set::PartSetHeader;
 use kai_types::round::RoundStep;
+use kai_types::vote_set::VoteSetReader;
 use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
 use std::{
     sync::{Arc, Mutex},
@@ -26,6 +27,7 @@ pub trait Peer: Debug + Send + Sync + 'static {
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
     fn get_prs(&self) -> Option<PeerRoundState>;
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
+    fn pick_send_vote(&self, votes: Box<dyn VoteSetReader>) -> bool;
 }
 
 #[derive(Debug)]
@@ -57,6 +59,10 @@ impl Peer for PeerImpl {
     }
 
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {
+        todo!()
+    }
+
+    fn pick_send_vote(&self, votes: Box<dyn VoteSetReader>) -> bool {
         todo!()
     }
 }
