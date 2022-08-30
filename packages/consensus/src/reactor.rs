@@ -1,19 +1,22 @@
 use crate::{
-    state::{ConsensusState, ConsensusStateImpl},
+    state::ConsensusState,
     types::{
-        error::{self, ConsensusReactorError},
+        error::ConsensusReactorError,
         messages::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
             ProposalMessage, ProposalPOLMessage,
         },
-        peer::{ChannelId, Message as PeerMessage, Peer, PeerImpl, PeerRoundState},
+        peer::{Peer, PeerRoundState},
         round_state::RoundState,
     },
 };
 use kai_proto::consensus::Message as ConsensusMessageProto;
-use kai_types::proposal::Proposal;
+use kai_types::{
+    misc::{ChannelId, Message as PeerMessage},
+    round::RoundStep,
+};
 use prost::Message;
-use std::sync::{Arc, MutexGuard};
+use std::sync::Arc;
 use std::{result::Result::Ok, thread};
 
 pub const STATE_CHANNEL: u8 = 0x20;
@@ -404,7 +407,10 @@ impl ConsensusReactorImpl {
             if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
                 // if height matches, then send LastCommit, Prevotes, Precommits.
                 if rs.height == prs.height {
-                    if self.clone().gossip_votes_for_height(rs.clone(), peer.clone()) {
+                    if self
+                        .clone()
+                        .gossip_votes_for_height(rs.clone(), peer.clone())
+                    {
                         continue;
                     }
                 }
@@ -522,7 +528,99 @@ impl ConsensusReactorImpl {
     }
 
     fn gossip_votes_for_height(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) -> bool {
-        todo!()
+        if let Some(prs) = peer.get_prs() {
+            // If there are lastCommits to send...
+            if prs.step == RoundStep::CanonicalNewHeight {
+                if let Some(last_commit) = rs.last_commit {
+                    if peer.pick_send_vote(Box::new(last_commit)) {
+                        log::debug!("Picked rs.LastCommit to send");
+                        return true;
+                    }
+                }
+            }
+
+            // If there are POL prevotes to send...
+            if RoundStep::Unknown < prs.step
+                && prs.step <= RoundStep::CanonicalPropose
+                && prs.round != 0
+                && prs.round <= rs.round
+                && prs.proposal_pol_round != 0
+            {
+                if let Some(pol_prevotes) = rs
+                    .votes
+                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
+                {
+                    if peer.pick_send_vote(Box::new(pol_prevotes)) {
+                        log::debug!(
+                            "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
+                            prs.proposal_pol_round
+                        );
+                        return true;
+                    }
+                }
+            }
+
+            // If there are prevotes to send...
+            if prs.step <= RoundStep::CanonicalPrevoteWait && prs.round <= rs.round {
+                if let Some(prevotes) = rs.votes.and_then(|vts| vts.prevotes(prs.round)) {
+                    if peer.pick_send_vote(Box::new(prevotes)) {
+                        log::debug!(
+                            "picked rs.Prevotes(prs.Round) to send: round={}",
+                            prs.proposal_pol_round
+                        );
+                        return true;
+                    }
+                }
+            }
+
+            // If there are precommits to send...
+            if prs.step <= RoundStep::CanonicalPrecommitWait
+                && prs.round != 0
+                && prs.round <= rs.round
+            {
+                if let Some(precommits) = rs.votes.and_then(|vts| vts.precommits(prs.round)) {
+                    if peer.pick_send_vote(Box::new(precommits)) {
+                        log::debug!(
+                            "picked rs.Precommits(prs.Round) to send: round={}",
+                            prs.proposal_pol_round
+                        );
+                        return true;
+                    }
+                }
+            }
+
+            // If there are prevotes to send...Needed because of validBlock mechanism
+            if prs.round != 0 && prs.round <= rs.round {
+                if let Some(prevotes) = rs.votes.and_then(|vts| vts.prevotes(prs.round)) {
+                    if peer.pick_send_vote(Box::new(prevotes)) {
+                        log::debug!(
+                            "picked rs.Prevotes(prs.Round) to send: round={}",
+                            prs.proposal_pol_round
+                        );
+                        return true;
+                    }
+                }
+            }
+
+            // If there are POLPrevotes to send...
+            if prs.proposal_pol_round != 0 {
+                if let Some(pol_prevotes) = rs
+                    .votes
+                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
+                {
+                    if peer.pick_send_vote(Box::new(pol_prevotes)) {
+                        log::debug!(
+                            "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
+                            prs.proposal_pol_round
+                        );
+                        return true;
+                    }
+                }
+            }
+        } else {
+            log::error!("cannot lock peer round state: peer={}", peer.get_id());
+        }
+        return false;
     }
 }
 
