@@ -1,11 +1,13 @@
-
-pub mod block;
-pub mod proposal;
 pub mod bit_array;
-pub mod vote;
+pub mod block;
+pub mod block_operations;
+pub mod consensus;
 pub mod crypto;
-pub mod round;
+pub mod evidence;
 pub mod part_set;
+pub mod proposal;
+pub mod round;
+pub mod vote;
 
 #[cfg(test)]
 mod tests {

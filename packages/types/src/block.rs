@@ -23,3 +23,33 @@ impl Into<kai_proto::types::BlockId> for BlockId {
         }
     }
 }
+
+impl PartialEq for BlockId {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash && self.part_set_header == other.part_set_header
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockMeta {
+    block_id: BlockId,
+    header: Header,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Header {
+    pub chain_id: String,
+    pub height: u64,
+    pub gas_limit: u64,
+    pub time: Option<prost_types::Timestamp>,
+    pub last_block_id: Option<BlockId>,
+    pub last_commit_hash: Vec<u8>,
+    pub data_hash: Vec<u8>,
+    pub validators_hash: Vec<u8>,
+    pub next_validators_hash: Vec<u8>,
+    pub consensus_hash: Vec<u8>,
+    pub app_hash: Vec<u8>,
+    pub evidence_hash: Vec<u8>,
+    pub proposer_address: Vec<u8>,
+    pub num_txs: u64,
+}
