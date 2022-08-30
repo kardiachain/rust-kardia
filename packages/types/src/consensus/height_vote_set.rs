@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{validator_set::ValidatorSet, vote_set::VoteSet, peer::PeerId};
+use crate::{peer::PeerId, validator_set::ValidatorSet, vote_set::VoteSet};
 
 #[derive(Debug, Clone)]
 pub struct HeightVoteSet {
@@ -13,8 +13,17 @@ pub struct HeightVoteSet {
     peer_catchup_rounds: HashMap<PeerId, Vec<u32>>,
 }
 
+impl HeightVoteSet {
+    pub fn prevotes(&self, round: u32) -> Option<VoteSet> {
+        todo!()
+    }
+    pub fn precommits(&self, round: u32) -> Option<VoteSet> {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RoundVoteSet {
-    prevotes  : Option<VoteSet>,
-	precommits: Option<VoteSet>,
+    prevotes: Option<VoteSet>,
+    precommits: Option<VoteSet>,
 }
