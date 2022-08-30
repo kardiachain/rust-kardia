@@ -5,9 +5,12 @@ pub mod commit;
 pub mod consensus;
 pub mod crypto;
 pub mod evidence;
+pub mod misc;
 pub mod part_set;
+pub mod peer;
 pub mod proposal;
 pub mod round;
+pub mod validator_set;
 pub mod vote;
 pub mod vote_set;
 

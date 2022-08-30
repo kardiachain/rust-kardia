@@ -5,7 +5,9 @@ use super::messages::{
 use crate::utils::compare_hrs;
 use core::fmt::Debug;
 use kai_proto::types::SignedMsgType;
+use kai_types::misc::ChannelId;
 use kai_types::part_set::PartSetHeader;
+use kai_types::peer::PeerId;
 use kai_types::round::RoundStep;
 use kai_types::vote_set::VoteSetReader;
 use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
@@ -13,10 +15,6 @@ use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
-
-pub type ChannelId = u8;
-pub type Message = Vec<u8>;
-pub type PeerId = String;
 
 pub fn internal_peerid() -> PeerId {
     "".to_string()

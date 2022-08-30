@@ -1,5 +1,5 @@
 use kai_proto::types::Block;
-use kai_types::{part_set::PartSet, proposal::Proposal, round::RoundStep, vote_set::VoteSet};
+use kai_types::{part_set::PartSet, proposal::Proposal, round::RoundStep, vote_set::VoteSet, consensus::height_vote_set::HeightVoteSet};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
@@ -20,7 +20,7 @@ pub struct RoundState {
     pub valid_round: u32,
     pub valid_block: Option<Block>,
     pub valid_block_parts: Option<PartSet>,
-    // pub votes: Option<HeightVoteSet>,
+    pub votes: Option<HeightVoteSet>,
     pub commit_round: u32,
     pub last_commit: Option<VoteSet>,
     // pub last_validators: Option<ValidatorSet>,
@@ -45,6 +45,7 @@ impl RoundState {
             valid_block_parts: todo!(),
             commit_round: todo!(),
             last_commit: todo!(),
+            votes: todo!(),
         }
     }
 }
