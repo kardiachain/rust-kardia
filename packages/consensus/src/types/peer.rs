@@ -185,7 +185,7 @@ impl PeerState for PeerStateImpl {
             return;
         }
 
-        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
+        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().parts_header;
         self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
         self.prs.proposal_pol_round = proposal.pol_round;
         self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
