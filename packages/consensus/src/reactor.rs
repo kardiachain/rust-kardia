@@ -284,6 +284,8 @@ impl ConsensusReactorImpl {
     }
 
     fn gossip_data(self: Arc<Self>, peer: Arc<dyn Peer>) {
+        log::trace!("start gossip data for peer");
+
         // TODO: need to handle stop this thread when peer is dead, removed
         thread::spawn(move || {
             loop {
@@ -394,9 +396,49 @@ impl ConsensusReactorImpl {
     }
 
     fn gossip_votes(self: Arc<Self>, peer: Arc<dyn Peer>) {
-        // TODO: need to handle stop this thread when peer is dead, removed
+        log::trace!("start gossip votes for peer");
 
-        todo!()
+        // TODO: need to handle stop this thread when peer is dead, removed
+        thread::spawn(move || loop {
+            let cs = self.clone().get_cs();
+            if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                // if height matches, then send LastCommit, Prevotes, Precommits.
+                if rs.height == prs.height {
+                    if self.clone().gossip_votes_for_height(rs.clone(), peer.clone()) {
+                        continue;
+                    }
+                }
+
+                // special catchup logic.
+                // if peer is lagging by height 1, send LastCommit.
+                if (prs.height != 0) && (rs.height == prs.height + 1) {
+                    if let Some(last_commit) = rs.last_commit.clone() {
+                        if peer.pick_send_vote(Box::new(last_commit)) {
+                            log::debug!("Picked rs.LastCommit to send: height={}", prs.height);
+                            continue;
+                        }
+                    }
+                }
+
+                // Catchup logic
+                // If peer is lagging by more than 1, send Commit.
+                if prs.height != 0 && rs.height >= prs.height + 2 {
+                    // load the block commit for prs.height,
+                    // which contains precommit signatures for prs.height.
+                    if let Some(commit) = cs.get_block_operations().load_block_commit(prs.height) {
+                        if peer.pick_send_vote(Box::new(commit)) {
+                            log::debug!("Picked Catchup commit to send: height={}", prs.height);
+                            continue;
+                        }
+                    }
+                }
+
+                thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                continue;
+            } else {
+                log::error!("cannot lock either consensus round state or peer round state");
+            }
+        });
     }
 
     fn query_maj23(self: Arc<Self>, peer: Arc<dyn Peer>) {
@@ -477,6 +519,10 @@ impl ConsensusReactorImpl {
         } else {
             log::error!("cannot get peer round state: peer={}", peer.get_id());
         }
+    }
+
+    fn gossip_votes_for_height(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) -> bool {
+        todo!()
     }
 }
 
