@@ -19,20 +19,25 @@ impl From<kai_proto::types::BitArray> for BitArray {
 
 impl BitArray {
     pub fn set_index(mut self, i: usize , v :bool) -> bool {
-        if i >= self.bits.try_into().unwrap() {
-            return false
-        }
+        todo!()
+        // if i >= self.bits.try_into().unwrap() {
+        //     return false
+        // }
 
-        if v {
-            self.elems[i/64] |= 1u64 << (i%64);
-        } else {
-		    self.elems[i/64] &= !(1u64 << (i%64));
-        }
+        // if v {
+        //     self.elems[i/64] |= 1u64 << (i%64);
+        // } else {
+		//     self.elems[i/64] &= !(1u64 << (i%64));
+        // }
 
-        return true
+        // return true
     }
 
-    pub fn sub(self, o: Self) -> Option<Self> {
+    pub fn not(self) -> Self {
+        todo!()
+    }
+
+    pub fn sub(self, o: Self) -> Self {
         todo!()
     }
 
