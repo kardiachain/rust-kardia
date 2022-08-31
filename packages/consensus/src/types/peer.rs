@@ -1,6 +1,6 @@
 use super::messages::{
     BlockPartMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
-    ProposalPOLMessage,
+    ProposalPOLMessage, VoteSetBitsMessage,
 };
 use crate::utils::compare_hrs;
 use core::fmt::Debug;
@@ -89,6 +89,7 @@ pub trait PeerState: Debug + Sync + Send + 'static {
     );
     fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage);
     fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage);
+    fn apply_vote_set_bits_message(&mut self, msg: VoteSetBitsMessage, our_votes: Option<BitArray>);
 }
 
 #[derive(Debug, Clone)]
@@ -289,23 +290,24 @@ impl PeerState for PeerStateImpl {
         }
     }
 
-    // pub fn apply_vote_set_bits_message(
-    //     mut self,
-    //     msg: VoteSetBitsMessage,
-    //     our_votes: Option<BitArray>,
-    // ) {
-    //     if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
-    //         if let Some(_our_votes) = our_votes {
-    //             // TODO: implement sub(), or(), update() for BitArray
-    //             // let other_votes = votes.sub(_our_votes);
-    //             // let has_votes = other_votes.or(msg.votes);
-    //             // votes.update(has_votes);
-    //         } else {
-    //             // TODO:
-    //             // votes.Update(msg.votes)
-    //         }
-    //     }
-    // }
+    fn apply_vote_set_bits_message(
+        &mut self,
+        msg: VoteSetBitsMessage,
+        our_votes: Option<BitArray>,
+    ) {
+        todo!()
+        // if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
+        //     if let Some(_our_votes) = our_votes {
+        //         // TODO: implement sub(), or(), update() for BitArray
+        //         // let other_votes = votes.sub(_our_votes);
+        //         // let has_votes = other_votes.or(msg.votes);
+        //         // votes.update(has_votes);
+        //     } else {
+        //         // TODO:
+        //         // votes.Update(msg.votes)
+        //     }
+        // }
+    }
 
     fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
         if self.prs.height != msg.height {

@@ -10,8 +10,9 @@ use crate::{
         round_state::RoundState,
     },
 };
-use kai_proto::consensus::Message as ConsensusMessageProto;
+use kai_proto::{consensus::Message as ConsensusMessageProto, types::SignedMsgType};
 use kai_types::{
+    bit_array::BitArray,
     misc::{ChannelId, Message as PeerMessage},
     round::RoundStep,
 };
@@ -262,24 +263,40 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match msg.as_ref() {
             ConsensusMessageType::VoteSetBitsMessage(_msg) => {
-                // TODO: get height, votes of consensus state
-                // let height = 0;
-                // let votes: HeightVoteSet = self.s;
+                if let Some(rs) = self.get_cs().get_rs() {
+                    let height = rs.height;
+                    let votes = rs.votes;
 
-                // if height == msg.Height {
-                //     var ourVotes *cmn.BitArray
-                //     switch msg.Type {
-                //     case kproto.PrevoteType:
-                //         ourVotes = votes.Prevotes(msg.Round).BitArrayByBlockID(msg.BlockID)
-                //     case kproto.PrecommitType:
-                //         ourVotes = votes.Precommits(msg.Round).BitArrayByBlockID(msg.BlockID)
-                //     default:
-                //         panic("Bad VoteSetBitsMessage field Type. Forgot to add a check in ValidateBasic?")
-                //     }
-                //     ps.ApplyVoteSetBitsMessage(msg, ourVotes)
-                // } else {
-                //     ps.ApplyVoteSetBitsMessage(msg, nil)
-                // }
+                    if height == _msg.height {
+                        let our_votes = match _msg.r#type {
+                            SignedMsgType::Prevote => votes
+                                .and_then(|vts| vts.prevotes(_msg.round))
+                                .and_then(|pv| {
+                                    pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
+                                }),
+                            SignedMsgType::Precommit => votes
+                                .and_then(|vts| vts.precommits(_msg.round))
+                                .and_then(|pv| {
+                                    pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
+                                }),
+                            _ => {
+                                log::warn!("bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?");
+                                return Err(Box::new(
+                                    ConsensusReactorError::UnexpectedMessageTypeError(
+                                        "bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?".to_string()
+                                    )
+                                ));
+                            }
+                        };
+                        if let Ok(mut ps_guard) = src.get_ps().lock() {
+                            ps_guard.apply_vote_set_bits_message(_msg.clone(), our_votes);
+                        }
+                    } else {
+                        if let Ok(mut ps_guard) = src.get_ps().lock() {
+                            ps_guard.apply_vote_set_bits_message(_msg.clone(), None);
+                        }
+                    }
+                }
                 Ok(())
             }
             _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
