@@ -4,7 +4,7 @@ use crate::{
         error::ConsensusReactorError,
         messages::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
-            ProposalMessage, ProposalPOLMessage,
+            ProposalMessage, ProposalPOLMessage, VoteSetBitsMessage,
         },
         peer::{Peer, PeerRoundState},
         round_state::RoundState,
@@ -168,7 +168,58 @@ impl ConsensusReactorImpl {
                 }
             }
             ConsensusMessageType::VoteSetMaj23Message(_msg) => {
-                // TODO: handle this message
+                if let Some(rs) = self.get_cs().get_rs() {
+                    let height = rs.height.clone();
+                    let votes = rs.votes.clone();
+
+                    if height != _msg.height {
+                        return Ok(());
+                    }
+
+                    // TODO:
+                    // Peer claims to have a maj23 for some BlockID at H,R,S,
+                    // err := votes.SetPeerMaj23(msg.Round, msg.Type, ps.peer.ID(), msg.BlockID)
+                    // if err != nil {
+                    // 	conR.Switch.StopPeerForError(src, err)
+                    // 	return
+                    // }
+
+                    let our_votes = match _msg.r#type {
+                        SignedMsgType::Prevote => votes
+                            .and_then(|vts| vts.prevotes(_msg.round))
+                            .and_then(|pv| {
+                                pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
+                            }),
+                        SignedMsgType::Precommit => votes
+                            .and_then(|vts| vts.precommits(_msg.round))
+                            .and_then(|pv| {
+                                pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
+                            }),
+                        _ => {
+                            log::warn!("bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?");
+                            return Err(Box::new(
+                                ConsensusReactorError::UnexpectedMessageTypeError(
+                                    "bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?".to_string()
+                                )
+                            ));
+                        }
+                    };
+
+                    src.clone().try_send(
+                        DATA_CHANNEL,
+                        VoteSetBitsMessage {
+                            height: _msg.height,
+                            round: _msg.round,
+                            r#type: _msg.r#type,
+                            block_id: _msg.block_id.clone(),
+                            votes: our_votes,
+                        }
+                        .msg_to_proto()
+                        .unwrap()
+                        .encode_to_vec(),
+                    );
+                }
+
                 Ok(())
             }
             _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),

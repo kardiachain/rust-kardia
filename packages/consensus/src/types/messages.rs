@@ -230,7 +230,7 @@ pub struct VoteSetMaj23Message {
     pub height: u64,
     pub round: u32,
     pub r#type: SignedMsgType,
-    pub block_id: Option<kai_proto::types::BlockId>,
+    pub block_id: Option<kai_types::block::BlockId>,
 }
 
 impl ConsensusMessage for VoteSetMaj23Message {
@@ -258,7 +258,7 @@ impl From<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
                 32 => SignedMsgType::Proposal,
                 _ => SignedMsgType::Unknown,
             },
-            block_id: m.block_id,
+            block_id: m.block_id.map(|block_id| block_id.into()),
         }
     }
 }
@@ -269,7 +269,7 @@ impl Into<kai_proto::consensus::VoteSetMaj23> for VoteSetMaj23Message {
             height: self.height,
             round: self.round,
             r#type: self.r#type.into(),
-            block_id: self.block_id,
+            block_id: self.block_id.map(|block_id| block_id.into()),
         }
     }
 }

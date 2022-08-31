@@ -25,6 +25,7 @@ pub trait Peer: Debug + Send + Sync + 'static {
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
     fn get_prs(&self) -> Option<PeerRoundState>;
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
+    fn try_send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
     fn pick_send_vote(&self, votes: Box<dyn VoteSetReader>) -> bool;
 }
 
@@ -57,6 +58,10 @@ impl Peer for PeerImpl {
     }
 
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {
+        todo!()
+    }
+
+    fn try_send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {
         todo!()
     }
 

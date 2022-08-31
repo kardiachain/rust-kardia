@@ -20,6 +20,9 @@ impl HeightVoteSet {
     pub fn precommits(&self, round: u32) -> Option<VoteSet> {
         todo!()
     }
+    pub fn set_peer_maj23(&self) -> Result<(), String> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone)]
