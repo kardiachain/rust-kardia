@@ -1,5 +1,5 @@
+use kai_types::misc::ChannelId;
 use thiserror::Error;
-use super::peer::ChannelId;
 
 #[derive(Error, Debug)]
 pub enum ConsensusReactorError {
@@ -11,6 +11,8 @@ pub enum ConsensusReactorError {
     UnknownChannelIdError(ChannelId),
     #[error("unknown message type")]
     UnknownMessageTypeError,
+    #[error("unexpected message type: {0}")]
+    UnexpectedMessageTypeError(String),
     #[error("decode proto error")]
     DecodeProtoError,
     #[error("encode proto error")]

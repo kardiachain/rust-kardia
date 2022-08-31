@@ -379,8 +379,7 @@ impl ConsensusReactorImpl {
                             let msg = ProposalPOLMessage{
                                 height: rs.height,
                                 proposal_pol_round: proposal.pol_round,
-                                //TODO: ProposalPOL:      rs.Votes.Prevotes(rs.Proposal.POLRound).BitArray(),
-                                proposal_pol: None,
+                                proposal_pol: rs.votes.clone().and_then(|vts| vts.prevotes(proposal.pol_round)).and_then(|vts| vts.bit_array()),
                             };
                             log::debug!("sending POL: height={} round={}", prs.height, prs.round);
                             peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec());
@@ -507,8 +506,8 @@ impl ConsensusReactorImpl {
                     } else {
                         log::info!(
                             "peer ProposalBlockPartsHeader mismatch, sleeping: blockPartsHeader={:?}, blockMeta.BlockID.PartsHeader={:?}"
-                            , block_meta.block_id.parts_header
-                            , prs.proposal_block_parts_header);
+                            ,block_meta.block_id.parts_header
+                            ,prs.proposal_block_parts_header);
                         thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                         return;
                     }
@@ -548,6 +547,7 @@ impl ConsensusReactorImpl {
             {
                 if let Some(pol_prevotes) = rs
                     .votes
+                    .clone()
                     .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
                 {
                     if peer.pick_send_vote(Box::new(pol_prevotes)) {
@@ -562,7 +562,7 @@ impl ConsensusReactorImpl {
 
             // If there are prevotes to send...
             if prs.step <= RoundStep::CanonicalPrevoteWait && prs.round <= rs.round {
-                if let Some(prevotes) = rs.votes.and_then(|vts| vts.prevotes(prs.round)) {
+                if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
                     if peer.pick_send_vote(Box::new(prevotes)) {
                         log::debug!(
                             "picked rs.Prevotes(prs.Round) to send: round={}",
@@ -578,7 +578,8 @@ impl ConsensusReactorImpl {
                 && prs.round != 0
                 && prs.round <= rs.round
             {
-                if let Some(precommits) = rs.votes.and_then(|vts| vts.precommits(prs.round)) {
+                if let Some(precommits) = rs.votes.clone().and_then(|vts| vts.precommits(prs.round))
+                {
                     if peer.pick_send_vote(Box::new(precommits)) {
                         log::debug!(
                             "picked rs.Precommits(prs.Round) to send: round={}",
@@ -591,7 +592,7 @@ impl ConsensusReactorImpl {
 
             // If there are prevotes to send...Needed because of validBlock mechanism
             if prs.round != 0 && prs.round <= rs.round {
-                if let Some(prevotes) = rs.votes.and_then(|vts| vts.prevotes(prs.round)) {
+                if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
                     if peer.pick_send_vote(Box::new(prevotes)) {
                         log::debug!(
                             "picked rs.Prevotes(prs.Round) to send: round={}",
@@ -606,7 +607,8 @@ impl ConsensusReactorImpl {
             if prs.proposal_pol_round != 0 {
                 if let Some(pol_prevotes) = rs
                     .votes
-                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
+                    .clone()
+                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round).clone())
                 {
                     if peer.pick_send_vote(Box::new(pol_prevotes)) {
                         log::debug!(

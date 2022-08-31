@@ -15,6 +15,16 @@ impl From<kai_proto::types::BitArray> for BitArray {
     }
 }
 
+impl Into<kai_proto::types::BitArray> for BitArray {
+    fn into(self: Self) -> kai_proto::types::BitArray {
+        kai_proto::types::BitArray {
+            bits: self.bits,
+            elems: self.elems,
+        }
+    }
+}
+
+
 // TODO: implement fns of bit_array.go
 
 impl BitArray {

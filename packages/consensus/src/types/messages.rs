@@ -1,11 +1,11 @@
-use super::{error::ConsensusReactorError, peer::PeerId};
+use super::error::ConsensusReactorError;
 use kai_proto::{
     consensus::{message::Sum, Message as ConsensusMessageProto},
     types::SignedMsgType,
 };
-use kai_types::{round::RoundStep, part_set::Part};
-use std::{any::Any, sync::Arc};
+use kai_types::{bit_array::BitArray, part_set::Part, peer::PeerId, round::RoundStep};
 use std::fmt::Debug;
+use std::{any::Any, sync::Arc};
 
 /**
    Message is a message that can be sent and received on the `ConsensusReactor`
@@ -313,7 +313,7 @@ impl Into<kai_proto::consensus::Proposal> for ProposalMessage {
 pub struct ProposalPOLMessage {
     pub height: u64,
     pub proposal_pol_round: u32,
-    pub proposal_pol: Option<kai_proto::types::BitArray>,
+    pub proposal_pol: Option<BitArray>,
 }
 
 impl ConsensusMessage for ProposalPOLMessage {
@@ -335,7 +335,7 @@ impl From<kai_proto::consensus::ProposalPol> for ProposalPOLMessage {
         Self {
             height: m.height,
             proposal_pol_round: m.proposal_pol_round,
-            proposal_pol: m.proposal_pol,
+            proposal_pol: m.proposal_pol.map(|p| p.into()),
         }
     }
 }
@@ -345,7 +345,7 @@ impl Into<kai_proto::consensus::ProposalPol> for ProposalPOLMessage {
         kai_proto::consensus::ProposalPol {
             height: self.height,
             proposal_pol_round: self.proposal_pol_round,
-            proposal_pol: self.proposal_pol,
+            proposal_pol: self.proposal_pol.map(|p| p.into()),
         }
     }
 }
@@ -429,8 +429,8 @@ pub struct VoteSetBitsMessage {
     pub height: u64,
     pub round: u32,
     pub r#type: SignedMsgType,
-    pub block_id: Option<kai_proto::types::BlockId>,
-    pub votes: Option<kai_proto::types::BitArray>,
+    pub block_id: Option<kai_types::block::BlockId>,
+    pub votes: Option<kai_types::bit_array::BitArray>,
 }
 
 impl ConsensusMessage for VoteSetBitsMessage {
@@ -458,8 +458,8 @@ impl From<kai_proto::consensus::VoteSetBits> for VoteSetBitsMessage {
                 32 => SignedMsgType::Proposal,
                 _ => SignedMsgType::Unknown,
             },
-            block_id: m.block_id,
-            votes: m.votes,
+            block_id: m.block_id.map(|block_id| block_id.into()),
+            votes: m.votes.map(|vts| vts.into()),
         }
     }
 }
@@ -470,8 +470,8 @@ impl Into<kai_proto::consensus::VoteSetBits> for VoteSetBitsMessage {
             height: self.height,
             round: self.round,
             r#type: self.r#type.into(),
-            block_id: self.block_id,
-            votes: self.votes,
+            block_id: self.block_id.map(|block_id| block_id.into()),
+            votes: self.votes.map(|vts| vts.into()),
         }
     }
 }
