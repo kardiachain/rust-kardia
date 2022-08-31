@@ -392,11 +392,18 @@ impl ConsensusReactorImpl {
                                 }
                             }
                         }
-                        if let Some(proposal) = rs.proposal && proposal.pol_round > 0 {
-                            let msg = ProposalPOLMessage{
+
+                        if rs.proposal.clone().is_some_and(|p| p.pol_round > 0) {
+                            let msg = ProposalPOLMessage {
                                 height: rs.height,
-                                proposal_pol_round: proposal.pol_round,
-                                proposal_pol: rs.votes.clone().and_then(|vts| vts.prevotes(proposal.pol_round)).and_then(|vts| vts.bit_array()),
+                                proposal_pol_round: rs.proposal.clone().unwrap().pol_round,
+                                proposal_pol: rs
+                                    .votes
+                                    .clone()
+                                    .and_then(|vts| {
+                                        vts.prevotes(rs.proposal.clone().unwrap().pol_round)
+                                    })
+                                    .and_then(|vts| vts.bit_array()),
                             };
                             log::debug!("sending POL: height={} round={}", prs.height, prs.round);
                             peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec());
