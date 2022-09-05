@@ -1,11 +1,13 @@
 // most of TCP functions are in this file
 
 use kai_utils::crypto::crypto;
+use tokio::net::TcpStream;
 
 use crate::key::{Id, ID_BYTE_LENGTH};
 use crate::errors::{self, Error::*};
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs, Ipv4Addr};
 use std::error::Error;
+use std::time;
 
 // EmptyNetAddress defines the string representation of an empty NetAddress
 const EMPTY_NET_ADDRESS: &str = "<nil-NetAddress>";
@@ -42,17 +44,22 @@ impl NetAddress {
         todo!()
     }
 
-    pub fn dial_string(&self) -> &str {
-        todo!()
+    pub fn dial_string(&self) -> String {
+        if self.ip.is_ipv6() {
+            return "[".to_owned() + &self.ip.to_string() + &"]:".to_owned() + &self.port.to_string()
+        }
+        self.ip.to_string() + ":" + &self.port.to_string()
     }
 
     // Dial calls net.Dial on the address.
-    pub fn dial(&self) {
-        todo!()
+    pub async fn dial(&self) -> Result<TcpStream, Box<dyn Error>> {
+        let stream = TcpStream::connect(self.dial_string()).await?;
+        Ok(stream)
     }
 
     // DialTimeout calls TCPStream.connect_timeout() on the address.
-    pub fn dial_timeout(&self) {
+    pub fn dial_timeout(&self, timeout: time::Duration) -> Result<TcpStream, Box<dyn Error>> {
+        
         todo!()
     }
 
@@ -202,9 +209,20 @@ fn validate_id(id : Id) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+// IDAddressString returns id@hostPort. It strips the leading
+// protocol from protocolHostPort if it exists.
+pub fn id_address_string(id: Id, protocol_host_port: &str) -> String {
+    let host_port = remove_protocol_if_defined(protocol_host_port);
+    let v = vec![id.as_str(), "@", host_port];
+
+    v.concat()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{remove_protocol_if_defined, validate_id};
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    use super::{remove_protocol_if_defined, validate_id, id_address_string, NetAddress};
     use crate::errors::Error::{self, MsgError};
 
     #[test]
@@ -222,5 +240,23 @@ mod tests {
     #[test]
     fn test_validate_id_with_wrong_id_byte_length() {
         // assert_eq!(validate_id("MockPeer".to_string()), Err("invalid hex length - got {id_bytes.unwrap().len():?}, expected 20".to_string()))
+    }
+
+    #[test]
+    fn test_id_address_string_ok() {
+        assert_eq!(id_address_string("123".to_string(), "tcp://0.0.0.0:3000"), "123@0.0.0.0:3000")
+    }
+
+    #[test] 
+    fn test_dial_string_v4_ok() {
+        let v4 = NetAddress{id: None, ip: std::net::IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port: 8080};
+
+        assert_eq!(v4.dial_string(), "127.0.0.1:8080".to_string())
+    }
+
+    #[test]
+    fn test_dial_string_v6_ok() {
+        let v6 = NetAddress{id:None, ip: std::net::IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0xc00a, 0x2ff)), port: 8080};
+        assert_eq!(v6.dial_string(), "[::ffff:192.10.2.255]:8080" )
     }
 }
