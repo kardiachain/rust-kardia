@@ -4,6 +4,7 @@ use std::time::Duration;
 pub struct ConsensusConfig {
     // Reactor sleep duration parameters are in milliseconds
     pub peer_gossip_sleep_duration: Duration,
+    pub peer_query_maj23_sleep_duration: Duration,
 }
 
 impl ConsensusConfig {
@@ -23,6 +24,7 @@ impl ConsensusConfig {
             // PeerGossipSleepDuration:     100 * time.Millisecond,
             // PeerQueryMaj23SleepDuration: 2000 * time.Millisecond,
             peer_gossip_sleep_duration: Duration::from_millis(100),
+            peer_query_maj23_sleep_duration: Duration::from_millis(2000),
         }
     }
 }

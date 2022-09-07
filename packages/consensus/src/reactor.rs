@@ -4,7 +4,7 @@ use crate::{
         error::ConsensusReactorError,
         messages::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
-            ProposalMessage, ProposalPOLMessage, VoteSetBitsMessage,
+            ProposalMessage, ProposalPOLMessage, VoteSetBitsMessage, VoteSetMaj23Message,
         },
         peer::{Peer, PeerRoundState},
         round_state::RoundState,
@@ -522,9 +522,134 @@ impl ConsensusReactorImpl {
     }
 
     fn query_maj23(self: Arc<Self>, peer: Arc<dyn Peer>) {
-        // TODO: need to handle stop this thread when peer is dead, removed
+        log::trace!("start query major 2/3");
 
-        todo!()
+        // TODO: need to handle stop this thread when peer is dead, removed
+        thread::spawn(move || loop {
+            let cs = self.clone().get_cs();
+
+            // Send Height/Round/Prevotes
+            {
+                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                    if rs.height == prs.height {
+                        if let Some(maj23_blockid) = rs
+                            .votes
+                            .clone()
+                            .and_then(|vts| vts.prevotes(prs.round))
+                            .and_then(|pvts| pvts.two_thirds_majority())
+                        {
+                            peer.try_send(
+                                STATE_CHANNEL,
+                                VoteSetMaj23Message {
+                                    height: prs.height,
+                                    round: prs.round,
+                                    r#type: SignedMsgType::Prevote,
+                                    block_id: Some(maj23_blockid),
+                                }
+                                .msg_to_proto()
+                                .unwrap()
+                                .encode_to_vec(),
+                            );
+                            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+                        }
+                    }
+                } else {
+                    log::error!("cannot lock either consensus round state or peer round state");
+                }
+            }
+
+            // Send Height/Round/Precommits
+            {
+                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                    if rs.height == prs.height {
+                        if let Some(maj23_blockid) = rs
+                            .votes
+                            .clone()
+                            .and_then(|vts| vts.precommits(prs.round))
+                            .and_then(|pvts| pvts.two_thirds_majority())
+                        {
+                            peer.try_send(
+                                STATE_CHANNEL,
+                                VoteSetMaj23Message {
+                                    height: prs.height,
+                                    round: prs.round,
+                                    r#type: SignedMsgType::Precommit,
+                                    block_id: Some(maj23_blockid),
+                                }
+                                .msg_to_proto()
+                                .unwrap()
+                                .encode_to_vec(),
+                            );
+                            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+                        }
+                    }
+                } else {
+                    log::error!("cannot lock either consensus round state or peer round state");
+                }
+            }
+
+            // Send Height/Round/ProposalPOL
+            {
+                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                    if rs.height == prs.height {
+                        if let Some(maj23_blockid) = rs
+                            .votes
+                            .clone()
+                            .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
+                            .and_then(|pvts| pvts.two_thirds_majority())
+                        {
+                            peer.try_send(
+                                STATE_CHANNEL,
+                                VoteSetMaj23Message {
+                                    height: prs.height,
+                                    round: prs.round,
+                                    r#type: SignedMsgType::Prevote,
+                                    block_id: Some(maj23_blockid),
+                                }
+                                .msg_to_proto()
+                                .unwrap()
+                                .encode_to_vec(),
+                            );
+                            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+                        }
+                    }
+                } else {
+                    log::error!("cannot lock either consensus round state or peer round state");
+                }
+            }
+
+            // Send Height/CatchupCommitRound/CatchupCommit.
+            {
+                if let Some(prs) = peer.get_prs() {
+                    if prs.catchup_commit_round != 0
+                        && prs.height > 0
+                        && prs.height <= cs.clone().get_block_operations().height()
+                    {
+                        if let Some(commit) =
+                            cs.clone().get_block_operations().load_commit(prs.height)
+                        {
+                            peer.try_send(
+                                STATE_CHANNEL,
+                                VoteSetMaj23Message {
+                                    height: prs.height,
+                                    round: commit.round,
+                                    r#type: SignedMsgType::Precommit,
+                                    block_id: commit.block_id,
+                                }
+                                .msg_to_proto()
+                                .unwrap()
+                                .encode_to_vec(),
+                            );
+                            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+                        }
+                    }
+                } else {
+                    log::error!("cannot lock peer round state");
+                }
+            }
+
+            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+        });
     }
 
     fn gossip_data_for_catch_up(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) {

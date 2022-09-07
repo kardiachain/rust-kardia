@@ -15,6 +15,10 @@ impl VoteSet {
     pub fn bit_array_by_block_id(&self, block_id: BlockId) -> Option<BitArray> {
         todo!()
     }
+
+    pub fn two_thirds_majority(&self) -> Option<BlockId> {
+        todo!()
+    }
 }
 
 impl VoteSetReader for VoteSet {}
