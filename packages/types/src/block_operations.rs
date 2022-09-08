@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 
+use mockall::automock;
+
 use crate::{block::BlockMeta, commit::Commit, part_set::Part};
 
+#[automock]
 pub trait BlockOperations: Debug + Sync + Send + 'static {
     fn base(&self) -> u64;
     fn height(&self) -> u64;
@@ -42,9 +45,9 @@ impl BlockOperations for BlockOperationsImpl {
 
     fn load_commit(&self, height: u64) -> Option<Commit> {
         if height == self.height() {
-            return self.load_seen_commit(height)
+            return self.load_seen_commit(height);
         } else {
-            return self.load_block_commit(height)
+            return self.load_block_commit(height);
         }
     }
 }
