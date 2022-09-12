@@ -12,7 +12,7 @@ use crate::{
 };
 use kai_proto::{consensus::Message as ConsensusMessageProto, types::SignedMsgType};
 use kai_types::{
-    bit_array::BitArray,
+    consensus::state::LatestBlockState,
     misc::{ChannelId, Message as PeerMessage},
     round::RoundStep,
 };
@@ -26,7 +26,11 @@ pub const VOTE_CHANNEL: u8 = 0x22;
 pub const VOTE_SET_BITS_CHANNEL: u8 = 0x23;
 
 pub trait ConsensusReactor {
-    fn switch_to_consensus(self: Arc<Self>) -> ();
+    fn switch_to_consensus(
+        self: Arc<Self>,
+        state: Arc<Box<dyn LatestBlockState>>,
+        skip_wal: bool,
+    ) -> Result<(), Box<ConsensusReactorError>>;
     fn set_priv_validator(self: Arc<Self>) -> ();
     fn get_priv_validator(self: Arc<Self>) -> ();
     fn get_validators(self: Arc<Self>) -> ();
@@ -47,8 +51,43 @@ pub struct ConsensusReactorImpl {
 }
 
 impl ConsensusReactor for ConsensusReactorImpl {
-    fn switch_to_consensus(self: Arc<Self>) -> () {
-        todo!()
+    fn switch_to_consensus(
+        self: Arc<Self>,
+        state: Arc<Box<dyn LatestBlockState>>,
+        skip_wal: bool,
+    ) -> Result<(), Box<ConsensusReactorError>> {
+        let cs = self.clone().get_cs().clone();
+        let block_state = cs.get_state();
+
+        if state.get_last_block_height() > 0 {
+            // TODO: add a function below
+            // cs.reconstruct_from_last_commit(state);
+        }
+
+        cs.update_to_state(state);
+
+        // TODO: implement waitSync and skipWAL?
+        // conR.mtx.Lock()
+        // conR.waitSync = false
+        // conR.mtx.Unlock()
+
+        // if skipWAL {
+        //     conR.conS.doWALCatchup = false
+        // }
+
+        // err := conR.conS.Start()
+        // if err != nil {
+        //     panic(fmt.Sprintf(`Failed to start consensus state: %v
+
+        // conS:
+        // %+v
+
+        // conR:
+        // %+v`, err, conR.conS, conR))
+        //     }
+        //     conR.Logger.Info("Switched to consensus", "skipWAL", skipWAL)
+
+        Ok(())
     }
 
     fn set_priv_validator(self: Arc<Self>) -> () {
@@ -372,11 +411,11 @@ impl ConsensusReactorImpl {
                         if let Some(index) = rs
                             .proposal_block_parts
                             .clone()
-                            .unwrap()
-                            .parts_bit_array
-                            .unwrap()
-                            .sub(prs.proposal_block_parts.clone().unwrap())
-                            .pick_random()
+                            .and_then(|pbp| pbp.parts_bit_array)
+                            .and_then(|pba| {
+                                pba.sub(prs.proposal_block_parts.clone().unwrap())
+                                    .pick_random()
+                            })
                         {
                             let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
                             let msg = BlockPartMessage {
@@ -828,106 +867,256 @@ impl ConsensusReactorImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, thread};
+    use std::sync::{Arc, Mutex};
 
     use crate::{
         reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
-        state::ConsensusStateImpl,
+        state::MockConsensusState,
         types::{
             config::ConsensusConfig,
-            messages::{ConsensusMessage, NewRoundStepMessage},
-            peer::{Peer, PeerImpl},
+            messages::{ConsensusMessage, NewRoundStepMessage, NewValidBlockMessage, HasVoteMessage},
+            peer::{MockPeer, MockPeerState, Peer, PeerRoundState},
+            round_state::RoundState,
         },
     };
-    use kai_proto::consensus::Message as ConsensusMessageProto;
+    use kai_proto::types::SignedMsgType;
     use kai_types::round::RoundStep;
     use prost::Message as ProstMessage;
 
+    fn init_reactor(
+        m_consensus_state: Box<MockConsensusState>,
+        m_peers: Vec<Arc<dyn Peer>>,
+    ) -> Arc<ConsensusReactorImpl> {
+        let reactor = Arc::new(ConsensusReactorImpl::new(m_consensus_state));
+        for m_peer in m_peers {
+            let rs = reactor.clone().add_peer(m_peer);
+            assert!(rs.is_ok());
+        }
+        reactor
+    }
+
     #[test]
-    fn handle_new_round_step_msg() {
-        // arrange
-        let cs_config = ConsensusConfig::new_default();
-        let cs = ConsensusStateImpl::new(cs_config);
-        let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
-        let m = NewRoundStepMessage {
+    fn add_peer() {
+        let mut mock_cs = Box::new(MockConsensusState::new());
+        let mut mock_peer = MockPeer::new();
+
+        mock_cs
+            .expect_get_rs()
+            .returning(|| Some(RoundState::new_default()));
+        mock_cs
+            .expect_get_config()
+            .returning(|| Arc::new(ConsensusConfig::new_default()));
+
+        mock_peer
+            .expect_get_prs()
+            .return_const(Some(PeerRoundState::new()));
+        mock_peer.expect_get_ps().times(1).returning(move || {
+            let mut mock_peer_state = MockPeerState::new();
+            mock_peer_state.expect_set_prs().times(1).return_const(());
+            Arc::new(Mutex::new(mock_peer_state))
+        });
+
+        let c_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = Arc::new(ConsensusReactorImpl::new(mock_cs));
+
+        let rs = reactor.clone().add_peer(c_mock_peer.clone());
+        assert!(rs.is_ok());
+    }
+
+    #[test]
+    fn handle_state_message() {
+        let nrs_msg = NewRoundStepMessage {
             height: 1,
             round: 1,
             step: RoundStep::Propose,
             seconds_since_start_time: 1000,
             last_commit_round: 0,
         };
-        let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
-        let peer_msg = m_proto.encode_to_vec();
-        let peer_id = String::from("peerid");
-        let peer: Arc<dyn Peer> = PeerImpl::new(peer_id);
-        _ = reactor.clone().add_peer(Arc::clone(&peer));
+        let nrs_msg_bz = nrs_msg.msg_to_proto().unwrap().encode_to_vec();
+        let nvb_msg = NewValidBlockMessage {
+            height: 1,
+            round: 1,
+            block_parts_header: None,
+            block_parts: None,
+            is_commit: false,
+        };
+        let nvb_msg_bz = nvb_msg.msg_to_proto().unwrap().encode_to_vec();
+        let hv_msg = HasVoteMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            index: 1,
+        };
+        let hv_msg_bz = hv_msg.msg_to_proto().unwrap().encode_to_vec();
+        
+        let mut mock_consensus_state = Box::new(MockConsensusState::new());
+        mock_consensus_state
+            .expect_get_rs()
+            .returning(|| Some(RoundState::new_default()));
+        mock_consensus_state
+            .expect_get_config()
+            .returning(|| Arc::new(ConsensusConfig::new_default()));
+
+        let mock_prs = PeerRoundState::new();
+        let mut mock_ps = MockPeerState::new();
+        mock_ps.expect_set_prs().return_const(());
+        mock_ps.expect_get_prs().return_const(mock_prs);
+        mock_ps
+            .expect_apply_new_round_step_message()
+            .withf(move |p_msg| p_msg.height == nrs_msg.height && p_msg.round == nrs_msg.round)
+            .times(1)
+            .return_const(());
+        mock_ps
+            .expect_apply_new_valid_block_message()
+            .withf(move |p_msg| p_msg.height == nvb_msg.height && p_msg.round == nvb_msg.round)
+            .times(1)
+            .return_const(());
+        mock_ps
+            .expect_set_has_vote()
+            .withf(move |h, r, t, i| *h == hv_msg.height && *r == hv_msg.round)
+            .times(1)
+            .return_const(());
+
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let mut mock_peer = MockPeer::new();
+        mock_peer
+            .expect_get_prs()
+            .return_const(Some(PeerRoundState::new()));
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(mock_consensus_state, vec![a_mock_peer.clone()]);
 
         // act
         let rs = reactor
             .clone()
-            .receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), nrs_msg_bz);
+        let rs_2 = reactor
+            .clone()
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), nvb_msg_bz);
+        let rs_3 = reactor
+            .clone()
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), hv_msg_bz);
+        // let rs_4 = reactor
+        //     .clone()
+        //     .receive(STATE_CHANNEL, a_mock_peer.clone(), hv_msg_bz);
 
         // assert
         assert!(rs.is_ok());
-
-        let rs = thread::spawn(move || {
-            if let Ok(ps_guard) = peer.get_ps().clone().lock() {
-                Ok(Arc::new(ps_guard.get_prs()))
-            } else {
-                Err("err")
-            }
-        })
-        .join();
-
-        assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
-        let prs = Arc::clone(&rs.unwrap().unwrap());
-        assert_eq!(prs.height, 1);
-        assert_eq!(prs.height, 1);
-        assert_eq!(prs.round, 1);
-        assert_eq!(prs.step, RoundStep::Propose);
-        assert_eq!(prs.last_commit_round, 0);
+        assert!(rs_2.is_ok());
+        assert!(rs_3.is_ok());
     }
 
-    #[test]
-    fn handle_new_valid_block_msg() {
-        // arrange
-        let cs_config = ConsensusConfig::new_default();
-        let cs = ConsensusStateImpl::new(cs_config);
-        let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
-        let m = NewRoundStepMessage {
-            height: 1,
-            round: 1,
-            step: RoundStep::Propose,
-            seconds_since_start_time: 1000,
-            last_commit_round: 0,
-        };
-        let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
-        let peer_msg = m_proto.encode_to_vec();
-        let peer_id = String::from("peerid");
-        let peer = PeerImpl::new(peer_id);
-        _ = reactor.clone().add_peer(Arc::clone(&peer));
+    // TODO: below tests are not blackboxed, but they are kept to be rewritten in other test modules.
+    // #[test]
+    // fn handle_new_round_step_msg() {
+    //     // arrange
+    //     let cs_config = ConsensusConfig::new_default();
+    //     let mock_latest_block_state = Box::new(MockLatestBlockState::new());
+    //     let mock_block_operations = Box::new(MockBlockOperations::new());
+    //     let mock_block_executor = Box::new(MockBlockExecutor::new());
+    //     let mock_evidence_pool = Box::new(MockEvidencePool::new());
+    //     let cs = ConsensusStateImpl::new(
+    //         cs_config,
+    //         Arc::new(mock_latest_block_state),
+    //         Arc::new(mock_block_operations),
+    //         Arc::new(mock_block_executor),
+    //         Arc::new(mock_evidence_pool),
+    //     );
+    //     let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
+    //     let m = NewRoundStepMessage {
+    //         height: 1,
+    //         round: 1,
+    //         step: RoundStep::Propose,
+    //         seconds_since_start_time: 1000,
+    //         last_commit_round: 0,
+    //     };
+    //     let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
+    //     let peer_msg = m_proto.encode_to_vec();
+    //     let peer_id = String::from("peerid");
+    //     let peer: Arc<dyn Peer> = PeerImpl::new(peer_id);
+    //     _ = reactor.clone().add_peer(Arc::clone(&peer));
 
-        // act
-        let rs = reactor.receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+    //     // act
+    //     let rs = reactor
+    //         .clone()
+    //         .receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
 
-        // assert
-        assert!(rs.is_ok());
+    //     // assert
+    //     assert!(rs.is_ok());
 
-        let rs = thread::spawn(move || {
-            if let Ok(ps_guard) = peer.get_ps().clone().lock() {
-                Ok(Arc::new(ps_guard.get_prs()))
-            } else {
-                Err("err")
-            }
-        })
-        .join();
+    //     let rs = thread::spawn(move || {
+    //         if let Ok(ps_guard) = peer.get_ps().clone().lock() {
+    //             Ok(Arc::new(ps_guard.get_prs()))
+    //         } else {
+    //             Err("err")
+    //         }
+    //     })
+    //     .join();
 
-        assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
-        let prs = Arc::clone(&rs.unwrap().unwrap());
-        assert_eq!(prs.height, 1);
-        assert_eq!(prs.height, 1);
-        assert_eq!(prs.round, 1);
-        assert_eq!(prs.step, RoundStep::Propose);
-        assert_eq!(prs.last_commit_round, 0);
-    }
+    //     assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
+    //     let prs = Arc::clone(&rs.unwrap().unwrap());
+    //     assert_eq!(prs.height, 1);
+    //     assert_eq!(prs.height, 1);
+    //     assert_eq!(prs.round, 1);
+    //     assert_eq!(prs.step, RoundStep::Propose);
+    //     assert_eq!(prs.last_commit_round, 0);
+    // }
+
+    // #[test]
+    // fn handle_new_valid_block_msg() {
+    //     // arrange
+    //     let cs_config = ConsensusConfig::new_default();
+    //     let mock_latest_block_state = Box::new(MockLatestBlockState::new());
+    //     let mock_block_operations = Box::new(MockBlockOperations::new());
+    //     let mock_block_executor = Box::new(MockBlockExecutor::new());
+    //     let mock_evidence_pool = Box::new(MockEvidencePool::new());
+    //     let cs = ConsensusStateImpl::new(
+    //         cs_config,
+    //         Arc::new(mock_latest_block_state),
+    //         Arc::new(mock_block_operations),
+    //         Arc::new(mock_block_executor),
+    //         Arc::new(mock_evidence_pool),
+    //     );
+    //     let reactor = Arc::new(ConsensusReactorImpl::new(Box::new(cs)));
+    //     let m = NewRoundStepMessage {
+    //         height: 1,
+    //         round: 1,
+    //         step: RoundStep::Propose,
+    //         seconds_since_start_time: 1000,
+    //         last_commit_round: 0,
+    //     };
+    //     let m_proto: ConsensusMessageProto = m.msg_to_proto().unwrap();
+    //     let peer_msg = m_proto.encode_to_vec();
+    //     let peer_id = String::from("peerid");
+    //     let peer = PeerImpl::new(peer_id);
+    //     _ = reactor.clone().add_peer(Arc::clone(&peer));
+
+    //     // act
+    //     let rs = reactor.receive(STATE_CHANNEL, Arc::clone(&peer), peer_msg);
+
+    //     // assert
+    //     assert!(rs.is_ok());
+
+    //     let rs = thread::spawn(move || {
+    //         if let Ok(ps_guard) = peer.get_ps().clone().lock() {
+    //             Ok(Arc::new(ps_guard.get_prs()))
+    //         } else {
+    //             Err("err")
+    //         }
+    //     })
+    //     .join();
+
+    //     assert!(rs.is_ok() && rs.as_ref().unwrap().is_ok());
+    //     let prs = Arc::clone(&rs.unwrap().unwrap());
+    //     assert_eq!(prs.height, 1);
+    //     assert_eq!(prs.height, 1);
+    //     assert_eq!(prs.round, 1);
+    //     assert_eq!(prs.step, RoundStep::Propose);
+    //     assert_eq!(prs.last_commit_round, 0);
+    // }
 }

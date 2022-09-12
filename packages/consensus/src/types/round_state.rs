@@ -1,6 +1,12 @@
 use kai_proto::types::Block;
-use kai_types::{part_set::PartSet, proposal::Proposal, round::RoundStep, vote_set::VoteSet, consensus::height_vote_set::HeightVoteSet};
-use std::fmt::Debug;
+use kai_types::{
+    consensus::{height_vote_set::HeightVoteSet, state::LatestBlockState},
+    part_set::PartSet,
+    proposal::Proposal,
+    round::RoundStep,
+    vote_set::VoteSet,
+};
+use std::{fmt::Debug, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct RoundState {
@@ -27,25 +33,25 @@ pub struct RoundState {
 }
 
 impl RoundState {
-    pub fn new() -> Self {
+    pub fn new_default() -> Self {
         Self {
-            height: todo!(),
-            round: todo!(),
-            step: todo!(),
-            start_time: todo!(),
-            commit_time: todo!(),
-            proposal: todo!(),
-            proposal_block: todo!(),
-            proposal_block_parts: todo!(),
-            locked_round: todo!(),
-            locked_block: todo!(),
-            locked_block_parts: todo!(),
-            valid_round: todo!(),
-            valid_block: todo!(),
-            valid_block_parts: todo!(),
-            commit_round: todo!(),
-            last_commit: todo!(),
-            votes: todo!(),
+            height: 1,
+            round: 1,
+            step: RoundStep::Propose,
+            start_time: 0,
+            commit_time: 0,
+            proposal: None,
+            proposal_block: None,
+            proposal_block_parts: None,
+            locked_round: 0,
+            locked_block: None,
+            locked_block_parts: None,
+            valid_round: 0,
+            valid_block: None,
+            valid_block_parts: None,
+            commit_round: 0,
+            last_commit: None,
+            votes: None,
         }
     }
 }

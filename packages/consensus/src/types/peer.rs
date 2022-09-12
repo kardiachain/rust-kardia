@@ -11,6 +11,7 @@ use kai_types::peer::PeerId;
 use kai_types::round::RoundStep;
 use kai_types::vote_set::VoteSetReader;
 use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
+use mockall::automock;
 use std::{
     sync::{Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
@@ -20,6 +21,7 @@ pub fn internal_peerid() -> PeerId {
     "".to_string()
 }
 
+#[automock]
 pub trait Peer: Debug + Send + Sync + 'static {
     fn get_id(&self) -> PeerId;
     fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
@@ -79,6 +81,7 @@ impl PeerImpl {
     }
 }
 
+#[automock]
 pub trait PeerState: Debug + Sync + Send + 'static {
     fn set_prs(&mut self, new_prs: PeerRoundState);
     fn get_prs(&self) -> PeerRoundState;
@@ -91,7 +94,7 @@ pub trait PeerState: Debug + Sync + Send + 'static {
         round: u32,
         signed_msg_type: SignedMsgType,
         index: usize,
-    );
+    ) -> ();
     fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage);
     fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage);
     fn apply_vote_set_bits_message(&mut self, msg: VoteSetBitsMessage, our_votes: Option<BitArray>);

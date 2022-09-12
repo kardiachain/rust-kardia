@@ -1,5 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
+    error::ConsensusReactorError,
     messages::{ConsensusMessage, MessageInfo},
     round_state::RoundState,
 };
@@ -9,6 +10,7 @@ use kai_types::{
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
 };
+use mockall::automock;
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
@@ -17,12 +19,19 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 const MSG_QUEUE_SIZE: usize = 1000;
 
+#[automock]
 pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_config(&self) -> Arc<ConsensusConfig>;
-    fn get_rs(&self) -> Option<RoundState>;
+    fn get_state(&self) -> Arc<Box<dyn LatestBlockState>>;
     fn get_block_operations(&self) -> Arc<Box<dyn BlockOperations>>;
+    fn get_block_exec(&self) -> Arc<Box<dyn BlockExecutor>>;
+    fn get_evidence_pool(&self) -> Arc<Box<dyn EvidencePool>>;
+    fn get_rs(&self) -> Option<RoundState>;
     fn send_peer_msg_chan(&self, msg_info: MessageInfo);
     fn send_internal_msg_chan(&self, msg_info: MessageInfo);
+
+    fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
+    fn start(&self) -> Result<(), Box<ConsensusReactorError>>;
 }
 
 #[derive(Debug)]
@@ -47,18 +56,18 @@ pub struct ConsensusStateImpl {
 impl ConsensusStateImpl {
     pub fn new(
         config: ConsensusConfig,
-        state: Box<dyn LatestBlockState>,
-        block_operations: Box<dyn BlockOperations>,
-        block_exec: Box<dyn BlockExecutor>,
-        evidence_pool: Box<dyn EvidencePool>,
+        state: Arc<Box<dyn LatestBlockState>>,
+        block_operations: Arc<Box<dyn BlockOperations>>,
+        block_exec: Arc<Box<dyn BlockExecutor>>,
+        evidence_pool: Arc<Box<dyn EvidencePool>>,
     ) -> Self {
         Self {
             config: Arc::new(config),
-            state: Arc::new(state),
-            block_operations: Arc::new(block_operations),
-            block_exec: Arc::new(block_exec),
-            evidence_pool: Arc::new(evidence_pool),
-            rs: Arc::new(Mutex::new(RoundState::new())),
+            state: state.clone(),
+            block_operations: block_operations,
+            block_exec: block_exec,
+            evidence_pool: evidence_pool,
+            rs: Arc::new(Mutex::new(RoundState::new_default())),
             peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
             internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
         }
@@ -68,6 +77,21 @@ impl ConsensusStateImpl {
 impl ConsensusState for ConsensusStateImpl {
     fn get_config(&self) -> Arc<ConsensusConfig> {
         self.config.clone()
+    }
+    fn get_state(&self) -> Arc<Box<dyn LatestBlockState>> {
+        self.state.clone()
+    }
+
+    fn get_block_operations(&self) -> Arc<Box<dyn BlockOperations>> {
+        self.block_operations.clone()
+    }
+
+    fn get_block_exec(&self) -> Arc<Box<dyn BlockExecutor>> {
+        self.block_exec.clone()
+    }
+
+    fn get_evidence_pool(&self) -> Arc<Box<dyn EvidencePool>> {
+        self.evidence_pool.clone()
     }
 
     fn get_rs(&self) -> Option<RoundState> {
@@ -88,7 +112,11 @@ impl ConsensusState for ConsensusStateImpl {
         todo!()
     }
 
-    fn get_block_operations(&self) -> Arc<Box<dyn BlockOperations>> {
-        self.block_operations.clone()
+    fn start(&self) -> Result<(), Box<ConsensusReactorError>> {
+        todo!()
+    }
+
+    fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>) {
+        todo!()
     }
 }
