@@ -2,7 +2,7 @@ use crate::block::BlockId;
 use kai_proto::types::SignedMsgType;
 use prost_types::Timestamp;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Proposal {
     pub r#type: SignedMsgType,
     pub height: u64,

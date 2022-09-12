@@ -879,8 +879,9 @@ mod tests {
             config::ConsensusConfig,
             error::ConsensusReactorError,
             messages::{
-                msg_from_proto, ConsensusMessage, ConsensusMessageType, HasVoteMessage,
-                NewRoundStepMessage, NewValidBlockMessage, ProposalMessage, VoteSetMaj23Message,
+                msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType,
+                HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
+                ProposalPOLMessage, VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
             },
             peer::{MockPeer, MockPeerState, Peer, PeerRoundState},
             round_state::RoundState,
@@ -1069,6 +1070,243 @@ mod tests {
         rs = reactor
             .clone()
             .handle_state_message(a_mock_peer.clone(), unknown_cs_msg);
+        assert!(rs
+            .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
+    }
+
+    #[test]
+    fn handle_data_message() {
+        // messages
+        let proposal_msg = ProposalMessage { proposal: None };
+        let proposal_cs_msg = Arc::new(ConsensusMessageType::ProposalMessage(proposal_msg.clone()));
+
+        let proposal_pol_msg = ProposalPOLMessage {
+            height: 1,
+            proposal_pol_round: 1,
+            proposal_pol: None,
+        };
+        let proposal_pol_cs_msg = Arc::new(ConsensusMessageType::ProposalPOLMessage(
+            proposal_pol_msg.clone(),
+        ));
+
+        let block_part_msg = BlockPartMessage {
+            height: 1,
+            round: 1,
+            part: None,
+        };
+        let block_part_cs_msg = Arc::new(ConsensusMessageType::BlockPartMessage(
+            block_part_msg.clone(),
+        ));
+
+        let unknown_msg = HasVoteMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            index: 1,
+        };
+        let unknown_cs_msg = Arc::new(ConsensusMessageType::HasVoteMessage(unknown_msg.clone()));
+
+        // mocking dependencies
+        let mock_peer_id = "".to_string();
+        let mut mock_cs = Box::new(MockConsensusState::new());
+        mock_cs
+            .expect_send_peer_msg_chan()
+            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .return_const(());
+
+        let mut mock_ps = MockPeerState::new();
+        mock_ps
+            .expect_set_has_proposal()
+            .withf(move |_msg| _msg.proposal.eq(&proposal_msg.proposal))
+            .times(1)
+            .return_const(());
+        mock_ps
+            .expect_apply_proposal_pol_message()
+            .withf(move |_msg| {
+                _msg.height == proposal_pol_msg.height
+                    && _msg.proposal_pol_round == proposal_pol_msg.proposal_pol_round
+                    && _msg.proposal_pol.eq(&proposal_pol_msg.proposal_pol)
+            })
+            .times(1)
+            .return_const(());
+        mock_ps
+            .expect_set_has_proposal_block_part()
+            .withf(move |_msg| {
+                _msg.height == block_part_msg.height
+                    && _msg.round == block_part_msg.round
+                    && _msg.part.eq(&block_part_msg.part)
+            })
+            .times(1)
+            .return_const(());
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+
+        let mut mock_peer = MockPeer::new();
+        mock_peer.expect_get_id().return_const("".to_string());
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(mock_cs, vec![]);
+
+        // act
+        let mut rs = reactor
+            .clone()
+            .handle_data_message(a_mock_peer.clone(), proposal_cs_msg);
+        assert!(rs.is_ok());
+        rs = reactor
+            .clone()
+            .handle_data_message(a_mock_peer.clone(), proposal_pol_cs_msg);
+        assert!(rs.is_ok());
+        rs = reactor
+            .clone()
+            .handle_data_message(a_mock_peer.clone(), block_part_cs_msg);
+        assert!(rs.is_ok());
+        rs = reactor
+            .clone()
+            .handle_data_message(a_mock_peer.clone(), unknown_cs_msg);
+        assert!(rs
+            .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
+    }
+
+    #[test]
+    fn handle_vote_message() {
+        // messages
+        let vote_msg = VoteMessage {
+            vote: Some(kai_types::vote::Vote {
+                r#type: SignedMsgType::Precommit,
+                height: 1,
+                round: 1,
+                block_id: None,
+                timestamp: None,
+                validator_address: vec![],
+                validator_index: 1,
+                signature: vec![],
+            }),
+        };
+        let vote_cs_msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg.clone()));
+
+        let unknown_msg = HasVoteMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            index: 1,
+        };
+        let unknown_cs_msg = Arc::new(ConsensusMessageType::HasVoteMessage(unknown_msg.clone()));
+
+        // mocking dependencies
+        let mock_peer_id = "".to_string();
+        let mut mock_cs = Box::new(MockConsensusState::new());
+        mock_cs
+            .expect_send_peer_msg_chan()
+            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .return_const(());
+
+        let mut mock_ps = MockPeerState::new();
+        mock_ps
+            .expect_set_has_vote()
+            .withf(move |h, r, t, i| {
+                *h == vote_msg.clone().vote.unwrap().height
+                    && *r == vote_msg.clone().vote.unwrap().round
+                    && *t == vote_msg.clone().vote.unwrap().r#type
+                    && *i
+                        == vote_msg
+                            .clone()
+                            .vote
+                            .unwrap()
+                            .validator_index
+                            .try_into()
+                            .unwrap()
+            })
+            .times(1)
+            .return_const(());
+
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+
+        let mut mock_peer = MockPeer::new();
+        mock_peer.expect_get_id().return_const("".to_string());
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(mock_cs, vec![]);
+
+        // act
+        let mut rs = reactor
+            .clone()
+            .handle_vote_message(a_mock_peer.clone(), vote_cs_msg);
+        assert!(rs.is_ok());
+        rs = reactor
+            .clone()
+            .handle_vote_message(a_mock_peer.clone(), unknown_cs_msg);
+        assert!(rs
+            .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
+    }
+
+    #[test]
+    fn handle_vote_set_bits_message() {
+        // messages
+        let vote_msg = VoteSetBitsMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            block_id: None,
+            votes: None,
+        };
+        let vote_cs_msg = Arc::new(ConsensusMessageType::VoteSetBitsMessage(vote_msg.clone()));
+
+        let unknown_msg = HasVoteMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            index: 1,
+        };
+        let unknown_cs_msg = Arc::new(ConsensusMessageType::HasVoteMessage(unknown_msg.clone()));
+
+        // mocking dependencies
+        let mock_peer_id = "".to_string();
+        let mut mock_cs = Box::new(MockConsensusState::new());
+        mock_cs
+            .expect_get_rs()
+            .returning(|| Some(RoundState::new_default()));
+        mock_cs
+            .expect_send_peer_msg_chan()
+            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .return_const(());
+
+        let mut mock_ps = MockPeerState::new();
+        mock_ps
+            .expect_apply_vote_set_bits_message()
+            .withf(move |_msg, _| {
+                _msg.height == vote_msg.height
+                    && _msg.round == vote_msg.round
+                    && _msg.r#type == vote_msg.r#type
+                    && _msg.block_id == vote_msg.block_id
+                    && _msg.votes == vote_msg.votes
+            })
+            .times(1)
+            .return_const(());
+
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+
+        let mut mock_peer = MockPeer::new();
+        mock_peer.expect_get_id().return_const("".to_string());
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(mock_cs, vec![]);
+
+        // act
+        let mut rs = reactor
+            .clone()
+            .handle_vote_set_bits_message(a_mock_peer.clone(), vote_cs_msg);
+        assert!(rs.is_ok());
+        rs = reactor
+            .clone()
+            .handle_vote_set_bits_message(a_mock_peer.clone(), unknown_cs_msg);
         assert!(rs
             .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
     }

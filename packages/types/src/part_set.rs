@@ -1,6 +1,6 @@
 use crate::{bit_array::BitArray, crypto::Proof};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Part {
     pub index: u32,
     pub bytes: Vec<u8>,
