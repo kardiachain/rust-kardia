@@ -1,7 +1,10 @@
 use crate::{netaddress::NetAddress, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::{NodeInfo, self}, config::p2p::Node, key::NodeKey};
 use core::time;
-use std::{error::Error, collections::HashMap, net::{TcpStream, }, time::Duration};
-use tokio::net::TcpListener;
+use std::{error::Error, collections::HashMap, net::{TcpStream, SocketAddr, }, time::Duration};
+use tokio::{net::{TcpListener}, select, sync::mpsc::{self, Sender}};
+use async_trait::async_trait;
+use tokio::sync::mpsc::Receiver;
+use tokio::macros::support::Future;
 
 
 const DEFAULT_DIAL_TIMEOUT: time::Duration = Duration::from_secs(1);
@@ -24,9 +27,10 @@ pub trait Transport {
 
 // transportLifecycle bundles the methods for callers to control start and stop
 // behaviour.
+#[async_trait]
 trait TransportLifeCycle {
     fn close() -> Result<(), Box<dyn Error>>;
-    fn listen(na: NetAddress) -> Result<(), Box<dyn Error>>;
+    async fn listen(&mut self, na: NetAddress) -> Result<(), tokio::io::Error>;
 }
 
 // peerConfig is used to bundle data we need to fully setup a Peer with an
@@ -59,10 +63,12 @@ pub struct MultiplexTransport {
     listener: Option<TcpListener>,
     max_incoming_connections: Option<i32>,
 
-    // acceptc chan accept
-	// closec  chan struct{}
+    acceptc_tx: Sender<Accept>,
+    acceptc_rx: Receiver<Accept>,
+    closec_tx: Sender<()>,
+    closec_rx: Receiver<()>,
 
-	// // Lookup table for duplicate ip and id checks.
+	// Lookup table for duplicate ip and id checks.
 	// conns       ConnSet
 	// connFilters []ConnFilterFunc
 
@@ -78,17 +84,32 @@ pub struct MultiplexTransport {
     mconfig: MConnConfig
 }
 
+#[async_trait]
 impl TransportLifeCycle for MultiplexTransport {
     fn close() -> Result<(), Box<dyn Error>> {
         todo!()
     }
 
-    fn listen(na: NetAddress) -> Result<(), Box<dyn Error>> {
-        todo!()
+    async fn listen(&mut self, na: NetAddress) -> Vec<dyn Future<Output = Result<(), std::io::Error>> + Send> {
+        let mut ln = TcpListener::bind(na.dial_string()).await;
+        if self.max_incoming_connections.is_some() && self.max_incoming_connections.unwrap() > 0 {
+            // TODO: set limit for listener
+        }
+        self.na = Some(na);
+        self.listener = Some(ln.unwrap());
+        // accept peers
+        tokio::spawn(async move {
+            self.accept_peers().await;
+        });
+        Ok(())
     }
 }
 
 impl MultiplexTransport {
+    pub fn new(node_info: Box<dyn NodeInfo>, node_key: NodeKey, m_config: MConnConfig) -> Self {
+        // MultiplexTransport { na: None, listener: None, max_incoming_connections: None, dial_timeout: DEFAULT_DIAL_TIMEOUT, filter_timeout: DEFAULT_FILTER_TIMEOUT, handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT, node_info: node_info, node_key: node_key, mconfig: m_config }
+        todo!()
+    }
     // NetAddress implements Transport.
     pub fn net_address(&self) -> Option<&NetAddress> {
         self.na.as_ref()
@@ -103,8 +124,25 @@ impl MultiplexTransport {
         todo!()
     }
 
-    fn accept_peers() {
-        todo!()
+    async fn accept_peers(&self) {
+        loop {
+            if self.listener.is_some() {
+                match self.listener.as_ref().unwrap().accept().await {
+                    Ok((socket, addr)) => {
+                        // If Close() has been called, silently exit.
+                        // TODO: channels are here.
+
+                        
+                    },
+                    Err(e) => {}
+                }
+            }
+
+            // Connection upgrade and filtering should be asynchronous to avoid
+            // Head-of-line blocking[0].
+            //
+            // [0] https://en.wikipedia.org/wiki/Head-of-line_blocking
+        }
     }
 
     // Cleanup removes the given address from the connections set and
@@ -128,10 +166,6 @@ impl MultiplexTransport {
 
 pub fn handshake(c: TcpStream, timeout: time::Duration, node_info: Box<dyn NodeInfo>) -> Result<Box<dyn NodeInfo>, Box<dyn Error>> {
     todo!()
-}
-
-pub fn new_multiplex_transport(node_info: Box<dyn NodeInfo>, node_key: NodeKey, m_config: MConnConfig) -> MultiplexTransport{
-    MultiplexTransport { na: None, listener: None, max_incoming_connections: None, dial_timeout: DEFAULT_DIAL_TIMEOUT, filter_timeout: DEFAULT_FILTER_TIMEOUT, handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT, node_info: node_info, node_key: node_key, mconfig: m_config }
 }
 
 // MultiplexTransportOption sets an optional parameter on the
