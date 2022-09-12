@@ -129,7 +129,7 @@ impl ConsensusReactor for ConsensusReactorImpl {
         src: Arc<dyn Peer>,
         msg: PeerMessage,
     ) -> Result<(), Box<ConsensusReactorError>> {
-        match ConsensusReactorImpl::decode_msg(msg.as_slice()) {
+        match Self::decode_msg(msg.as_slice()) {
             Ok(decoded_msg) => match ch_id {
                 STATE_CHANNEL => self.handle_state_message(src, decoded_msg),
                 DATA_CHANNEL => self.handle_data_message(src, decoded_msg),
@@ -867,19 +867,25 @@ impl ConsensusReactorImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        convert::TryInto,
+        sync::{Arc, Mutex},
+    };
 
     use crate::{
-        reactor::{ConsensusReactor, ConsensusReactorImpl, STATE_CHANNEL},
+        reactor::{ConsensusReactor, ConsensusReactorImpl, DATA_CHANNEL, STATE_CHANNEL},
         state::MockConsensusState,
         types::{
             config::ConsensusConfig,
-            messages::{ConsensusMessage, NewRoundStepMessage, NewValidBlockMessage, HasVoteMessage},
+            messages::{
+                msg_from_proto, ConsensusMessage, ConsensusMessageType, HasVoteMessage,
+                NewRoundStepMessage, NewValidBlockMessage, VoteSetMaj23Message,
+            },
             peer::{MockPeer, MockPeerState, Peer, PeerRoundState},
             round_state::RoundState,
         },
     };
-    use kai_proto::types::SignedMsgType;
+    use kai_proto::{consensus::Message as ConsensusMessageProto, types::SignedMsgType};
     use kai_types::round::RoundStep;
     use prost::Message as ProstMessage;
 
@@ -893,6 +899,17 @@ mod tests {
             assert!(rs.is_ok());
         }
         reactor
+    }
+
+    fn get_mock_cs() -> Box<MockConsensusState> {
+        let mut mock_consensus_state = Box::new(MockConsensusState::new());
+        mock_consensus_state
+            .expect_get_rs()
+            .returning(|| Some(RoundState::new_default()));
+        mock_consensus_state
+            .expect_get_config()
+            .returning(|| Arc::new(ConsensusConfig::new_default()));
+        return mock_consensus_state;
     }
 
     #[test]
@@ -925,7 +942,7 @@ mod tests {
     }
 
     #[test]
-    fn handle_state_message() {
+    fn receive_new_round_step_msg() {
         let nrs_msg = NewRoundStepMessage {
             height: 1,
             round: 1,
@@ -934,6 +951,38 @@ mod tests {
             last_commit_round: 0,
         };
         let nrs_msg_bz = nrs_msg.msg_to_proto().unwrap().encode_to_vec();
+
+        let mut mock_ps = MockPeerState::new();
+        mock_ps
+            .expect_apply_new_round_step_message()
+            .withf(move |p_msg| 
+                p_msg.height == nrs_msg.height 
+                && p_msg.round == nrs_msg.round
+                && p_msg.step == nrs_msg.step
+                && p_msg.seconds_since_start_time == nrs_msg.seconds_since_start_time
+                && p_msg.last_commit_round == nrs_msg.last_commit_round
+            )
+            .times(1)
+            .return_const(());
+
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let mut mock_peer = MockPeer::new();
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(get_mock_cs(), vec![]);
+
+        // act
+        let rs = reactor
+            .clone()
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), nrs_msg_bz);
+        assert!(rs.is_ok());
+    }
+
+    #[test]
+    fn receive_new_valid_block_message() {
         let nvb_msg = NewValidBlockMessage {
             height: 1,
             round: 1,
@@ -942,6 +991,39 @@ mod tests {
             is_commit: false,
         };
         let nvb_msg_bz = nvb_msg.msg_to_proto().unwrap().encode_to_vec();
+
+        let mut mock_ps = MockPeerState::new();
+        mock_ps
+            .expect_apply_new_valid_block_message()
+            .withf(move |p_msg| {
+                p_msg.height == nvb_msg.height
+                    && p_msg.round == nvb_msg.round
+                    && p_msg.block_parts_header == nvb_msg.block_parts_header
+                    && p_msg.block_parts == nvb_msg.block_parts
+                    && p_msg.is_commit == nvb_msg.is_commit
+            })
+            .times(1)
+            .return_const(());
+
+        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let mut mock_peer = MockPeer::new();
+        mock_peer
+            .expect_get_ps()
+            .returning(move || am_mock_ps.clone());
+
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(get_mock_cs(), vec![]);
+
+        // act
+        let rs = reactor
+            .clone()
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), nvb_msg_bz);
+        assert!(rs.is_ok());
+    }
+
+    #[test]
+    fn receive_has_vote_message() {
         let hv_msg = HasVoteMessage {
             height: 1,
             round: 1,
@@ -949,66 +1031,78 @@ mod tests {
             index: 1,
         };
         let hv_msg_bz = hv_msg.msg_to_proto().unwrap().encode_to_vec();
-        
-        let mut mock_consensus_state = Box::new(MockConsensusState::new());
-        mock_consensus_state
-            .expect_get_rs()
-            .returning(|| Some(RoundState::new_default()));
-        mock_consensus_state
-            .expect_get_config()
-            .returning(|| Arc::new(ConsensusConfig::new_default()));
 
-        let mock_prs = PeerRoundState::new();
         let mut mock_ps = MockPeerState::new();
-        mock_ps.expect_set_prs().return_const(());
-        mock_ps.expect_get_prs().return_const(mock_prs);
-        mock_ps
-            .expect_apply_new_round_step_message()
-            .withf(move |p_msg| p_msg.height == nrs_msg.height && p_msg.round == nrs_msg.round)
-            .times(1)
-            .return_const(());
-        mock_ps
-            .expect_apply_new_valid_block_message()
-            .withf(move |p_msg| p_msg.height == nvb_msg.height && p_msg.round == nvb_msg.round)
-            .times(1)
-            .return_const(());
         mock_ps
             .expect_set_has_vote()
-            .withf(move |h, r, t, i| *h == hv_msg.height && *r == hv_msg.round)
+            .withf(move |h, r, t, i| {
+                *h == hv_msg.height
+                    && *r == hv_msg.round
+                    && *t == hv_msg.r#type
+                    && *i == hv_msg.index.try_into().unwrap()
+            })
             .times(1)
             .return_const(());
 
         let am_mock_ps = Arc::new(Mutex::new(mock_ps));
         let mut mock_peer = MockPeer::new();
         mock_peer
-            .expect_get_prs()
-            .return_const(Some(PeerRoundState::new()));
-        mock_peer
             .expect_get_ps()
             .returning(move || am_mock_ps.clone());
 
         let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
 
-        let reactor = init_reactor(mock_consensus_state, vec![a_mock_peer.clone()]);
+        let reactor = init_reactor(get_mock_cs(), vec![]);
 
         // act
         let rs = reactor
             .clone()
-            .receive(STATE_CHANNEL, a_mock_peer.clone(), nrs_msg_bz);
-        let rs_2 = reactor
-            .clone()
-            .receive(STATE_CHANNEL, a_mock_peer.clone(), nvb_msg_bz);
-        let rs_3 = reactor
-            .clone()
             .receive(STATE_CHANNEL, a_mock_peer.clone(), hv_msg_bz);
-        // let rs_4 = reactor
-        //     .clone()
-        //     .receive(STATE_CHANNEL, a_mock_peer.clone(), hv_msg_bz);
-
-        // assert
         assert!(rs.is_ok());
-        assert!(rs_2.is_ok());
-        assert!(rs_3.is_ok());
+    }
+
+    #[test]
+    fn receive_vote_set_maj23_message() {
+        let vsm_msg = VoteSetMaj23Message {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Precommit,
+            block_id: None,
+        };
+        let vsm_msg_bz = vsm_msg.msg_to_proto().unwrap().encode_to_vec();
+
+        let mut mock_rs = RoundState::new_default();
+        mock_rs.height = 1;
+
+        let mut mock_peer = MockPeer::new();
+        mock_peer
+            .expect_try_send()
+            .withf(move |ch_id, msg_bz| {
+                if let ConsensusMessageType::VoteSetBitsMessage(_msg) =
+                    msg_from_proto(ConsensusMessageProto::decode(msg_bz.as_slice()).unwrap())
+                        .unwrap()
+                        .as_ref()
+                {
+                    return *ch_id == DATA_CHANNEL
+                        && _msg.height == vsm_msg.height
+                        && _msg.round == vsm_msg.round
+                        && _msg.r#type == vsm_msg.r#type
+                        && _msg.block_id == vsm_msg.block_id;
+                } else {
+                    return false;
+                }
+            })
+            .times(1)
+            .return_const(true);
+        let a_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
+
+        let reactor = init_reactor(get_mock_cs(), vec![]);
+
+        // act
+        let rs = reactor
+            .clone()
+            .receive(STATE_CHANNEL, a_mock_peer.clone(), vsm_msg_bz);
+        assert!(rs.is_ok());
     }
 
     // TODO: below tests are not blackboxed, but they are kept to be rewritten in other test modules.
