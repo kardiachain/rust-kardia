@@ -1,6 +1,6 @@
-use crate::part_set::PartSetHeader;
+use crate::{part_set::PartSetHeader, misc::Data, evidence::EvidenceData, commit::Commit};
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct BlockId {
     pub hash: Vec<u8>,
     pub parts_header: Option<PartSetHeader>,
@@ -52,4 +52,16 @@ pub struct Header {
     pub evidence_hash: Vec<u8>,
     pub proposer_address: Vec<u8>,
     pub num_txs: u64,
+}
+
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct Block {
+    #[prost(message, optional, tag="1")]
+    pub header: ::core::option::Option<Header>,
+    #[prost(message, optional, tag="2")]
+    pub data: ::core::option::Option<Data>,
+    #[prost(message, optional, tag="3")]
+    pub evidence: ::core::option::Option<EvidenceData>,
+    #[prost(message, optional, tag="4")]
+    pub last_commit: ::core::option::Option<Commit>,
 }

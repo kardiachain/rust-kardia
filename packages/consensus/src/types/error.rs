@@ -1,6 +1,8 @@
 use kai_types::misc::ChannelId;
 use thiserror::Error;
 
+use super::messages::VoteMessage;
+
 #[derive(Error, Debug)]
 pub enum ConsensusReactorError {
     #[error("add peer error: `{0}`")]
@@ -19,4 +21,14 @@ pub enum ConsensusReactorError {
     EncodeProtoError,
     #[error("invalid step")]
     ErrInvalidStep,
+}
+
+#[derive(Error, Debug)]
+pub enum ConsensusStateError {
+    #[error("add vote error")]
+    AddingVote,
+    #[error("unknown msg type")]
+    UnknownMessageTypeError,
+    #[error("lock failed: `{0}`")]
+    LockFailed(String),
 }

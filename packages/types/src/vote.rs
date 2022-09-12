@@ -1,18 +1,24 @@
-use crate::block::BlockId;
-use kai_proto::types::SignedMsgType;
-use prost_types::Timestamp;
+use crate::{block::BlockId, types::SignedMsgType};
 
-#[derive(Debug, Clone)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Vote {
-    pub r#type: SignedMsgType,
+    #[prost(enumeration = "SignedMsgType", tag = "1")]
+    pub r#type: i32,
+    #[prost(uint64, tag = "2")]
     pub height: u64,
+    #[prost(uint32, tag = "3")]
     pub round: u32,
     /// zero if vote is nil.
-    pub block_id: Option<BlockId>,
-    pub timestamp: Option<Timestamp>,
-    pub validator_address: Vec<u8>,
+    #[prost(message, optional, tag = "4")]
+    pub block_id: ::core::option::Option<BlockId>,
+    #[prost(message, optional, tag = "5")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(bytes = "vec", tag = "6")]
+    pub validator_address: ::prost::alloc::vec::Vec<u8>,
+    #[prost(uint32, tag = "7")]
     pub validator_index: u32,
-    pub signature: Vec<u8>,
+    #[prost(bytes = "vec", tag = "8")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
 impl From<kai_proto::types::Vote> for Vote {
@@ -23,7 +29,7 @@ impl From<kai_proto::types::Vote> for Vote {
                 2 => SignedMsgType::Precommit,
                 32 => SignedMsgType::Proposal,
                 _ => SignedMsgType::Unknown,
-            },
+            }.into(),
             height: m.height,
             round: m.round,
             block_id: m.block_id.map(|x| x.into()),

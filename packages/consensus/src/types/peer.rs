@@ -17,9 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn internal_peerid() -> PeerId {
-    "".to_string()
-}
+pub const INTERNAL_PEERID: PeerId = "".to_string();
 
 #[automock]
 pub trait Peer: Debug + Send + Sync + 'static {

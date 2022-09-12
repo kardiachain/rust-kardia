@@ -1,5 +1,5 @@
-use kai_proto::types::Block;
 use kai_types::{
+    types::Block,
     consensus::{height_vote_set::HeightVoteSet, state::LatestBlockState},
     part_set::PartSet,
     proposal::Proposal,
@@ -53,5 +53,9 @@ impl RoundState {
             last_commit: None,
             votes: None,
         }
+    }
+
+    pub fn is_proposer(&self) -> bool {
+        todo!()
     }
 }

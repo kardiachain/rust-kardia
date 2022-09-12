@@ -4,6 +4,7 @@ pub mod block_operations;
 pub mod commit;
 pub mod consensus;
 pub mod crypto;
+pub mod cryptox;
 pub mod evidence;
 pub mod misc;
 pub mod part_set;
@@ -13,6 +14,7 @@ pub mod round;
 pub mod validator_set;
 pub mod vote;
 pub mod vote_set;
+pub mod types;
 
 #[cfg(test)]
 mod tests {

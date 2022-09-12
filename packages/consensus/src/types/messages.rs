@@ -29,6 +29,7 @@ pub enum ConsensusMessageType {
     VoteSetBitsMessage(VoteSetBitsMessage),
 }
 
+#[derive(Debug)]
 pub struct MessageInfo {
     pub msg: Arc<ConsensusMessageType>,
     pub peer_id: PeerId,
