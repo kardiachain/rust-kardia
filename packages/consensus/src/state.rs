@@ -50,7 +50,6 @@ pub struct ConsensusStateImpl {
     pub block_operations: Arc<Box<dyn BlockOperations>>,
     pub block_exec: Arc<Box<dyn BlockExecutor>>,
     pub evidence_pool: Arc<Box<dyn EvidencePool>>,
-    // pub votes: HeightVoteSet;
 }
 
 impl ConsensusStateImpl {
