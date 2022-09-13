@@ -14,14 +14,18 @@ use kai_types::{
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
     part_set::PartSet,
+    priv_validator::{self, PrivValidator},
     proposal::Proposal,
     round::RoundStep,
-    types::SignedMsgType, priv_validator::{PrivValidator, self}, timestamp,
+    timestamp,
+    types::SignedMsgType,
 };
 use mockall::automock;
 use std::{
     fmt::Debug,
+    ops::{Add, Mul},
     sync::{Arc, Mutex, MutexGuard},
+    thread,
 };
 use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
 
@@ -214,7 +218,7 @@ impl ConsensusStateImpl {
         // TODO: check upons rule
     }
 
-    fn on_timeout_propose(&self, height: u64, round: u32) {
+    fn on_timeout_propose(self: Arc<Self>, height: u64, round: u32) {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             if height == rs_guard.height
                 && round == rs_guard.round
@@ -231,7 +235,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn on_timeout_prevote(&self, height: u64, round: u32) {
+    fn on_timeout_prevote(self: Arc<Self>, height: u64, round: u32) {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             if height == rs_guard.height
                 && round == rs_guard.round
@@ -248,7 +252,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn on_timeout_precommit(&self, height: u64, round: u32) {
+    fn on_timeout_precommit(self: Arc<Self>, height: u64, round: u32) {
         if let Ok(rs_guard) = self.rs.clone().lock() {
             if height == rs_guard.height && round == rs_guard.round {
                 // TODO: self.start_round(rs_guard.round + 1);
@@ -259,7 +263,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn start_round(&self, round: u32) {
+    fn start_round(self: Arc<Self>, round: u32) {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
@@ -267,7 +271,19 @@ impl ConsensusStateImpl {
             if rs_guard.is_proposer() {
                 self.decide_proposal(rs_guard.clone());
             } else {
-                //     schedule timeoutPropose(round_p): OnTimeoutPropose(h_p, round_p) to be executed after timout
+                let height = rs_guard.height.clone();
+                let round = rs_guard.round.clone();
+                let timeout_propose = self.clone().get_config().clone().timeout_propose;
+                let timeout_propose_delta = self.clone().get_config().clone().timeout_propose_delta;
+                thread::spawn(move || {
+                    let sleep_duration = if round > 1 {
+                        timeout_propose.add(timeout_propose_delta.mul(round - 1))
+                    } else {
+                        timeout_propose
+                    };
+                    thread::sleep(sleep_duration);
+                    self.clone().on_timeout_propose(height, round);
+                });
             }
 
             drop(rs_guard);
@@ -276,7 +292,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn decide_proposal(&self, rs: RoundState) {
+    fn decide_proposal(self: Arc<Self>, rs: RoundState) {
         let block: Option<Block>;
         let block_parts: Option<PartSet>;
 
@@ -284,7 +300,7 @@ impl ConsensusStateImpl {
             block = rs.valid_block;
             block_parts = rs.valid_block_parts;
         } else {
-            (block, block_parts) = self.create_proposal_block();
+            (block, block_parts) = self.clone().create_proposal_block();
             if block.is_none() {
                 log::trace!("create proposal block failed");
             }
@@ -309,28 +325,31 @@ impl ConsensusStateImpl {
                 signature: vec![],
             };
 
-            let priv_validator = self.priv_validator.clone();
+            let priv_validator = self.clone().priv_validator.clone();
             let chain_id = self.state.clone().get_chain_id();
 
-            if let Ok(_) = priv_validator.clone().sign_proposal(chain_id, &mut proposal) {
+            if let Ok(_) = priv_validator
+                .clone()
+                .sign_proposal(chain_id, &mut proposal)
+            {
                 let msg_info = MessageInfo {
                     msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
                         proposal: Some(proposal),
                     })),
                     peer_id: interal_peerid(),
                 };
-    
+
                 _ = self.in_msg_chan.tx.try_send(msg_info);
             } else {
                 log::error!("sign proposal failed");
-                return
+                return;
             }
         } else {
             log::error!("invalid block or block parts")
         }
     }
 
-    fn create_proposal_block(&self) -> (Option<Block>, Option<PartSet>) {
+    fn create_proposal_block(self: Arc<Self>) -> (Option<Block>, Option<PartSet>) {
         todo!()
     }
 }
