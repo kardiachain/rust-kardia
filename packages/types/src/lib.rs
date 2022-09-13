@@ -5,16 +5,18 @@ pub mod commit;
 pub mod consensus;
 pub mod crypto;
 pub mod evidence;
+pub mod hash;
 pub mod misc;
 pub mod part_set;
 pub mod peer;
+pub mod priv_validator;
 pub mod proposal;
 pub mod round;
+pub mod timestamp;
+pub mod types;
 pub mod validator_set;
 pub mod vote;
 pub mod vote_set;
-pub mod types;
-pub mod hash;
 
 #[cfg(test)]
 mod tests {
