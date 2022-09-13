@@ -10,11 +10,12 @@ use crate::{
         round_state::RoundState,
     },
 };
-use kai_proto::{consensus::Message as ConsensusMessageProto, types::SignedMsgType};
+use kai_proto::consensus::Message as ConsensusMessageProto;
 use kai_types::{
     consensus::state::LatestBlockState,
     misc::{ChannelId, Message as PeerMessage},
     round::RoundStep,
+    types::SignedMsgType,
 };
 use prost::Message;
 use std::sync::Arc;
@@ -329,7 +330,7 @@ impl ConsensusReactorImpl {
                         ps_guard.set_has_vote(
                             vote.height,
                             vote.round,
-                            vote.r#type,
+                            SignedMsgType::from_i32(vote.r#type).unwrap(),
                             vote.validator_index.try_into().unwrap(),
                         );
                         Ok(())
@@ -708,7 +709,7 @@ impl ConsensusReactorImpl {
                 if let Some(block_meta) = block_ops.load_block_meta(prs.height) {
                     if block_meta
                         .block_id
-                        .parts_header
+                        .part_set_header
                         .eq(&prs.proposal_block_parts_header)
                     {
                         // load the part
@@ -736,7 +737,7 @@ impl ConsensusReactorImpl {
                             log::error!(
                                 "could not load part: index={} blockPartsHeader={:?} peerBlockPartsHeader={:?}",
                                 index,
-                                block_meta.block_id.parts_header,
+                                block_meta.block_id.part_set_header,
                                 prs.proposal_block_parts_header
                             );
                             thread::sleep(cs.get_config().peer_gossip_sleep_duration);
@@ -745,7 +746,7 @@ impl ConsensusReactorImpl {
                     } else {
                         log::info!(
                             "peer ProposalBlockPartsHeader mismatch, sleeping: blockPartsHeader={:?}, blockMeta.BlockID.PartsHeader={:?}"
-                            ,block_meta.block_id.parts_header
+                            ,block_meta.block_id.part_set_header
                             ,prs.proposal_block_parts_header);
                         thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                         return;
@@ -868,7 +869,7 @@ impl ConsensusReactorImpl {
 #[cfg(test)]
 mod tests {
     use std::{
-        convert::TryInto,
+        convert::{TryFrom, TryInto},
         sync::{Arc, Mutex},
     };
 
@@ -879,16 +880,16 @@ mod tests {
             config::ConsensusConfig,
             error::ConsensusReactorError,
             messages::{
-                msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType,
-                HasVoteMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
-                ProposalPOLMessage, VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
+                msg_from_proto, BlockPartMessage, ConsensusMessageType, HasVoteMessage,
+                NewRoundStepMessage, NewValidBlockMessage, ProposalMessage, ProposalPOLMessage,
+                VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
             },
             peer::{MockPeer, MockPeerState, Peer, PeerRoundState},
             round_state::RoundState,
         },
     };
-    use kai_proto::{consensus::Message as ConsensusMessageProto, types::SignedMsgType};
-    use kai_types::round::RoundStep;
+    use kai_proto::consensus::Message as ConsensusMessageProto;
+    use kai_types::{round::RoundStep, types::SignedMsgType};
     use prost::Message as ProstMessage;
 
     fn init_reactor(
@@ -1174,7 +1175,7 @@ mod tests {
         // messages
         let vote_msg = VoteMessage {
             vote: Some(kai_types::vote::Vote {
-                r#type: SignedMsgType::Precommit,
+                r#type: SignedMsgType::Precommit.into(),
                 height: 1,
                 round: 1,
                 block_id: None,
@@ -1208,7 +1209,9 @@ mod tests {
             .withf(move |h, r, t, i| {
                 *h == vote_msg.clone().vote.unwrap().height
                     && *r == vote_msg.clone().vote.unwrap().round
-                    && *t == vote_msg.clone().vote.unwrap().r#type
+                    && t.eq(
+                        &SignedMsgType::from_i32(vote_msg.clone().vote.unwrap().r#type).unwrap(),
+                    )
                     && *i
                         == vote_msg
                             .clone()

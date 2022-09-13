@@ -5,21 +5,23 @@ use crate::types::{
         BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         VoteMessage,
     },
-    round_state::RoundState, peer::internal_peerid,
+    peer::INTERNAL_PEERID,
+    round_state::RoundState,
 };
 use kai_types::{
-    block,
+    block::{Block, BlockId},
     block_operations::BlockOperations,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
+    part_set::PartSet,
     proposal::Proposal,
-    round::RoundStep, types::SignedMsgType,
+    round::RoundStep,
+    types::SignedMsgType,
 };
 use mockall::automock;
 use std::{
     fmt::Debug,
-    sync::{Arc, Mutex},
-    thread::spawn,
+    sync::{Arc, Mutex, MutexGuard},
 };
 use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
 
@@ -274,12 +276,12 @@ impl ConsensusStateImpl {
     }
 
     fn decide_proposal(&self, rs_guard: MutexGuard<RoundState>) {
-        let mut block: Block;
-        let mut block_parts: PartSet;
+        let mut block: Option<Block>;
+        let mut block_parts: Option<PartSet>;
 
         if rs_guard.valid_block.is_some() {
-            block = rs.valid_block;
-            block_parts = rs.valid_block_parts;
+            block = rs_guard.valid_block;
+            block_parts = rs_guard.valid_block_parts;
         } else {
             (block, block_parts) = self.create_proposal_block();
             if block.is_none() {
@@ -287,26 +289,34 @@ impl ConsensusStateImpl {
             }
         }
 
-        let block_id = BlockId{
-            hash: block.hash(),
+        if let (Some(b), Some(bp)) = (block, block_parts) {
+            let block_id = BlockId {
+                hash: todo!(),
+                part_set_header: todo!(),
+                // hash: b.hash,
+                // part_set_header: bp.p,
+            };
 
+            // make proposal
+            let proposal = Proposal {
+                r#type: SignedMsgType::Proposal.into(),
+                height: rs_guard.height,
+                round: rs_guard.round,
+                pol_round: rs_guard.valid_round,
+                block_id: Some(block_id),
+                timestamp: todo!(),
+                signature: todo!(),
+            };
+
+            self.in_msg_chan.tx.try_send(MessageInfo {
+                msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+                    proposal: Some(proposal),
+                })),
+                peer_id: INTERNAL_PEERID,
+            });
+        } else {
+            log::error!("invalid block or block parts")
         }
-
-        // make proposal
-        let proposal = Proposal{
-            r#type: SignedMsgType::Proposal,
-            height: rs_guard.height,
-            round: rs_guard.round,
-            pol_round: rs_guard.valid_round,
-            block_id: todo!(),
-            timestamp: todo!(),
-            signature: todo!(),
-        };
-
-        self.in_msg_chan.tx.try_send(MessageInfo{
-            msg: proposal,
-            peer_id: INTERNAL_PEERID,
-        });
     }
 
     fn create_proposal_block(&self) -> (Option<Block>, Option<PartSet>) {
