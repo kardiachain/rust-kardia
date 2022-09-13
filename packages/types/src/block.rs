@@ -95,6 +95,14 @@ pub struct Header {
     pub num_txs: u64,
 }
 
+impl Header {
+    pub fn hash(&self) -> Option<crate::hash::Hash> {
+        let binding = ::prost::Message::encode_to_vec(self);
+        let pbh = binding.as_slice();
+        crate::hash::hash(pbh)
+    }
+}
+
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Block {
     #[prost(message, optional, tag = "1")]
@@ -105,4 +113,10 @@ pub struct Block {
     pub evidence: ::core::option::Option<EvidenceData>,
     #[prost(message, optional, tag = "4")]
     pub last_commit: ::core::option::Option<Commit>,
+}
+
+impl Block {
+    pub fn hash(&self) -> Option<crate::hash::Hash> {
+        self.header.clone().and_then(|h| h.hash())
+    }
 }

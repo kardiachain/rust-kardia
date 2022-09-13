@@ -5,7 +5,7 @@ use crate::types::{
         BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         VoteMessage,
     },
-    peer::INTERNAL_PEERID,
+    peer::interal_peerid,
     round_state::RoundState,
 };
 use kai_types::{
@@ -264,7 +264,7 @@ impl ConsensusStateImpl {
             let rs = rs_guard.clone();
 
             if rs_guard.is_proposer() {
-                self.decide_proposal(rs_guard);
+                self.decide_proposal(rs_guard.clone());
             } else {
                 //     schedule timeoutPropose(round_p): OnTimeoutPropose(h_p, round_p) to be executed after timout
             }
@@ -275,13 +275,13 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn decide_proposal(&self, rs_guard: MutexGuard<RoundState>) {
+    fn decide_proposal(&self, rs: RoundState) {
         let mut block: Option<Block>;
         let mut block_parts: Option<PartSet>;
 
-        if rs_guard.valid_block.is_some() {
-            block = rs_guard.valid_block;
-            block_parts = rs_guard.valid_block_parts;
+        if rs.valid_block.is_some() {
+            block = rs.valid_block;
+            block_parts = rs.valid_block_parts;
         } else {
             (block, block_parts) = self.create_proposal_block();
             if block.is_none() {
@@ -300,19 +300,19 @@ impl ConsensusStateImpl {
             // make proposal
             let proposal = Proposal {
                 r#type: SignedMsgType::Proposal.into(),
-                height: rs_guard.height,
-                round: rs_guard.round,
-                pol_round: rs_guard.valid_round,
+                height: rs.height,
+                round: rs.round,
+                pol_round: rs.valid_round,
                 block_id: Some(block_id),
                 timestamp: todo!(),
                 signature: todo!(),
             };
 
-            self.in_msg_chan.tx.try_send(MessageInfo {
+            _ = self.in_msg_chan.tx.try_send(MessageInfo {
                 msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
                     proposal: Some(proposal),
                 })),
-                peer_id: INTERNAL_PEERID,
+                peer_id: interal_peerid(),
             });
         } else {
             log::error!("invalid block or block parts")

@@ -14,6 +14,7 @@ pub mod validator_set;
 pub mod vote;
 pub mod vote_set;
 pub mod types;
+pub mod hash;
 
 #[cfg(test)]
 mod tests {

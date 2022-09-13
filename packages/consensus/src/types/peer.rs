@@ -17,7 +17,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const INTERNAL_PEERID: PeerId = "";
+pub fn interal_peerid() -> PeerId {
+    String::from("")
+}
 
 #[automock]
 pub trait Peer: Debug + Send + Sync + 'static {
@@ -383,7 +385,7 @@ mod tests {
     #[test]
     fn get_round_state_ok() {
         // arrange
-        let peer_id = "peer1";
+        let peer_id = "peer1".to_string();
         let peer = PeerImpl::new(peer_id);
 
         // act
@@ -396,7 +398,7 @@ mod tests {
     #[test]
     fn get_round_state_failed() {
         // arrange
-        let peer_id = "peer1";
+        let peer_id = "peer1".to_string();
         let peer = PeerImpl::new(peer_id);
         let ps_1 = peer.get_ps().clone();
         let ps_2 = peer.get_ps().clone();
