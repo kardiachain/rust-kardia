@@ -1,9 +1,8 @@
 use super::error::ConsensusReactorError;
-use kai_proto::{
-    consensus::{message::Sum, Message as ConsensusMessageProto},
-    types::SignedMsgType,
+use kai_proto::consensus::{message::Sum, Message as ConsensusMessageProto};
+use kai_types::{
+    bit_array::BitArray, part_set::Part, peer::PeerId, round::RoundStep, types::SignedMsgType,
 };
-use kai_types::{bit_array::BitArray, part_set::Part, peer::PeerId, round::RoundStep};
 use std::fmt::Debug;
 use std::{any::Any, sync::Arc};
 

@@ -1,1 +1,1 @@
-pub type PeerId = String;
+pub type PeerId<'a> = &'a str;

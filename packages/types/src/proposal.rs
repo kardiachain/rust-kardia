@@ -1,16 +1,22 @@
 use crate::block::BlockId;
 use kai_proto::types::SignedMsgType;
-use prost_types::Timestamp;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Proposal {
-    pub r#type: SignedMsgType,
+    #[prost(enumeration = "SignedMsgType", tag = "1")]
+    pub r#type: i32,
+    #[prost(uint64, tag = "2")]
     pub height: u64,
+    #[prost(uint32, tag = "3")]
     pub round: u32,
+    #[prost(uint32, tag = "4")]
     pub pol_round: u32,
-    pub block_id: Option<BlockId>,
-    pub timestamp: Option<Timestamp>,
-    pub signature: Vec<u8>,
+    #[prost(message, optional, tag = "5")]
+    pub block_id: ::core::option::Option<BlockId>,
+    #[prost(message, optional, tag = "6")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(bytes = "vec", tag = "7")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
 impl From<kai_proto::types::Proposal> for Proposal {
@@ -21,7 +27,8 @@ impl From<kai_proto::types::Proposal> for Proposal {
                 2 => SignedMsgType::Precommit,
                 32 => SignedMsgType::Proposal,
                 _ => SignedMsgType::Unknown,
-            },
+            }
+            .into(),
             height: m.height,
             round: m.round,
             pol_round: m.pol_round,

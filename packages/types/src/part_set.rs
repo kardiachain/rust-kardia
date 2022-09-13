@@ -1,10 +1,13 @@
 use crate::{bit_array::BitArray, crypto::Proof};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Part {
+    #[prost(uint32, tag="1")]
     pub index: u32,
-    pub bytes: Vec<u8>,
-    pub proof: Option<Proof>,
+    #[prost(bytes="vec", tag="2")]
+    pub bytes: ::prost::alloc::vec::Vec<u8>,
+    #[prost(message, optional, tag="3")]
+    pub proof: ::core::option::Option<super::crypto::Proof>,
 }
 
 impl From<kai_proto::types::Part> for Part {
@@ -27,10 +30,12 @@ impl Into<kai_proto::types::Part> for Part {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, ::prost::Message)]
 pub struct PartSetHeader {
+    #[prost(uint32, tag="1")]
     pub total: u32,
-    pub hash: Vec<u8>,
+    #[prost(bytes="vec", tag="2")]
+    pub hash: ::prost::alloc::vec::Vec<u8>,
 }
 
 impl PartialEq for PartSetHeader {

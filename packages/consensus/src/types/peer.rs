@@ -4,11 +4,11 @@ use super::messages::{
 };
 use crate::utils::compare_hrs;
 use core::fmt::Debug;
-use kai_proto::types::SignedMsgType;
 use kai_types::misc::ChannelId;
 use kai_types::part_set::PartSetHeader;
 use kai_types::peer::PeerId;
 use kai_types::round::RoundStep;
+use kai_types::types::SignedMsgType;
 use kai_types::vote_set::VoteSetReader;
 use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
 use mockall::automock;
@@ -17,7 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const INTERNAL_PEERID: PeerId = "".to_string();
+pub const INTERNAL_PEERID: PeerId = "";
 
 #[automock]
 pub trait Peer: Debug + Send + Sync + 'static {
@@ -196,7 +196,7 @@ impl PeerState for PeerStateImpl {
             return;
         }
 
-        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().parts_header;
+        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
         self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
         self.prs.proposal_pol_round = proposal.pol_round;
         self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn get_round_state_ok() {
         // arrange
-        let peer_id = String::from("peer1");
+        let peer_id = "peer1";
         let peer = PeerImpl::new(peer_id);
 
         // act
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn get_round_state_failed() {
         // arrange
-        let peer_id = String::from("peer1");
+        let peer_id = "peer1";
         let peer = PeerImpl::new(peer_id);
         let ps_1 = peer.get_ps().clone();
         let ps_2 = peer.get_ps().clone();

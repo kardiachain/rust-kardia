@@ -1,12 +1,8 @@
 use kai_types::{
-    types::Block,
-    consensus::{height_vote_set::HeightVoteSet, state::LatestBlockState},
-    part_set::PartSet,
-    proposal::Proposal,
-    round::RoundStep,
-    vote_set::VoteSet,
+    block::Block, consensus::height_vote_set::HeightVoteSet, part_set::PartSet, proposal::Proposal,
+    round::RoundStep, vote_set::VoteSet,
 };
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
 pub struct RoundState {
