@@ -23,7 +23,7 @@ use kai_types::{
 use mockall::automock;
 use std::{
     fmt::Debug,
-    ops::{Add, Mul},
+    ops::{Add, DerefMut, Mul},
     sync::{Arc, Mutex, MutexGuard},
     thread,
 };
@@ -41,7 +41,10 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_rs(&self) -> Option<RoundState>;
     fn send_peer_msg_chan(&self, msg_info: MessageInfo);
     fn send_internal_msg_chan(&self, msg_info: MessageInfo);
-    fn send_in_msg_chan(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
+    fn send_in_msg_chan(
+        self: Arc<Self>,
+        msg_info: MessageInfo,
+    ) -> Result<(), TrySendError<MessageInfo>>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
     fn start(&self) -> Result<(), Box<ConsensusReactorError>>;
@@ -59,8 +62,8 @@ pub struct ConsensusStateImpl {
         Sender<Box<dyn ConsensusMessage>>,
         Receiver<Box<dyn ConsensusMessage>>,
     ),
-    pub in_msg_chan: ConsensusMsgChan<MessageInfo>,
-    pub out_msg_chan: ConsensusMsgChan<MessageInfo>,
+    pub msg_chan_sender: Sender<MessageInfo>,
+    pub msg_chan_receiver: Receiver<MessageInfo>,
     pub state: Arc<Box<dyn LatestBlockState>>,
     pub priv_validator: Arc<Box<dyn PrivValidator>>,
     pub block_operations: Arc<Box<dyn BlockOperations>>,
@@ -83,10 +86,7 @@ impl ConsensusStateImpl {
         block_exec: Arc<Box<dyn BlockExecutor>>,
         evidence_pool: Arc<Box<dyn EvidencePool>>,
     ) -> Self {
-        let new_msg_chan = || {
-            let (tx, rx) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
-            ConsensusMsgChan { tx, rx }
-        };
+        let (msg_chan_sender, mut msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
 
         Self {
             config: Arc::new(config),
@@ -98,8 +98,8 @@ impl ConsensusStateImpl {
             rs: Arc::new(Mutex::new(RoundState::new_default())),
             peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
             internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
-            in_msg_chan: new_msg_chan(),
-            out_msg_chan: new_msg_chan(),
+            msg_chan_sender: msg_chan_sender,
+            msg_chan_receiver: msg_chan_receiver,
         }
     }
 }
@@ -142,8 +142,11 @@ impl ConsensusState for ConsensusStateImpl {
         todo!()
     }
 
-    fn send_in_msg_chan(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
-        self.in_msg_chan.tx.try_send(msg_info)
+    fn send_in_msg_chan(
+        self: Arc<Self>,
+        msg_info: MessageInfo,
+    ) -> Result<(), TrySendError<MessageInfo>> {
+        self.clone().msg_chan_sender.try_send(msg_info)
     }
 
     fn start(&self) -> Result<(), Box<ConsensusReactorError>> {
@@ -156,64 +159,87 @@ impl ConsensusState for ConsensusStateImpl {
 }
 
 impl ConsensusStateImpl {
-    async fn process_in_msg_chan(&mut self) {
-        while let Some(msg_info) = &self.in_msg_chan.rx.recv().await {
+    async fn process_in_msg_chan(self: Arc<Self>, mut in_msg_chan_receiver: Receiver<MessageInfo>) {
+        while let Some(msg_info) = in_msg_chan_receiver.recv().await {
             let msg = msg_info.msg.clone();
             match msg.as_ref() {
                 ConsensusMessageType::ProposalMessage(_msg) => {
                     log::debug!("set proposal: proposal={:?}", _msg.clone());
-                    if let Err(e) = self.set_proposal(_msg.clone()) {
+                    if let Err(e) = self.clone().set_proposal(_msg.clone()) {
                         log::error!(
                             "set proposal failed: peerid={} msg={:?}, err={}",
                             msg_info.peer_id,
                             _msg.clone(),
                             e
-                        )
+                        );
                     }
                 }
                 ConsensusMessageType::BlockPartMessage(_msg) => {
                     log::debug!("set block part: blockpart={:?}", _msg.clone());
-                    if let Err(e) = self.add_proposal_block_part(_msg.clone()) {
+                    if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
                         log::error!(
                             "set block part failed: peerid={} msg={:?}, err={}",
                             msg_info.peer_id,
                             _msg.clone(),
                             e
-                        )
+                        );
                     }
                 }
                 ConsensusMessageType::VoteMessage(_msg) => {
                     log::debug!("set vote: vote={:?}", _msg.clone());
-                    if let Err(e) = self.try_add_vote(_msg.clone()) {
+                    if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
                         log::error!(
                             "set vote failed: peerid={} msg={:?}, err={}",
                             msg_info.peer_id,
                             _msg.clone(),
                             e
-                        )
+                        );
                     }
                 }
                 _ => {
-                    log::error!("unknown msg type: type={:?}", msg)
+                    log::error!("unknown msg type: type={:?}", msg);
                 }
             };
+
+            self.clone().check_upon_rules(msg);
         }
+    }
+
+    fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
+        todo!()
     }
 
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
         todo!()
 
+        // check for existing proposal...
+
         // TODO: check upons rule
     }
 
+    /**
+    This function adds proposal block part and it checks:
+    * full proposal block, then it makes state transition to PREVOTE step
+    */
     fn add_proposal_block_part(&self, msg: BlockPartMessage) -> Result<(), ConsensusStateError> {
         todo!()
 
+        // check for proposal
+
+        // add block part
+
+        // check full proposal block
+        //    => switch to prevote
+        //    => if valid block => send prevote
+
         // TODO: check upons rule
     }
 
-    fn try_add_vote(&self, msg: VoteMessage) -> Result<(), ConsensusStateError> {
+    fn try_add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
         todo!()
+
+        // route votes
+        // - listen for 2/3 votes
 
         // TODO: check upons rule
     }
@@ -339,7 +365,7 @@ impl ConsensusStateImpl {
                     peer_id: interal_peerid(),
                 };
 
-                _ = self.in_msg_chan.tx.try_send(msg_info);
+                _ = self.msg_chan_sender.try_send(msg_info);
             } else {
                 log::error!("sign proposal failed");
                 return;
@@ -353,3 +379,6 @@ impl ConsensusStateImpl {
         todo!()
     }
 }
+
+#[cfg(test)]
+mod tests {}
