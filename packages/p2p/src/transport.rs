@@ -1,10 +1,10 @@
-use crate::{netaddress::NetAddress, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::{NodeInfo, self}, config::p2p::Node, key::NodeKey};
+use crate::{netaddress::NetAddress, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::NodeInfo, key::NodeKey, conn_set::ConnSetTrait};
 use core::time;
-use std::{error::Error, collections::HashMap, net::{TcpStream, SocketAddr, }, time::Duration};
-use tokio::{net::{TcpListener}, select, sync::mpsc::{self, Sender}};
+use std::{error::Error, collections::HashMap, time::Duration};
+use tokio::{net::{TcpListener, TcpStream}, select, sync::mpsc::Sender};
 use async_trait::async_trait;
 use tokio::sync::mpsc::Receiver;
-use tokio::macros::support::Future;
+use defer_lite::defer;
 
 
 const DEFAULT_DIAL_TIMEOUT: time::Duration = Duration::from_secs(1);
@@ -28,9 +28,9 @@ pub trait Transport {
 // transportLifecycle bundles the methods for callers to control start and stop
 // behaviour.
 #[async_trait]
-trait TransportLifeCycle {
+pub trait TransportLifeCycle {
     fn close() -> Result<(), Box<dyn Error>>;
-    async fn listen(&mut self, na: NetAddress) -> Result<(), tokio::io::Error>;
+    async fn listen(na: NetAddress);
 }
 
 // peerConfig is used to bundle data we need to fully setup a Peer with an
@@ -52,10 +52,10 @@ pub struct PeerConfig {
 // accept is the container to carry the upgraded connection and NodeInfo from an
 // asynchronously running routine to the Accept method.
 pub struct Accept {
-    net_addr: &'static NetAddress,
-    conn: TcpStream,
-    node_info: Box<dyn NodeInfo>,
-    err: Box<dyn Error>
+    net_addr: Option<&'static NetAddress>,
+    conn: Option<TcpStream>,
+    node_info: Option<Box<dyn NodeInfo>>,
+    err: Option<Box<dyn Error>>
 }
 
 pub struct MultiplexTransport {
@@ -65,11 +65,11 @@ pub struct MultiplexTransport {
 
     acceptc_tx: Sender<Accept>,
     acceptc_rx: Receiver<Accept>,
-    closec_tx: Sender<()>,
-    closec_rx: Receiver<()>,
+    closec_tx: Sender<bool>,
+    closec_rx: Receiver<bool>,
 
 	// Lookup table for duplicate ip and id checks.
-	// conns       ConnSet
+	conns: Box<dyn ConnSetTrait>,
 	// connFilters []ConnFilterFunc
 
     dial_timeout: time::Duration,
@@ -82,27 +82,6 @@ pub struct MultiplexTransport {
 	// peer currently. All relevant configuration should be refactored into options
 	// with sane defaults.
     mconfig: MConnConfig
-}
-
-#[async_trait]
-impl TransportLifeCycle for MultiplexTransport {
-    fn close() -> Result<(), Box<dyn Error>> {
-        todo!()
-    }
-
-    async fn listen(&mut self, na: NetAddress) -> Vec<dyn Future<Output = Result<(), std::io::Error>> + Send> {
-        let mut ln = TcpListener::bind(na.dial_string()).await;
-        if self.max_incoming_connections.is_some() && self.max_incoming_connections.unwrap() > 0 {
-            // TODO: set limit for listener
-        }
-        self.na = Some(na);
-        self.listener = Some(ln.unwrap());
-        // accept peers
-        tokio::spawn(async move {
-            self.accept_peers().await;
-        });
-        Ok(())
-    }
 }
 
 impl MultiplexTransport {
@@ -124,24 +103,39 @@ impl MultiplexTransport {
         todo!()
     }
 
-    async fn accept_peers(&self) {
+    async fn accept_peers(&mut self) {
         loop {
-            if self.listener.is_some() {
-                match self.listener.as_ref().unwrap().accept().await {
-                    Ok((socket, addr)) => {
-                        // If Close() has been called, silently exit.
-                        // TODO: channels are here.
+                let conn = self.listener.as_ref().unwrap().accept().await;
+                match conn {
+                    Ok((mut stream, _)) => {
+                        // Connection upgrade and filtering should be asynchronous to avoid
+                        // Head-of-line blocking[0].
+                        //
+                        // [0] https://en.wikipedia.org/wiki/Head-of-line_blocking
+                        async {
+                            defer! {
 
-                        
+                            }
+                        };
                     },
-                    Err(e) => {}
-                }
-            }
+                    Err(e) => {
+                        select! {
+                            // If Close() has been called, silently exit.
+                            ok = self.closec_rx.recv() => {
+                                if ok.is_some() && !ok.unwrap() {
+                                    return ()
+                                }
+                            },
+                            else => {
+                                // Transport is not closed
+                            }
+                        }
+                        self.acceptc_tx.send(Accept { net_addr: None, conn: None, node_info: None, err: Some(Box::new(e)) });
+                        ()
+                    }
+                };
+                
 
-            // Connection upgrade and filtering should be asynchronous to avoid
-            // Head-of-line blocking[0].
-            //
-            // [0] https://en.wikipedia.org/wiki/Head-of-line_blocking
         }
     }
 
@@ -151,8 +145,11 @@ impl MultiplexTransport {
         todo!()
     }
 
-    fn filter_conn(c: TcpStream) -> Result<(), Box<dyn Error>> {
-        todo!()
+    pub fn filter_conn(&self, c: TcpStream) -> Result<(), Box<dyn Error>> {
+        // Reject if connection is already present.
+
+        // Resolve ips for incoming conn.
+        Ok(())
     }
 
     fn upgrade(c: TcpStream, dialed_addr: &NetAddress) -> Result<(&SecretConnection, Box<dyn NodeInfo>), Box<dyn Error>> {
@@ -162,7 +159,55 @@ impl MultiplexTransport {
     fn wrap_peer(c: TcpStream, ni: Box<dyn NodeInfo>, cfg: PeerConfig, socket_addr: &NetAddress) -> Peer {
         todo!()
     }
+
+    fn close() -> Result<(), Box<dyn Error>> {
+        todo!()
+    }
+
+    async fn listen(&mut self, addr: NetAddress) -> Result<(), Box<dyn Error>>{
+        let ln = TcpListener::bind(addr.dial_string()).await?;
+
+        self.na = Some(addr);
+        self.listener = Some(ln);
+
+        if self.max_incoming_connections.is_some() && self.max_incoming_connections.unwrap() > 0 {
+            // set limit listeners
+        }
+        // let t = tokio::spawn(|| {
+        //     self.accept_peers();
+        // });
+        Ok(())
+    }
 }
+
+// #[async_trait]
+// impl TransportLifeCycle for MultiplexTransport {
+//     fn close() -> Result<(), Box<dyn Error>> {
+//         todo!()
+//     }
+
+//     async fn listen(na: NetAddress) {
+//         // Box::pin(self)
+//         let mut handles = Vec::new();
+//         let listen_thread = tokio::spawn(async {
+//             let ln = TcpListener::bind(na.dial_string()).await;
+//             na.
+//         });
+//         handles.push(listen_thread);
+//     }
+// }
+
+// pub async fn listen_to(mt: &mut MultiplexTransport, na: NetAddress) -> tokio::io::Result<()> {
+//     let ln = TcpListener::bind(na.dial_string()).await?;
+//     mt.na = Some(na);
+//     mt.listener = Some(ln);
+
+//     mt.accept_peers().await;
+
+//     Ok(())
+// }
+
+
 
 pub fn handshake(c: TcpStream, timeout: time::Duration, node_info: Box<dyn NodeInfo>) -> Result<Box<dyn NodeInfo>, Box<dyn Error>> {
     todo!()
