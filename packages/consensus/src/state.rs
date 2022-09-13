@@ -16,7 +16,7 @@ use kai_types::{
     part_set::PartSet,
     proposal::Proposal,
     round::RoundStep,
-    types::SignedMsgType,
+    types::SignedMsgType, priv_validator::{PrivValidator, self}, timestamp,
 };
 use mockall::automock;
 use std::{
@@ -58,6 +58,7 @@ pub struct ConsensusStateImpl {
     pub in_msg_chan: ConsensusMsgChan<MessageInfo>,
     pub out_msg_chan: ConsensusMsgChan<MessageInfo>,
     pub state: Arc<Box<dyn LatestBlockState>>,
+    pub priv_validator: Arc<Box<dyn PrivValidator>>,
     pub block_operations: Arc<Box<dyn BlockOperations>>,
     pub block_exec: Arc<Box<dyn BlockExecutor>>,
     pub evidence_pool: Arc<Box<dyn EvidencePool>>,
@@ -73,6 +74,7 @@ impl ConsensusStateImpl {
     pub fn new(
         config: ConsensusConfig,
         state: Arc<Box<dyn LatestBlockState>>,
+        priv_validator: Arc<Box<dyn PrivValidator>>,
         block_operations: Arc<Box<dyn BlockOperations>>,
         block_exec: Arc<Box<dyn BlockExecutor>>,
         evidence_pool: Arc<Box<dyn EvidencePool>>,
@@ -85,6 +87,7 @@ impl ConsensusStateImpl {
         Self {
             config: Arc::new(config),
             state: state.clone(),
+            priv_validator: priv_validator,
             block_operations: block_operations,
             block_exec: block_exec,
             evidence_pool: evidence_pool,
@@ -261,8 +264,6 @@ impl ConsensusStateImpl {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
 
-            let rs = rs_guard.clone();
-
             if rs_guard.is_proposer() {
                 self.decide_proposal(rs_guard.clone());
             } else {
@@ -276,8 +277,8 @@ impl ConsensusStateImpl {
     }
 
     fn decide_proposal(&self, rs: RoundState) {
-        let mut block: Option<Block>;
-        let mut block_parts: Option<PartSet>;
+        let block: Option<Block>;
+        let block_parts: Option<PartSet>;
 
         if rs.valid_block.is_some() {
             block = rs.valid_block;
@@ -290,30 +291,40 @@ impl ConsensusStateImpl {
         }
 
         if let (Some(b), Some(bp)) = (block, block_parts) {
+            let hash = b.hash().expect("calculate hash of block failed");
+
             let block_id = BlockId {
-                hash: todo!(),
-                part_set_header: todo!(),
-                // hash: b.hash,
-                // part_set_header: bp.p,
+                hash: hash.to_vec(),
+                part_set_header: Some(bp.header()),
             };
 
             // make proposal
-            let proposal = Proposal {
+            let mut proposal = Proposal {
                 r#type: SignedMsgType::Proposal.into(),
                 height: rs.height,
                 round: rs.round,
                 pol_round: rs.valid_round,
                 block_id: Some(block_id),
-                timestamp: todo!(),
-                signature: todo!(),
+                timestamp: Some(timestamp::now()),
+                signature: vec![],
             };
 
-            _ = self.in_msg_chan.tx.try_send(MessageInfo {
-                msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-                    proposal: Some(proposal),
-                })),
-                peer_id: interal_peerid(),
-            });
+            let priv_validator = self.priv_validator.clone();
+            let chain_id = self.state.clone().get_chain_id();
+
+            if let Ok(_) = priv_validator.clone().sign_proposal(chain_id, &mut proposal) {
+                let msg_info = MessageInfo {
+                    msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+                        proposal: Some(proposal),
+                    })),
+                    peer_id: interal_peerid(),
+                };
+    
+                _ = self.in_msg_chan.tx.try_send(msg_info);
+            } else {
+                log::error!("sign proposal failed");
+                return
+            }
         } else {
             log::error!("invalid block or block parts")
         }
