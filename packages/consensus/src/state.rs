@@ -5,7 +5,7 @@ use crate::types::{
         BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         VoteMessage,
     },
-    peer::interal_peerid,
+    peer::internal_peerid,
     round_state::RoundState,
 };
 use kai_types::{
@@ -41,10 +41,7 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_rs(&self) -> Option<RoundState>;
     fn send_peer_msg_chan(&self, msg_info: MessageInfo);
     fn send_internal_msg_chan(&self, msg_info: MessageInfo);
-    fn send_in_msg_chan(
-        self: Arc<Self>,
-        msg_info: MessageInfo,
-    ) -> Result<(), TrySendError<MessageInfo>>;
+    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
     fn start(&self) -> Result<(), Box<ConsensusReactorError>>;
@@ -86,7 +83,7 @@ impl ConsensusStateImpl {
         block_exec: Arc<Box<dyn BlockExecutor>>,
         evidence_pool: Arc<Box<dyn EvidencePool>>,
     ) -> Self {
-        let (msg_chan_sender, mut msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
+        let (msg_chan_sender, msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
 
         Self {
             config: Arc::new(config),
@@ -142,10 +139,7 @@ impl ConsensusState for ConsensusStateImpl {
         todo!()
     }
 
-    fn send_in_msg_chan(
-        self: Arc<Self>,
-        msg_info: MessageInfo,
-    ) -> Result<(), TrySendError<MessageInfo>> {
+    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
         self.clone().msg_chan_sender.try_send(msg_info)
     }
 
@@ -159,8 +153,8 @@ impl ConsensusState for ConsensusStateImpl {
 }
 
 impl ConsensusStateImpl {
-    async fn process_in_msg_chan(self: Arc<Self>, mut in_msg_chan_receiver: Receiver<MessageInfo>) {
-        while let Some(msg_info) = in_msg_chan_receiver.recv().await {
+    async fn process_msg_chan(self: Arc<Self>, mut msg_chan_receiver: Receiver<MessageInfo>) {
+        while let Some(msg_info) = msg_chan_receiver.recv().await {
             let msg = msg_info.msg.clone();
             match msg.as_ref() {
                 ConsensusMessageType::ProposalMessage(_msg) => {
@@ -362,7 +356,7 @@ impl ConsensusStateImpl {
                     msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
                         proposal: Some(proposal),
                     })),
-                    peer_id: interal_peerid(),
+                    peer_id: internal_peerid(),
                 };
 
                 _ = self.msg_chan_sender.try_send(msg_info);
@@ -381,4 +375,61 @@ impl ConsensusStateImpl {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use std::{sync::Arc, thread};
+
+    use kai_types::{
+        block_operations::MockBlockOperations,
+        consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
+        evidence::MockEvidencePool,
+        priv_validator::MockPrivValidator,
+    };
+    use tokio::runtime::Runtime;
+
+    use crate::types::{
+        config::ConsensusConfig,
+        messages::{ConsensusMessageType, MessageInfo, ProposalMessage},
+        peer::internal_peerid,
+    };
+
+    use super::ConsensusStateImpl;
+
+    #[test]
+    fn send() {
+        let m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        let mut rx = cs.msg_chan_receiver;
+
+        let rc = thread::spawn(move || {
+            let msg = rx.blocking_recv();
+            assert!(msg.is_some());
+        });
+
+        Runtime::new().unwrap().block_on(async move {
+            let _ = cs
+                .msg_chan_sender
+                .send(MessageInfo {
+                    msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+                        proposal: None,
+                    })),
+                    peer_id: internal_peerid(),
+                })
+                .await;
+        });
+
+        rc.join().unwrap();
+    }
+}

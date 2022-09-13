@@ -17,7 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn interal_peerid() -> PeerId {
+pub fn internal_peerid() -> PeerId {
     String::from("")
 }
 
