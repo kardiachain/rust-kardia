@@ -401,13 +401,14 @@ impl ConsensusStateImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, thread};
+    use std::{ops::Add, sync::Arc, thread, time::Duration};
 
     use kai_types::{
         block_operations::MockBlockOperations,
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
+        round::RoundStep,
         validator_set::{Validator, ValidatorSet},
     };
     use tokio::runtime::Runtime;
@@ -479,8 +480,8 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        let addr_1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
-        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+        let addr_1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
         let addr_3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3];
 
         let val_1 = Validator {
@@ -542,13 +543,20 @@ mod tests {
     #[test]
     fn propose_timeout_send_prevote_for_nil() {
         let m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
+        let mut m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
+        // set ADDR_2 for our priv validator
+        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
+        m_priv_validator.expect_get_address().return_const(addr_2);
+
+        let mut config = ConsensusConfig::new_default();
+        config.timeout_propose = Duration::from_millis(100);
+
         let mut cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
+            config.clone(),
             Arc::new(Box::new(m_latest_block_state)),
             Arc::new(Box::new(m_priv_validator)),
             Arc::new(Box::new(m_block_operations)),
@@ -567,10 +575,22 @@ mod tests {
             panic!("could not lock round state for arrangement")
         }
 
+        let timeout_propose = config.timeout_propose;
+
         let _thread = thread::spawn(move || {
             if let Ok(_) = arc_cs.clone().start() {
             } else {
                 panic!("should not failed to start")
+            }
+
+            // wait for propose timeout happens
+            thread::sleep(timeout_propose.add(timeout_propose));
+
+            // assertions
+            if let Some(rs) = arc_cs.clone().get_rs() {
+                assert_eq!(rs.step, RoundStep::Precommit);
+            } else {
+                panic!("should get round state")
             }
         });
 
