@@ -296,15 +296,14 @@ impl ConsensusStateImpl {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
+            let rs = rs_guard.clone();
             drop(rs_guard);
 
             if self.clone().is_proposer() {
-                self.decide_proposal(rs_guard.clone());
+                self.clone().decide_proposal(rs);
             } else {
-                let height = rs_guard.height.clone();
-                let round = rs_guard.round.clone();
-                let timeout_propose = self.clone().get_config().clone().timeout_propose;
-                let timeout_propose_delta = self.clone().get_config().clone().timeout_propose_delta;
+                let timeout_propose = self.clone().get_config().timeout_propose.clone();
+                let timeout_propose_delta = self.clone().get_config().timeout_propose_delta.clone();
                 thread::spawn(move || {
                     let sleep_duration = if round > 1 {
                         timeout_propose.add(timeout_propose_delta.mul(round - 1))
@@ -312,7 +311,7 @@ impl ConsensusStateImpl {
                         timeout_propose
                     };
                     thread::sleep(sleep_duration);
-                    self.clone().on_timeout_propose(height, round);
+                    self.clone().on_timeout_propose(rs.height, rs.round);
                 });
             }
         } else {
@@ -385,11 +384,8 @@ impl ConsensusStateImpl {
         match self.clone().priv_validator.clone().get_address() {
             Some(priv_validator_addr) => {
                 if let Ok(mut rs_guard) = self.rs.clone().lock() {
-                    if let Some(proposer) = rs_guard
-                        .validators
-                        .clone()
-                        .and_then(|mut vs| vs.get_proposer())
-                    {
+                    let vs = rs_guard.validators.as_mut();
+                    if let Some(proposer) = vs.and_then(|vs| vs.get_proposer()) {
                         return priv_validator_addr.eq(&proposer.address);
                     } else {
                         return false;
@@ -412,7 +408,7 @@ mod tests {
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
-        validator_set::ValidatorSet,
+        validator_set::{Validator, ValidatorSet},
     };
     use tokio::runtime::Runtime;
 
@@ -478,10 +474,38 @@ mod tests {
     #[test]
     fn is_proposer() {
         let m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
+        let mut m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
+
+        let addr_1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
+        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+        let addr_3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3];
+
+        let val_1 = Validator {
+            address: addr_1,
+            voting_power: 1,
+            proposer_priority: 1,
+        };
+        let val_2 = Validator {
+            address: addr_2,
+            voting_power: 2,
+            proposer_priority: 2,
+        };
+        let val_3 = Validator {
+            address: addr_3,
+            voting_power: 3,
+            proposer_priority: 3,
+        };
+        let val_set = ValidatorSet {
+            validators: vec![val_1, val_2, val_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
+
+        // set ADDR_2 for our priv validator
+        m_priv_validator.expect_get_address().return_const(addr_2);
 
         let cs = ConsensusStateImpl::new(
             ConsensusConfig::new_default(),
@@ -494,20 +518,25 @@ mod tests {
 
         let acs = Arc::new(cs);
 
-        // TODO: mock this
-        let validator_set: Option<ValidatorSet> = None;
-
         // arrange round state
         if let Ok(mut rs_guard) = acs.clone().rs.clone().lock() {
-            rs_guard.validators = validator_set;
+            rs_guard.validators = Some(val_set);
             drop(rs_guard);
         } else {
             panic!("could not lock round state for arrangement")
         }
 
         let is_proposer = acs.clone().is_proposer();
+        assert!(!is_proposer);
 
-        assert!(is_proposer);
+        if let Ok(rs_guard) = acs.clone().rs.clone().lock() {
+            let validator_set = rs_guard.clone().validators;
+            assert!(
+                validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&addr_3)))
+            );
+        } else {
+            panic!("could not lock round state for arrangement")
+        }
     }
 
     #[test]
@@ -527,14 +556,7 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        let arc_cs = Arc::new(ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        ));
+        let arc_cs = Arc::new(cs);
 
         // arrange round state
         if let Ok(mut rs_guard) = arc_cs.clone().rs.clone().lock() {
