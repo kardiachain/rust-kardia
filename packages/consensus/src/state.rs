@@ -14,7 +14,7 @@ use kai_types::{
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
     part_set::PartSet,
-    priv_validator::{self, PrivValidator},
+    priv_validator::PrivValidator,
     proposal::Proposal,
     round::RoundStep,
     timestamp,
@@ -44,7 +44,7 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
-    fn start(&self) -> Result<(), Box<ConsensusReactorError>>;
+    fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
 }
 
 #[derive(Debug)]
@@ -72,33 +72,6 @@ pub struct ConsensusStateImpl {
 pub struct ConsensusMsgChan<T> {
     pub tx: Sender<T>,
     pub rx: Receiver<T>,
-}
-
-impl ConsensusStateImpl {
-    pub fn new(
-        config: ConsensusConfig,
-        state: Arc<Box<dyn LatestBlockState>>,
-        priv_validator: Arc<Box<dyn PrivValidator>>,
-        block_operations: Arc<Box<dyn BlockOperations>>,
-        block_exec: Arc<Box<dyn BlockExecutor>>,
-        evidence_pool: Arc<Box<dyn EvidencePool>>,
-    ) -> Self {
-        let (msg_chan_sender, msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
-
-        Self {
-            config: Arc::new(config),
-            state: state.clone(),
-            priv_validator: priv_validator,
-            block_operations: block_operations,
-            block_exec: block_exec,
-            evidence_pool: evidence_pool,
-            rs: Arc::new(Mutex::new(RoundState::new_default())),
-            peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
-            internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
-            msg_chan_sender: msg_chan_sender,
-            msg_chan_receiver: msg_chan_receiver,
-        }
-    }
 }
 
 impl ConsensusState for ConsensusStateImpl {
@@ -143,8 +116,19 @@ impl ConsensusState for ConsensusStateImpl {
         self.clone().msg_chan_sender.try_send(msg_info)
     }
 
-    fn start(&self) -> Result<(), Box<ConsensusReactorError>> {
-        todo!()
+    fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
+        // TODO:
+
+        if let Ok(rs_guard) = self.clone().rs.clone().lock() {
+            let round = rs_guard.round;
+            drop(rs_guard);
+            self.clone().start_new_round(round);
+            Ok(())
+        } else {
+            Err(Box::new(ConsensusStateError::LockFailed(
+                "round state".to_owned(),
+            )))
+        }
     }
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>) {
@@ -153,6 +137,31 @@ impl ConsensusState for ConsensusStateImpl {
 }
 
 impl ConsensusStateImpl {
+    pub fn new(
+        config: ConsensusConfig,
+        state: Arc<Box<dyn LatestBlockState>>,
+        priv_validator: Arc<Box<dyn PrivValidator>>,
+        block_operations: Arc<Box<dyn BlockOperations>>,
+        block_exec: Arc<Box<dyn BlockExecutor>>,
+        evidence_pool: Arc<Box<dyn EvidencePool>>,
+    ) -> Self {
+        let (msg_chan_sender, msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
+
+        Self {
+            config: Arc::new(config),
+            state: state.clone(),
+            priv_validator: priv_validator,
+            block_operations: block_operations,
+            block_exec: block_exec,
+            evidence_pool: evidence_pool,
+            rs: Arc::new(Mutex::new(RoundState::new_default())),
+            peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
+            internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
+            msg_chan_sender: msg_chan_sender,
+            msg_chan_receiver: msg_chan_receiver,
+        }
+    }
+
     async fn process_msg_chan(self: Arc<Self>, mut msg_chan_receiver: Receiver<MessageInfo>) {
         while let Some(msg_info) = msg_chan_receiver.recv().await {
             let msg = msg_info.msg.clone();
@@ -283,12 +292,13 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn start_round(self: Arc<Self>, round: u32) {
+    fn start_new_round(self: Arc<Self>, round: u32) {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
+            drop(rs_guard);
 
-            if rs_guard.is_proposer() {
+            if self.clone().is_proposer() {
                 self.decide_proposal(rs_guard.clone());
             } else {
                 let height = rs_guard.height.clone();
@@ -305,8 +315,6 @@ impl ConsensusStateImpl {
                     self.clone().on_timeout_propose(height, round);
                 });
             }
-
-            drop(rs_guard);
         } else {
             log::trace!("lock round state failed")
         }
@@ -372,6 +380,27 @@ impl ConsensusStateImpl {
     fn create_proposal_block(self: Arc<Self>) -> (Option<Block>, Option<PartSet>) {
         todo!()
     }
+
+    fn is_proposer(self: Arc<Self>) -> bool {
+        match self.clone().priv_validator.clone().get_address() {
+            Some(priv_validator_addr) => {
+                if let Ok(mut rs_guard) = self.rs.clone().lock() {
+                    if let Some(proposer) = rs_guard
+                        .validators
+                        .clone()
+                        .and_then(|mut vs| vs.get_proposer())
+                    {
+                        return priv_validator_addr.eq(&proposer.address);
+                    } else {
+                        return false;
+                    }
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -383,6 +412,7 @@ mod tests {
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
+        validator_set::ValidatorSet,
     };
     use tokio::runtime::Runtime;
 
@@ -392,7 +422,7 @@ mod tests {
         peer::internal_peerid,
     };
 
-    use super::ConsensusStateImpl;
+    use super::{ConsensusState, ConsensusStateImpl};
 
     #[test]
     fn send() {
@@ -443,5 +473,85 @@ mod tests {
         });
 
         rc.join().unwrap();
+    }
+
+    #[test]
+    fn is_proposer() {
+        let m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        let acs = Arc::new(cs);
+
+        // TODO: mock this
+        let validator_set: Option<ValidatorSet> = None;
+
+        // arrange round state
+        if let Ok(mut rs_guard) = acs.clone().rs.clone().lock() {
+            rs_guard.validators = validator_set;
+            drop(rs_guard);
+        } else {
+            panic!("could not lock round state for arrangement")
+        }
+
+        let is_proposer = acs.clone().is_proposer();
+
+        assert!(is_proposer);
+    }
+
+    #[test]
+    fn propose_timeout_send_prevote_for_nil() {
+        let m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let mut cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        let arc_cs = Arc::new(ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        ));
+
+        // arrange round state
+        if let Ok(mut rs_guard) = arc_cs.clone().rs.clone().lock() {
+            rs_guard.height = 1;
+            rs_guard.round = 1;
+            drop(rs_guard);
+        } else {
+            panic!("could not lock round state for arrangement")
+        }
+
+        let _thread = thread::spawn(move || {
+            if let Ok(_) = arc_cs.clone().start() {
+            } else {
+                panic!("should not failed to start")
+            }
+        });
+
+        _thread.join().unwrap();
     }
 }

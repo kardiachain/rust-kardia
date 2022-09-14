@@ -13,5 +13,6 @@ edition = "2021"
 "num" = "0.4"
 "num-derive" = "0.3"
 "num-traits" = "0.2"
-"mockall" = "0.11.2"
 "sha3" = "0.10.4"
+
+"mockall" = "0.11.2"

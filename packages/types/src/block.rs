@@ -96,10 +96,10 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn hash(&self) -> Option<crate::hash::Hash> {
+    pub fn hash(&self) -> Option<crate::common::hash::Hash> {
         let binding = ::prost::Message::encode_to_vec(self);
         let pbh = binding.as_slice();
-        crate::hash::hash(pbh)
+        crate::common::hash::hash(pbh)
     }
 }
 
@@ -116,7 +116,7 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn hash(&self) -> Option<crate::hash::Hash> {
+    pub fn hash(&self) -> Option<crate::common::hash::Hash> {
         self.header.clone().and_then(|h| h.hash())
     }
 }

@@ -1,11 +1,13 @@
+#![feature(is_some_with)]
+
 pub mod bit_array;
 pub mod block;
 pub mod block_operations;
 pub mod commit;
+pub mod common;
 pub mod consensus;
 pub mod crypto;
 pub mod evidence;
-pub mod hash;
 pub mod misc;
 pub mod part_set;
 pub mod peer;

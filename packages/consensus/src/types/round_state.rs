@@ -1,7 +1,8 @@
 use kai_types::{
     block::Block, consensus::height_vote_set::HeightVoteSet, part_set::PartSet, proposal::Proposal,
-    round::RoundStep, vote_set::VoteSet,
+    round::RoundStep, vote_set::VoteSet, validator_set::ValidatorSet,
 };
+
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
@@ -12,7 +13,7 @@ pub struct RoundState {
     pub start_time: u64,
 
     pub commit_time: u64,
-    // pub validators: ValidatorSet
+    pub validators: Option<ValidatorSet>,
     pub proposal: Option<Proposal>,
     pub proposal_block: Option<Block>,
     pub proposal_block_parts: Option<PartSet>,
@@ -36,6 +37,7 @@ impl RoundState {
             step: RoundStep::Propose,
             start_time: 0,
             commit_time: 0,
+            validators: None,
             proposal: None,
             proposal_block: None,
             proposal_block_parts: None,
@@ -49,9 +51,5 @@ impl RoundState {
             last_commit: None,
             votes: None,
         }
-    }
-
-    pub fn is_proposer(&self) -> bool {
-        todo!()
     }
 }
