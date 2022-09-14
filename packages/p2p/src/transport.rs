@@ -1,10 +1,11 @@
-use crate::{netaddress::NetAddress, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::NodeInfo, key::NodeKey, conn_set::ConnSetTrait};
+use crate::{netaddress::{NetAddress, new_net_address}, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::NodeInfo, key::{NodeKey, pubkey_to_id}, conn_set::ConnSetTrait};
 use core::time;
 use std::{error::Error, collections::HashMap, time::Duration};
 use tokio::{net::{TcpListener, TcpStream}, select, sync::mpsc::Sender};
 use async_trait::async_trait;
 use tokio::sync::mpsc::Receiver;
 use defer_lite::defer;
+use std::panic;
 
 
 const DEFAULT_DIAL_TIMEOUT: time::Duration = Duration::from_secs(1);
@@ -103,7 +104,11 @@ impl MultiplexTransport {
         todo!()
     }
 
-    async fn accept_peers(&mut self) {
+    pub fn upgrade(&self, c: &TcpStream, dialed_addr: Option<&NetAddress>) -> Result<(&SecretConnection, Box<dyn NodeInfo>), Box<dyn Error>> {
+        todo!()
+    }
+
+    async fn accept_peers(&mut self) -> Result<(), Box<dyn Error>>{
         loop {
                 let conn = self.listener.as_ref().unwrap().accept().await;
                 match conn {
@@ -113,8 +118,29 @@ impl MultiplexTransport {
                         //
                         // [0] https://en.wikipedia.org/wiki/Head-of-line_blocking
                         async {
+                            // recover from panicking thread
                             defer! {
+                                let ok = panic::catch_unwind(|| {
 
+                                });
+                                match ok {
+                                    Err(e) => {},
+                                    _ => {},
+                                }
+                            }
+
+                            match self.filter_conn(&stream) {
+                                Ok(()) => {
+                                    match self.upgrade(&stream, None) {
+                                        Ok((secret_conn, node_info)) => {
+                                            let addr = stream.peer_addr();
+                                            let id = pubkey_to_id(&secret_conn.remote_pubkey());
+                                            let net_address = new_net_address(id, addr.unwrap().to_string().as_str());
+                                        },
+                                        Err(e) => {},
+                                    }
+                                },
+                                Err(e) => {},
                             }
                         };
                     },
@@ -123,14 +149,14 @@ impl MultiplexTransport {
                             // If Close() has been called, silently exit.
                             ok = self.closec_rx.recv() => {
                                 if ok.is_some() && !ok.unwrap() {
-                                    return ()
+                                    return Ok(())
                                 }
                             },
                             else => {
                                 // Transport is not closed
                             }
                         }
-                        self.acceptc_tx.send(Accept { net_addr: None, conn: None, node_info: None, err: Some(Box::new(e)) });
+                        self.acceptc_tx.send(Accept { net_addr: None, conn: None, node_info: None, err: Some(Box::new(e)) }).await;
                         ()
                     }
                 };
@@ -145,15 +171,11 @@ impl MultiplexTransport {
         todo!()
     }
 
-    pub fn filter_conn(&self, c: TcpStream) -> Result<(), Box<dyn Error>> {
+    pub fn filter_conn(&self, c: &TcpStream) -> Result<(), Box<dyn Error>> {
         // Reject if connection is already present.
 
         // Resolve ips for incoming conn.
         Ok(())
-    }
-
-    fn upgrade(c: TcpStream, dialed_addr: &NetAddress) -> Result<(&SecretConnection, Box<dyn NodeInfo>), Box<dyn Error>> {
-        todo!()
     }
 
     fn wrap_peer(c: TcpStream, ni: Box<dyn NodeInfo>, cfg: PeerConfig, socket_addr: &NetAddress) -> Peer {
