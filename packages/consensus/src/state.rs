@@ -23,7 +23,7 @@ use kai_types::{
 use mockall::automock;
 use std::{
     fmt::Debug,
-    ops::{Add, DerefMut, Mul},
+    ops::{Add, Mul},
     sync::{Arc, Mutex, MutexGuard},
     thread,
 };
@@ -413,18 +413,30 @@ mod tests {
 
         let mut rx = cs.msg_chan_receiver;
 
+        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+            proposal: None,
+        }));
+
         let rc = thread::spawn(move || {
-            let msg = rx.blocking_recv();
-            assert!(msg.is_some());
+            let rev_msg = rx.blocking_recv();
+            assert!(rev_msg.is_some());
+
+            let msg_info = rev_msg.unwrap();
+
+            assert!(
+                msg_info.clone().peer_id == internal_peerid()
+                    && matches!(
+                        msg_info.clone().msg.clone().as_ref(),
+                        ConsensusMessageType::ProposalMessage(p)
+                    )
+            );
         });
 
         Runtime::new().unwrap().block_on(async move {
             let _ = cs
                 .msg_chan_sender
                 .send(MessageInfo {
-                    msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-                        proposal: None,
-                    })),
+                    msg: msg.clone(),
                     peer_id: internal_peerid(),
                 })
                 .await;
