@@ -1,6 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::{ConsensusReactorError, ConsensusStateError},
+    error::ConsensusStateError,
     messages::{
         BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         VoteMessage,
@@ -8,6 +8,7 @@ use crate::types::{
     peer::internal_peerid,
     round_state::RoundState,
 };
+use kai_proto::types::SignedMsgType;
 use kai_types::{
     block::{Block, BlockId},
     block_operations::BlockOperations,
@@ -18,13 +19,14 @@ use kai_types::{
     proposal::Proposal,
     round::RoundStep,
     timestamp,
-    types::SignedMsgType,
+    vote::Vote,
 };
 use mockall::automock;
 use std::{
+    convert::TryInto,
     fmt::Debug,
     ops::{Add, Mul},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
     thread,
 };
 use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
@@ -51,16 +53,8 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
 pub struct ConsensusStateImpl {
     pub config: Arc<ConsensusConfig>,
     pub rs: Arc<Mutex<RoundState>>,
-    pub peer_msg_chan: (
-        Sender<Box<dyn ConsensusMessage>>,
-        Receiver<Box<dyn ConsensusMessage>>,
-    ),
-    pub internal_msg_chan: (
-        Sender<Box<dyn ConsensusMessage>>,
-        Receiver<Box<dyn ConsensusMessage>>,
-    ),
     pub msg_chan_sender: Sender<MessageInfo>,
-    pub msg_chan_receiver: Receiver<MessageInfo>,
+    pub msg_chan_receiver: Mutex<Receiver<MessageInfo>>,
     pub state: Arc<Box<dyn LatestBlockState>>,
     pub priv_validator: Arc<Box<dyn PrivValidator>>,
     pub block_operations: Arc<Box<dyn BlockOperations>>,
@@ -145,7 +139,7 @@ impl ConsensusStateImpl {
         block_exec: Arc<Box<dyn BlockExecutor>>,
         evidence_pool: Arc<Box<dyn EvidencePool>>,
     ) -> Self {
-        let (msg_chan_sender, msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
+        let (msg_chan_sender, mut msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
 
         Self {
             config: Arc::new(config),
@@ -155,10 +149,8 @@ impl ConsensusStateImpl {
             block_exec: block_exec,
             evidence_pool: evidence_pool,
             rs: Arc::new(Mutex::new(RoundState::new_default())),
-            peer_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
-            internal_msg_chan: tokio::sync::mpsc::channel(MSG_QUEUE_SIZE),
             msg_chan_sender: msg_chan_sender,
-            msg_chan_receiver: msg_chan_receiver,
+            msg_chan_receiver: Mutex::new(msg_chan_receiver),
         }
     }
 
@@ -253,9 +245,51 @@ impl ConsensusStateImpl {
                 && round == rs_guard.round
                 && rs_guard.step == RoundStep::Propose
             {
-                // TODO:
-                // broadcast <PREVOTE, h_p, round_p, nil>
-                // self.out_msg_chan.tx.try_send(message)
+                if let Some(validator_address) = self.clone().priv_validator.get_address() {
+                    log::debug!("propose timed out, sending prevote for nil");
+
+                    let vals = rs_guard.clone().validators;
+
+                    if let Some(iv) = vals.and_then(|v| v.get_by_address(validator_address)) {
+                        let (validator_index, _) = iv;
+
+                        let mut vote = Vote {
+                            r#type: SignedMsgType::Prevote.into(),
+                            height: rs_guard.height,
+                            round: rs_guard.round,
+                            block_id: Some(BlockId {
+                                hash: vec![],
+                                part_set_header: None,
+                            }),
+                            timestamp: Some(timestamp::now()),
+                            validator_address: validator_address.to_vec(),
+                            validator_index: validator_index.try_into().unwrap(),
+                            signature: vec![],
+                        };
+
+                        let chain_id = self.state.clone().get_chain_id();
+
+                        if let Ok(()) = self.clone().priv_validator.sign_vote(chain_id, &mut vote) {
+                            let msg = MessageInfo {
+                                msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                                    vote: Some(vote),
+                                })),
+                                peer_id: internal_peerid(),
+                            };
+                            if let Ok(()) = self.msg_chan_sender.blocking_send(msg) {
+                                log::debug!("signed and sent vote")
+                            } else {
+                                log::debug!("send vote failed");
+                            }
+                        } else {
+                            log::debug!("sign vote failed")
+                        }
+                    }
+                } else {
+                    log::debug!("cannot find validator index")
+                }
+            } else {
+                log::debug!("propose timed out, nil priv validator");
             }
             rs_guard.step = RoundStep::Precommit;
             drop(rs_guard);
@@ -376,6 +410,8 @@ impl ConsensusStateImpl {
         }
     }
 
+    // auxiliary functions
+
     fn create_proposal_block(self: Arc<Self>) -> (Option<Block>, Option<PartSet>) {
         todo!()
     }
@@ -397,6 +433,12 @@ impl ConsensusStateImpl {
             _ => false,
         }
     }
+
+    fn sign_vote(vote_type: SignedMsgType, block_id: Option<BlockId>) -> Option<Vote> {
+        // TODO this method implement create vote and signed vote
+        // if priv validator is nil, return None
+        todo!()
+    }
 }
 
 #[cfg(test)]
@@ -405,6 +447,7 @@ mod tests {
 
     use kai_types::{
         block_operations::MockBlockOperations,
+        common::address::Address,
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
@@ -438,25 +481,27 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        let mut rx = cs.msg_chan_receiver;
-
         let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
             proposal: None,
         }));
 
         let rc = thread::spawn(move || {
-            let rev_msg = rx.blocking_recv();
-            assert!(rev_msg.is_some());
+            if let Ok(mut rx_guard) = cs.msg_chan_receiver.lock() {
+                let rev_msg = rx_guard.blocking_recv();
+                assert!(rev_msg.is_some());
 
-            let msg_info = rev_msg.unwrap();
+                let msg_info = rev_msg.unwrap();
 
-            assert!(
-                msg_info.clone().peer_id == internal_peerid()
-                    && matches!(
-                        msg_info.clone().msg.clone().as_ref(),
-                        ConsensusMessageType::ProposalMessage(p)
-                    )
-            );
+                assert!(
+                    msg_info.clone().peer_id == internal_peerid()
+                        && matches!(
+                            msg_info.clone().msg.clone().as_ref(),
+                            ConsensusMessageType::ProposalMessage(p)
+                        )
+                );
+            } else {
+                panic!("should lock");
+            }
         });
 
         Runtime::new().unwrap().block_on(async move {
@@ -472,6 +517,26 @@ mod tests {
         rc.join().unwrap();
     }
 
+    pub const ADDR_1: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+    pub const ADDR_2: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
+    pub const ADDR_3: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3];
+
+    pub const VAL_1: Validator = Validator {
+        address: ADDR_1,
+        voting_power: 1,
+        proposer_priority: 1,
+    };
+    pub const VAL_2: Validator = Validator {
+        address: ADDR_2,
+        voting_power: 2,
+        proposer_priority: 2,
+    };
+    pub const VAL_3: Validator = Validator {
+        address: ADDR_3,
+        voting_power: 3,
+        proposer_priority: 3,
+    };
+
     #[test]
     fn is_proposer() {
         let m_latest_block_state = MockLatestBlockState::new();
@@ -480,33 +545,14 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        let addr_1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
-        let addr_3 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3];
+        // set ADDR_2 for our priv validator
+        m_priv_validator.expect_get_address().return_const(ADDR_2);
 
-        let val_1 = Validator {
-            address: addr_1,
-            voting_power: 1,
-            proposer_priority: 1,
-        };
-        let val_2 = Validator {
-            address: addr_2,
-            voting_power: 2,
-            proposer_priority: 2,
-        };
-        let val_3 = Validator {
-            address: addr_3,
-            voting_power: 3,
-            proposer_priority: 3,
-        };
-        let val_set = ValidatorSet {
-            validators: vec![val_1, val_2, val_3],
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
             proposer: None,
             total_voting_power: 6,
         };
-
-        // set ADDR_2 for our priv validator
-        m_priv_validator.expect_get_address().return_const(addr_2);
 
         let cs = ConsensusStateImpl::new(
             ConsensusConfig::new_default(),
@@ -533,7 +579,7 @@ mod tests {
         if let Ok(rs_guard) = acs.clone().rs.clone().lock() {
             let validator_set = rs_guard.clone().validators;
             assert!(
-                validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&addr_3)))
+                validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&ADDR_3)))
             );
         } else {
             panic!("could not lock round state for arrangement")
@@ -542,20 +588,30 @@ mod tests {
 
     #[test]
     fn propose_timeout_send_prevote_for_nil() {
-        let m_latest_block_state = MockLatestBlockState::new();
+        let mut m_latest_block_state = MockLatestBlockState::new();
         let mut m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        // set ADDR_2 for our priv validator
-        let addr_2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
-        m_priv_validator.expect_get_address().return_const(addr_2);
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const("".to_string());
+
+        let mut signature: Vec<u8> = vec![4, 5, 6];
+
+        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        m_priv_validator
+            .expect_sign_vote()
+            .returning(move |_, vote| {
+                vote.signature.append(&mut signature);
+                Ok(())
+            });
 
         let mut config = ConsensusConfig::new_default();
         config.timeout_propose = Duration::from_millis(100);
 
-        let mut cs = ConsensusStateImpl::new(
+        let cs = ConsensusStateImpl::new(
             config.clone(),
             Arc::new(Box::new(m_latest_block_state)),
             Arc::new(Box::new(m_priv_validator)),
@@ -563,37 +619,65 @@ mod tests {
             Arc::new(Box::new(m_block_executor)),
             Arc::new(Box::new(m_evidence_pool)),
         );
-
         let arc_cs = Arc::new(cs);
+        let arc_cs_2 = arc_cs.clone();
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
 
         // arrange round state
-        if let Ok(mut rs_guard) = arc_cs.clone().rs.clone().lock() {
+        if let Ok(mut rs_guard) = arc_cs.clone().rs.lock() {
             rs_guard.height = 1;
             rs_guard.round = 1;
+            rs_guard.validators = Some(val_set);
             drop(rs_guard);
         } else {
             panic!("could not lock round state for arrangement")
         }
 
-        let timeout_propose = config.timeout_propose;
+        let rc = thread::spawn(move || {
+            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
+                let rev_msg = rx_guard.blocking_recv();
+                assert!(rev_msg.is_some());
 
-        let _thread = thread::spawn(move || {
-            if let Ok(_) = arc_cs.clone().start() {
+                let msg_info = rev_msg.unwrap();
+                assert!(
+                    msg_info.clone().peer_id == internal_peerid()
+                        && match msg_info.clone().msg.clone().as_ref() {
+                            ConsensusMessageType::VoteMessage(vm) => vm.vote.is_some_and(|v| v
+                                .block_id
+                                .is_some_and(
+                                    |bid| bid.hash.len() == 0 && bid.part_set_header == None
+                                )),
+                            _ => false,
+                        }
+                );
             } else {
-                panic!("should not failed to start")
+                panic!("should lock");
+            }
+        });
+
+        let timeout_propose = config.timeout_propose;
+        Runtime::new().unwrap().block_on(async move {
+            if let Ok(_) = arc_cs_2.clone().start() {
+            } else {
+                panic!("should not failed to start");
             }
 
             // wait for propose timeout happens
             thread::sleep(timeout_propose.add(timeout_propose));
 
             // assertions
-            if let Some(rs) = arc_cs.clone().get_rs() {
+            if let Some(rs) = arc_cs_2.clone().get_rs() {
                 assert_eq!(rs.step, RoundStep::Precommit);
             } else {
                 panic!("should get round state")
             }
         });
 
-        _thread.join().unwrap();
+        rc.join().unwrap();
     }
 }
