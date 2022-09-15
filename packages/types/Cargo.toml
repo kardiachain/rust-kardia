@@ -15,4 +15,4 @@ edition = "2021"
 "num-traits" = "0.2"
 "sha3" = "0.10.4"
 
-"mockall" = "0.11.2"
+"mockall" = { version = "0.11.2", features = ["nightly"] }

@@ -39,6 +39,16 @@ impl ValidatorSet {
 
         return proposer;
     }
+
+    pub fn get_by_address(&self, address: Address) -> Option<(usize, Validator)> {
+        for (i, v) in self.validators.iter().enumerate() {
+            if address.eq(&v.address) {
+                return Some((i, v.clone()))
+            }
+        }
+
+        return None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
