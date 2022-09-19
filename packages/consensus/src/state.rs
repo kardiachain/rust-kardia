@@ -245,51 +245,52 @@ impl ConsensusStateImpl {
                 && round == rs_guard.round
                 && rs_guard.step == RoundStep::Propose
             {
-                if let Some(validator_address) = self.clone().priv_validator.get_address() {
-                    log::debug!("propose timed out, sending prevote for nil");
+                log::debug!("propose timed out, sending prevote for nil");
+                let validator_address = self
+                    .clone()
+                    .priv_validator
+                    .get_address()
+                    .expect("priv validator should not be nil");
+                let vals = rs_guard.clone().validators;
 
-                    let vals = rs_guard.clone().validators;
+                let (validator_index, _) = vals
+                    .and_then(|v| v.get_by_address(validator_address))
+                    .expect("cannot find validator index");
 
-                    if let Some(iv) = vals.and_then(|v| v.get_by_address(validator_address)) {
-                        let (validator_index, _) = iv;
+                let mut vote = Vote {
+                    r#type: SignedMsgType::Prevote.into(),
+                    height: rs_guard.height,
+                    round: rs_guard.round,
+                    block_id: Some(BlockId {
+                        hash: vec![],
+                        part_set_header: None,
+                    }),
+                    timestamp: Some(timestamp::now()),
+                    validator_address: validator_address.to_vec(),
+                    validator_index: validator_index.try_into().unwrap(),
+                    signature: vec![], // set nil for now, will be signed below
+                };
 
-                        let mut vote = Vote {
-                            r#type: SignedMsgType::Prevote.into(),
-                            height: rs_guard.height,
-                            round: rs_guard.round,
-                            block_id: Some(BlockId {
-                                hash: vec![],
-                                part_set_header: None,
-                            }),
-                            timestamp: Some(timestamp::now()),
-                            validator_address: validator_address.to_vec(),
-                            validator_index: validator_index.try_into().unwrap(),
-                            signature: vec![], // set nil for now, will be signed below
-                        };
+                let chain_id = self.state.clone().get_chain_id();
 
-                        let chain_id = self.state.clone().get_chain_id();
+                // signing vote
+                self.clone()
+                    .priv_validator
+                    .sign_vote(chain_id, &mut vote)
+                    .expect("sign vote failed");
 
-                        if let Ok(()) = self.clone().priv_validator.sign_vote(chain_id, &mut vote) {
-                            let msg = MessageInfo {
-                                msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                                    vote: Some(vote),
-                                })),
-                                peer_id: internal_peerid(),
-                            };
-                            if let Ok(()) = self.msg_chan_sender.blocking_send(msg) {
-                                log::debug!("signed and sent vote")
-                            } else {
-                                log::debug!("send vote failed");
-                            }
-                        } else {
-                            log::debug!("sign vote failed")
-                        }
-                    }
-                } else {
-                    log::debug!("cannot find validator index")
-                }
-            } else {
-                log::debug!("propose timed out, nil priv validator");
+                let msg = MessageInfo {
+                    msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                        vote: Some(vote),
+                    })),
+                    peer_id: internal_peerid(),
+                };
+
+                self.msg_chan_sender
+                    .blocking_send(msg)
+                    .expect("send vote failed");
+
+                log::debug!("signed and sent vote")
             }
             rs_guard.step = RoundStep::Prevote;
             drop(rs_guard);
@@ -673,7 +674,7 @@ mod tests {
 
             // assertions
             if let Some(rs) = arc_cs_2.clone().get_rs() {
-                assert_eq!(rs.step, RoundStep::Precommit);
+                assert_eq!(rs.step, RoundStep::Prevote);
             } else {
                 panic!("should get round state")
             }
