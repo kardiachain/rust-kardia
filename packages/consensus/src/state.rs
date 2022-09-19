@@ -1,6 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::ConsensusStateError,
+    error::ConsensusStateError::{self, CreateSignedVoteError},
     messages::{
         BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
         VoteMessage,
@@ -21,6 +21,7 @@ use kai_types::{
     timestamp,
     vote::Vote,
 };
+use log::debug;
 use mockall::automock;
 use std::{
     convert::TryInto,
@@ -246,51 +247,33 @@ impl ConsensusStateImpl {
                 && rs_guard.step == RoundStep::Propose
             {
                 log::debug!("propose timed out, sending prevote for nil");
-                let validator_address = self
-                    .clone()
-                    .priv_validator
-                    .get_address()
-                    .expect("priv validator should not be nil");
-                let vals = rs_guard.clone().validators;
 
-                let (validator_index, _) = vals
-                    .and_then(|v| v.get_by_address(validator_address))
-                    .expect("cannot find validator index");
-
-                let mut vote = Vote {
-                    r#type: SignedMsgType::Prevote.into(),
-                    height: rs_guard.height,
-                    round: rs_guard.round,
-                    block_id: Some(BlockId {
+                match self.clone().create_signed_vote(
+                    rs_guard.clone(),
+                    SignedMsgType::Prevote,
+                    BlockId {
                         hash: vec![],
                         part_set_header: None,
-                    }),
-                    timestamp: Some(timestamp::now()),
-                    validator_address: validator_address.to_vec(),
-                    validator_index: validator_index.try_into().unwrap(),
-                    signature: vec![], // set nil for now, will be signed below
+                    },
+                ) {
+                    Ok(signed_vote) => {
+                        let msg = MessageInfo {
+                            msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                                vote: Some(signed_vote),
+                            })),
+                            peer_id: internal_peerid(),
+                        };
+
+                        self.msg_chan_sender
+                            .blocking_send(msg)
+                            .expect("send vote failed"); // should panics here?
+
+                        log::debug!("signed and sent vote")
+                    }
+                    Err(reason) => {
+                        debug!("create signed vote failed, reason: {:?}", reason);
+                    }
                 };
-
-                let chain_id = self.state.clone().get_chain_id();
-
-                // signing vote
-                self.clone()
-                    .priv_validator
-                    .sign_vote(chain_id, &mut vote)
-                    .expect("sign vote failed");
-
-                let msg = MessageInfo {
-                    msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                        vote: Some(vote),
-                    })),
-                    peer_id: internal_peerid(),
-                };
-
-                self.msg_chan_sender
-                    .blocking_send(msg)
-                    .expect("send vote failed");
-
-                log::debug!("signed and sent vote")
             }
             rs_guard.step = RoundStep::Prevote;
             drop(rs_guard);
@@ -305,6 +288,8 @@ impl ConsensusStateImpl {
                 && round == rs_guard.round
                 && rs_guard.step == RoundStep::Prevote
             {
+                log::debug!("prevote timed out, sending precommit for nil");
+
                 // TODO:
                 // broadcast <PRECOMMIT, h_p, round_p, nil>
                 // self.out_msg_chan.tx.try_send(message)
@@ -436,10 +421,54 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn sign_vote(vote_type: SignedMsgType, block_id: Option<BlockId>) -> Option<Vote> {
-        // TODO this method implement create vote and signed vote
-        // if priv validator is nil, return None
-        todo!()
+    /**
+    Implements create vote and sign vote.
+    Nil priv validator returns empty vote.
+    Panics if any errors.
+     */
+    fn create_signed_vote(
+        self: Arc<Self>,
+        rs: RoundState,
+        vote_type: SignedMsgType,
+        block_id: BlockId,
+    ) -> Result<Vote, ConsensusStateError> {
+        match self.clone().priv_validator.get_address() {
+            Some(validator_address) => {
+                match rs
+                    .validators
+                    .and_then(|v| v.get_by_address(validator_address))
+                {
+                    Some(iv) => {
+                        let (validator_index, _) = iv;
+
+                        // create unsigned vote
+                        let mut vote = Vote {
+                            r#type: vote_type.into(),
+                            height: rs.height,
+                            round: rs.round,
+                            block_id: Some(block_id),
+                            timestamp: Some(timestamp::now()),
+                            validator_address: validator_address.to_vec(),
+                            validator_index: validator_index.try_into().unwrap(),
+                            signature: vec![], // set nil for now, will be signed below
+                        };
+
+                        let chain_id = self.state.clone().get_chain_id();
+
+                        // signing vote
+                        if let Ok(_) = self.clone().priv_validator.sign_vote(chain_id, &mut vote) {
+                            return Ok(vote);
+                        } else {
+                            return Err(CreateSignedVoteError("sign vote failed".to_owned()));
+                        }
+                    }
+                    None => Err(CreateSignedVoteError(
+                        "cannot find validator index".to_owned(),
+                    )),
+                }
+            }
+            None => Err(CreateSignedVoteError("nil priv validator".to_owned())),
+        }
     }
 }
 

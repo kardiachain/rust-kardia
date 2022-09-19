@@ -31,4 +31,6 @@ pub enum ConsensusStateError {
     UnknownMessageTypeError,
     #[error("lock failed: `{0}`")]
     LockFailed(String),
+    #[error("create signed vote error: `{0}`")]
+    CreateSignedVoteError(String),
 }
