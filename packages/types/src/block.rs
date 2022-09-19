@@ -8,6 +8,13 @@ pub struct BlockId {
     pub part_set_header: ::core::option::Option<PartSetHeader>,
 }
 
+pub fn new_zero_block_id() -> BlockId {
+    BlockId {
+        hash: vec![],
+        part_set_header: None,
+    }
+}
+
 impl PartialEq for BlockId {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash && self.part_set_header == other.part_set_header
