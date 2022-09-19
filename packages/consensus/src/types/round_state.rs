@@ -1,9 +1,12 @@
 use kai_types::{
     block::Block, consensus::height_vote_set::HeightVoteSet, part_set::PartSet, proposal::Proposal,
-    round::RoundStep, vote_set::VoteSet, validator_set::ValidatorSet,
+    round::RoundStep, validator_set::ValidatorSet, vote_set::VoteSet,
 };
 
-use std::fmt::Debug;
+use std::{collections::{HashMap, HashSet}, fmt::Debug};
+
+pub type RULE_NUMBER = u8;
+pub const RULE_4: RULE_NUMBER = 4;
 
 #[derive(Debug, Clone)]
 pub struct RoundState {
@@ -26,6 +29,11 @@ pub struct RoundState {
     pub votes: Option<HeightVoteSet>,
     pub commit_round: u32,
     pub last_commit: Option<VoteSet>,
+
+    /// a map from rule number to boolean.
+    /// true if rule has been trigger or else.
+    pub triggered_rules: HashSet<RULE_NUMBER>,
+
     // pub last_validators: Option<ValidatorSet>,
 }
 
@@ -50,6 +58,7 @@ impl RoundState {
             commit_round: 0,
             last_commit: None,
             votes: None,
+            triggered_rules: HashSet::new(),
         }
     }
 }
