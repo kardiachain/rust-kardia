@@ -87,11 +87,11 @@ while step_p = propose and (vr >= 0 and vr < round_p ) do
   step_p := prevote
 
 upon 4: 2f+1 <PREVOTE, h _p round_p, *> 
-while step_p= prevote for the ﬁrst time do 
+while step_p= prevote for the first time do 
   schedule timeoutPrevote(round_p): OnTimeoutPrevote(h_p , round_p) to be executed after timout
 
 upon 5: <PROPOSAL, h_p, round_p, v, *> from proposer(h_p, round_p) AND 2f+1 <PREVOTE, h_p, round_p, id(v)> 
-while valid(v) and step_p >= prevote for the ﬁrst time do
+while valid(v) and step_p >= prevote for the first time do
   if step_p= prevote then
     lockedValue_p := v
     lockedRound_p := round_p
