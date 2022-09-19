@@ -6,11 +6,11 @@ use crate::types::{
         VoteMessage,
     },
     peer::internal_peerid,
-    round_state::RoundState,
+    round_state::{RoundState, RULE_4},
 };
 
 use kai_types::{
-    block::{Block, BlockId},
+    block::{new_zero_block_id, Block, BlockId},
     block_operations::BlockOperations,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
@@ -25,6 +25,7 @@ use kai_types::{
 use log::debug;
 use mockall::automock;
 use std::{
+    collections::{HashMap, HashSet},
     convert::TryInto,
     fmt::Debug,
     ops::{Add, Mul},
@@ -203,7 +204,63 @@ impl ConsensusStateImpl {
     }
 
     fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
-        todo!()
+        let msg = msg.clone();
+        match msg.as_ref() {
+            ConsensusMessageType::ProposalMessage(_msg) => {
+                log::debug!(
+                    "checking upon rules for proposal: proposal={:?}",
+                    _msg.clone()
+                );
+                todo!()
+            }
+            ConsensusMessageType::VoteMessage(_msg) => {
+                log::debug!("set vote: vote={:?}", _msg.clone());
+
+                match _msg
+                    .clone()
+                    .vote
+                    .expect("vote should not nil")
+                    .r#type
+                    .into()
+                {
+                    SignedMsgType::Prevote => {
+                        if let Ok(mut rs_guard) = self.rs.clone().lock() {
+                            let rs = rs_guard.clone();
+
+                            if rs.step == RoundStep::Prevote {
+                                // checking rule #4
+                                if let Some(_) = rs
+                                    .votes
+                                    .expect("vote should not nil")
+                                    .prevotes(rs.round)
+                                    .expect("prevotes should not nil")
+                                    .two_thirds_majority()
+                                {
+                                    // if rule has not been triggered
+                                    if !rs_guard.triggered_rules.contains(&RULE_4) {
+                                        self.clone().schedule_timeout(rs.height, rs.round, rs.step);
+                                        // mark rule has triggered
+                                        rs_guard.triggered_rules.insert(RULE_4);
+                                    }
+                                }
+
+                                // checking rule #6
+                            }
+                            drop(rs_guard);
+                        } else {
+                            log::trace!("lock round state failed")
+                        }
+                    }
+                    SignedMsgType::Precommit => {
+                        todo!()
+                    }
+                    other => {
+                        debug!("no upon rules checking on vote type: {:?}", other)
+                    }
+                }
+            }
+            _ => {} // ignore other types
+        };
     }
 
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
@@ -241,6 +298,52 @@ impl ConsensusStateImpl {
         // TODO: check upons rule
     }
 
+    fn schedule_timeout(self: Arc<Self>, height: u64, round: u32, step: RoundStep) {
+        match step {
+            RoundStep::Propose => {
+                let timeout_propose = self.clone().get_config().timeout_propose.clone();
+                let timeout_propose_delta = self.clone().get_config().timeout_propose_delta.clone();
+                thread::spawn(move || {
+                    let sleep_duration = if round > 1 {
+                        timeout_propose.add(timeout_propose_delta.mul(round - 1))
+                    } else {
+                        timeout_propose
+                    };
+                    thread::sleep(sleep_duration);
+                    self.clone().on_timeout_propose(height, round);
+                });
+            }
+            RoundStep::Prevote => {
+                let timeout_prevote = self.clone().get_config().timeout_prevote.clone();
+                let timeout_prevote_delta = self.clone().get_config().timeout_prevote_delta.clone();
+                thread::spawn(move || {
+                    let sleep_duration = if round > 1 {
+                        timeout_prevote.add(timeout_prevote_delta.mul(round - 1))
+                    } else {
+                        timeout_prevote
+                    };
+                    thread::sleep(sleep_duration);
+                    self.clone().on_timeout_prevote(height, round);
+                });
+            }
+            RoundStep::Precommit => {
+                let timeout_precommit = self.clone().get_config().timeout_precommit.clone();
+                let timeout_precommit_delta =
+                    self.clone().get_config().timeout_precommit_delta.clone();
+                thread::spawn(move || {
+                    let sleep_duration = if round > 1 {
+                        timeout_precommit.add(timeout_precommit_delta.mul(round - 1))
+                    } else {
+                        timeout_precommit
+                    };
+                    thread::sleep(sleep_duration);
+                    self.clone().on_timeout_precommit(height, round);
+                });
+            }
+            _ => {}
+        }
+    }
+
     fn on_timeout_propose(self: Arc<Self>, height: u64, round: u32) {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             if height == rs_guard.height
@@ -252,10 +355,7 @@ impl ConsensusStateImpl {
                 match self.clone().create_signed_vote(
                     rs_guard.clone(),
                     SignedMsgType::Prevote,
-                    BlockId {
-                        hash: vec![],
-                        part_set_header: None,
-                    },
+                    new_zero_block_id(), // nil block
                 ) {
                     Ok(signed_vote) => {
                         let msg = MessageInfo {
@@ -294,11 +394,7 @@ impl ConsensusStateImpl {
                 match self.clone().create_signed_vote(
                     rs_guard.clone(),
                     SignedMsgType::Precommit,
-                    // nil block
-                    BlockId {
-                        hash: vec![],
-                        part_set_header: None,
-                    },
+                    new_zero_block_id(), // nil block
                 ) {
                     Ok(signed_vote) => {
                         let msg = MessageInfo {
@@ -342,23 +438,15 @@ impl ConsensusStateImpl {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
+            // clear triggered rules
+            rs_guard.triggered_rules.clear();
             let rs = rs_guard.clone();
             drop(rs_guard);
 
             if self.clone().is_proposer() {
                 self.clone().decide_proposal(rs);
             } else {
-                let timeout_propose = self.clone().get_config().timeout_propose.clone();
-                let timeout_propose_delta = self.clone().get_config().timeout_propose_delta.clone();
-                thread::spawn(move || {
-                    let sleep_duration = if round > 1 {
-                        timeout_propose.add(timeout_propose_delta.mul(round - 1))
-                    } else {
-                        timeout_propose
-                    };
-                    thread::sleep(sleep_duration);
-                    self.clone().on_timeout_propose(rs.height, rs.round);
-                });
+                self.clone().schedule_timeout(rs.height, rs.round, rs.step);
             }
         } else {
             log::trace!("lock round state failed")
