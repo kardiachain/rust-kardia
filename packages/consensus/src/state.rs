@@ -264,7 +264,7 @@ impl ConsensusStateImpl {
                             timestamp: Some(timestamp::now()),
                             validator_address: validator_address.to_vec(),
                             validator_index: validator_index.try_into().unwrap(),
-                            signature: vec![],
+                            signature: vec![], // set nil for now, will be signed below
                         };
 
                         let chain_id = self.state.clone().get_chain_id();
@@ -291,7 +291,7 @@ impl ConsensusStateImpl {
             } else {
                 log::debug!("propose timed out, nil priv validator");
             }
-            rs_guard.step = RoundStep::Precommit;
+            rs_guard.step = RoundStep::Prevote;
             drop(rs_guard);
         } else {
             log::trace!("lock round state failed")
@@ -317,10 +317,11 @@ impl ConsensusStateImpl {
 
     fn on_timeout_precommit(self: Arc<Self>, height: u64, round: u32) {
         if let Ok(rs_guard) = self.rs.clone().lock() {
-            if height == rs_guard.height && round == rs_guard.round {
-                // TODO: self.start_round(rs_guard.round + 1);
-            }
+            let rs = rs_guard.clone();
             drop(rs_guard);
+            if height == rs.height && round == rs.round {
+                self.start_new_round(rs.round + 1);
+            }
         } else {
             log::trace!("lock round state failed")
         }
