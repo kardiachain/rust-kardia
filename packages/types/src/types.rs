@@ -23,3 +23,14 @@ impl SignedMsgType {
         }
     }
 }
+
+impl From<i32> for SignedMsgType {
+    fn from(s: i32) -> Self {
+        match s {
+            1 => Self::Prevote,
+            2 => Self::Precommit,
+            32 => Self::Proposal,
+            _ => Self::Unknown,
+        }
+    }
+}

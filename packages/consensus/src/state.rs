@@ -8,7 +8,7 @@ use crate::types::{
     peer::internal_peerid,
     round_state::RoundState,
 };
-use kai_proto::types::SignedMsgType;
+
 use kai_types::{
     block::{Block, BlockId},
     block_operations::BlockOperations,
@@ -19,6 +19,7 @@ use kai_types::{
     proposal::Proposal,
     round::RoundStep,
     timestamp,
+    types::SignedMsgType,
     vote::Vote,
 };
 use log::debug;
@@ -290,9 +291,33 @@ impl ConsensusStateImpl {
             {
                 log::debug!("prevote timed out, sending precommit for nil");
 
-                // TODO:
-                // broadcast <PRECOMMIT, h_p, round_p, nil>
-                // self.out_msg_chan.tx.try_send(message)
+                match self.clone().create_signed_vote(
+                    rs_guard.clone(),
+                    SignedMsgType::Precommit,
+                    // nil block
+                    BlockId {
+                        hash: vec![],
+                        part_set_header: None,
+                    },
+                ) {
+                    Ok(signed_vote) => {
+                        let msg = MessageInfo {
+                            msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                                vote: Some(signed_vote),
+                            })),
+                            peer_id: internal_peerid(),
+                        };
+
+                        self.msg_chan_sender
+                            .blocking_send(msg)
+                            .expect("send vote failed"); // should panics here?
+
+                        log::debug!("signed and sent vote")
+                    }
+                    Err(reason) => {
+                        debug!("create signed vote failed, reason: {:?}", reason);
+                    }
+                };
             }
             rs_guard.step = RoundStep::Precommit;
             drop(rs_guard);
@@ -483,6 +508,7 @@ mod tests {
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
         round::RoundStep,
+        types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
     };
     use tokio::runtime::Runtime;
@@ -704,6 +730,145 @@ mod tests {
             // assertions
             if let Some(rs) = arc_cs_2.clone().get_rs() {
                 assert_eq!(rs.step, RoundStep::Prevote);
+            } else {
+                panic!("should get round state")
+            }
+        });
+
+        rc.join().unwrap();
+    }
+
+    #[test]
+    fn prevote_timeout_send_precommit_for_nil() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let mut m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const("".to_string());
+
+        let mut signature: Vec<u8> = vec![4, 5, 6];
+
+        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        m_priv_validator
+            .expect_sign_vote()
+            .returning(move |_, vote| {
+                vote.signature.append(&mut signature);
+                Ok(())
+            });
+
+        let mut config = ConsensusConfig::new_default();
+        config.timeout_propose = Duration::from_millis(100);
+        config.timeout_prevote = Duration::from_millis(100);
+
+        let cs = ConsensusStateImpl::new(
+            config.clone(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+        let arc_cs = Arc::new(cs);
+        let arc_cs_2 = arc_cs.clone();
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
+
+        // arrange round state
+        if let Ok(mut rs_guard) = arc_cs.clone().rs.lock() {
+            rs_guard.height = 1;
+            rs_guard.round = 1;
+            rs_guard.step = RoundStep::Propose;
+            rs_guard.validators = Some(val_set);
+            drop(rs_guard);
+        } else {
+            panic!("could not lock round state for arrangement")
+        }
+
+        // thread listens for msg and do assertions.
+        let rc = thread::spawn(move || {
+            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
+                let mut total_received_msg = 0;
+                while let Some(rev_msg) = rx_guard.blocking_recv() {
+                    total_received_msg += 1;
+
+                    match total_received_msg {
+                        1 => {
+                            let msg_info = rev_msg;
+                            assert!(
+                                msg_info.clone().peer_id == internal_peerid()
+                                    && match msg_info.clone().msg.clone().as_ref() {
+                                        ConsensusMessageType::VoteMessage(vm) =>
+                                            vm.vote.is_some_and(|v| v
+                                                .block_id
+                                                .is_some_and(|bid| bid.hash.len() == 0
+                                                    && bid.part_set_header == None)
+                                                && matches!(
+                                                    v.r#type.into(),
+                                                    SignedMsgType::Prevote
+                                                )),
+                                        _ => false,
+                                    }
+                            );
+                        }
+                        2 => {
+                            let msg_info = rev_msg;
+                            assert!(
+                                msg_info.clone().peer_id == internal_peerid()
+                                    && match msg_info.clone().msg.clone().as_ref() {
+                                        ConsensusMessageType::VoteMessage(vm) =>
+                                            vm.vote.is_some_and(|v| v
+                                                .block_id
+                                                .is_some_and(|bid| bid.hash.len() == 0
+                                                    && bid.part_set_header == None)
+                                                && matches!(
+                                                    v.r#type.into(),
+                                                    SignedMsgType::Precommit
+                                                )),
+                                        _ => false,
+                                    }
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            } else {
+                panic!("should lock");
+            }
+        });
+
+        let timeout_propose = config.timeout_propose;
+        let timeout_prevote = config.timeout_prevote;
+        Runtime::new().unwrap().block_on(async move {
+            // start consensus state
+            if let Ok(_) = arc_cs_2.clone().start() {
+            } else {
+                panic!("should not failed to start");
+            }
+
+            // wait for propose timeout happens
+            thread::sleep(timeout_propose.add(timeout_propose));
+
+            // assertions
+            if let Some(rs) = arc_cs_2.clone().get_rs() {
+                assert_eq!(rs.step, RoundStep::Prevote);
+            } else {
+                panic!("should get round state")
+            }
+
+            // wait for prevote timeout happens
+            thread::sleep(timeout_prevote.add(timeout_prevote));
+
+            // assertions
+            if let Some(rs) = arc_cs_2.clone().get_rs() {
+                assert_eq!(rs.step, RoundStep::Precommit);
             } else {
                 panic!("should get round state")
             }
