@@ -1,4 +1,5 @@
 #![feature(is_some_with)]
+#![feature(async_closure)]
 
 mod types;
 mod reactor;

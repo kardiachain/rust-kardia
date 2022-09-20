@@ -6,7 +6,7 @@ pub trait VoteSetReader: Debug + Sync + Send + 'static {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoteSet {
-    maj23: Option<BlockId>,
+    pub maj23: Option<BlockId>,
 }
 
 impl VoteSet {

@@ -1,25 +1,39 @@
 use std::collections::HashMap;
 
-use crate::{peer::PeerId, validator_set::ValidatorSet, vote_set::VoteSet};
+use crate::{peer::PeerId, types::SignedMsgType, validator_set::ValidatorSet, vote_set::VoteSet};
 
 #[derive(Debug, Clone)]
 pub struct HeightVoteSet {
-    chain_id: String,
-    height: u64,
-    validator_set: Option<ValidatorSet>,
+    pub chain_id: String,
+    pub height: u64,
+    pub round: u32,
 
-    round: u32,
-    round_vote_sets: HashMap<u32, RoundVoteSet>,
-    peer_catchup_rounds: HashMap<PeerId, Vec<u32>>,
+    pub validator_set: Option<ValidatorSet>,
+    pub round_vote_sets: HashMap<u32, RoundVoteSet>,
+    pub peer_catchup_rounds: HashMap<PeerId, Vec<u32>>,
 }
 
 impl HeightVoteSet {
     pub fn prevotes(&self, round: u32) -> Option<VoteSet> {
-        todo!()
+        self.get_vote_set(round, SignedMsgType::Prevote)
     }
+
     pub fn precommits(&self, round: u32) -> Option<VoteSet> {
-        todo!()
+        self.get_vote_set(round, SignedMsgType::Precommit)
     }
+
+    pub fn get_vote_set(&self, round: u32, signed_msg_type: SignedMsgType) -> Option<VoteSet> {
+        if let Some(rvs) = self.round_vote_sets.get(&round) {
+            match signed_msg_type {
+                SignedMsgType::Prevote => rvs.prevotes.clone(),
+                SignedMsgType::Precommit => rvs.precommits.clone(),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     pub fn set_peer_maj23(&self) -> Result<(), String> {
         todo!()
     }
@@ -27,6 +41,6 @@ impl HeightVoteSet {
 
 #[derive(Debug, Clone)]
 pub struct RoundVoteSet {
-    prevotes: Option<VoteSet>,
-    precommits: Option<VoteSet>,
+    pub prevotes: Option<VoteSet>,
+    pub precommits: Option<VoteSet>,
 }
