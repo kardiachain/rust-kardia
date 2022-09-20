@@ -246,6 +246,7 @@ impl ConsensusStateImpl {
                                 }
 
                                 // checking rule #6
+                                // TODO:
                             }
                             drop(rs_guard);
                         } else {
@@ -253,7 +254,7 @@ impl ConsensusStateImpl {
                         }
                     }
                     SignedMsgType::Precommit => {
-                        todo!()
+                        // TODO:
                     }
                     other => {
                         debug!("no upon rules checking on vote type: {:?}", other)
@@ -590,6 +591,7 @@ mod tests {
     use std::{collections::HashMap, ops::Add, sync::Arc, thread, time::Duration};
 
     use kai_types::{
+        block::new_zero_block_id,
         block_operations::MockBlockOperations,
         common::address::Address,
         consensus::{
@@ -866,7 +868,7 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
         let arc_cs = Arc::new(cs);
-        let arc_cs_2 = arc_cs.clone();
+        let arc_cs_1 = arc_cs.clone();
 
         let val_set: ValidatorSet = ValidatorSet {
             validators: vec![VAL_1, VAL_2, VAL_3],
@@ -879,94 +881,60 @@ mod tests {
             rs_guard.height = 1;
             rs_guard.round = 1;
             rs_guard.step = RoundStep::Propose;
-            rs_guard.validators = Some(val_set);
+            rs_guard.validators = Some(val_set.clone());
+            let rs = rs_guard.clone();
+            let mut hvs = HeightVoteSet {
+                chain_id: "".to_owned(),
+                height: 1,
+                round: 1,
+                validator_set: Some(val_set.clone()),
+                round_vote_sets: HashMap::new(),
+                peer_catchup_rounds: HashMap::new(),
+            };
+            hvs.round_vote_sets.insert(
+                rs.round,
+                RoundVoteSet {
+                    prevotes: Some(VoteSet {
+                        maj23: Some(new_zero_block_id()),
+                    }),
+                    precommits: None,
+                },
+            );
+
+            rs_guard.votes = Some(hvs);
             drop(rs_guard);
         } else {
             panic!("could not lock round state for arrangement")
         }
 
-        // thread listens for msg and do assertions.
-        let rc = thread::spawn(move || {
-            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
-                let mut total_received_msg = 0;
-                while let Some(rev_msg) = rx_guard.blocking_recv() {
-                    total_received_msg += 1;
-
-                    match total_received_msg {
-                        1 => {
-                            let msg_info = rev_msg;
-                            assert!(
-                                msg_info.clone().peer_id == internal_peerid()
-                                    && match msg_info.clone().msg.clone().as_ref() {
-                                        ConsensusMessageType::VoteMessage(vm) =>
-                                            vm.vote.is_some_and(|v| v
-                                                .block_id
-                                                .is_some_and(|bid| bid.hash.len() == 0
-                                                    && bid.part_set_header == None)
-                                                && matches!(
-                                                    v.r#type.into(),
-                                                    SignedMsgType::Prevote
-                                                )),
-                                        _ => false,
-                                    }
-                            );
-                        }
-                        2 => {
-                            let msg_info = rev_msg;
-                            assert!(
-                                msg_info.clone().peer_id == internal_peerid()
-                                    && match msg_info.clone().msg.clone().as_ref() {
-                                        ConsensusMessageType::VoteMessage(vm) =>
-                                            vm.vote.is_some_and(|v| v
-                                                .block_id
-                                                .is_some_and(|bid| bid.hash.len() == 0
-                                                    && bid.part_set_header == None)
-                                                && matches!(
-                                                    v.r#type.into(),
-                                                    SignedMsgType::Precommit
-                                                )),
-                                        _ => false,
-                                    }
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-            } else {
-                panic!("should lock");
-            }
-        });
-
         let timeout_propose = config.timeout_propose;
         let timeout_prevote = config.timeout_prevote;
+
+        // start this task first
+        thread::spawn(move || {
+            let cs = arc_cs_1.clone();
+            cs.process_msg_chan();
+        });
+
+        // then starts this task and wait until complete
         Runtime::new().unwrap().block_on(async move {
-            // start consensus state
-            if let Ok(_) = arc_cs_2.clone().start() {
-            } else {
-                panic!("should not failed to start");
-            }
+            let cs = arc_cs.clone();
+            // start consensus state at new round
+            cs.clone().start().expect("should start successfully");
 
             // wait for propose timeout happens
             thread::sleep(timeout_propose.add(timeout_propose));
 
             // assertions
-            if let Some(rs) = arc_cs_2.clone().get_rs() {
-                assert_eq!(rs.step, RoundStep::Prevote);
-            } else {
-                panic!("should get round state")
-            }
+            let rs = cs.clone().get_rs().expect("should get round state");
+            assert_eq!(rs.step, RoundStep::Prevote);
 
             // wait for prevote timeout happens
             thread::sleep(timeout_prevote.add(timeout_prevote));
 
             // assertions
-            if let Some(rs) = arc_cs_2.clone().get_rs() {
-                assert_eq!(rs.step, RoundStep::Precommit);
-            } else {
-                panic!("should get round state")
-            }
+            let rs = cs.clone().get_rs().expect("should get round state");
+            assert_eq!(rs.step, RoundStep::Precommit);
         });
-
-        rc.join().unwrap();
     }
 }
