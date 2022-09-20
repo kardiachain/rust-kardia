@@ -29,7 +29,7 @@ use std::{
     convert::TryInto,
     fmt::Debug,
     ops::{Add, Mul},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
     thread,
 };
 use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
@@ -63,12 +63,6 @@ pub struct ConsensusStateImpl {
     pub block_operations: Arc<Box<dyn BlockOperations>>,
     pub block_exec: Arc<Box<dyn BlockExecutor>>,
     pub evidence_pool: Arc<Box<dyn EvidencePool>>,
-}
-
-#[derive(Debug)]
-pub struct ConsensusMsgChan<T> {
-    pub tx: Sender<T>,
-    pub rx: Receiver<T>,
 }
 
 impl ConsensusState for ConsensusStateImpl {
@@ -113,9 +107,11 @@ impl ConsensusState for ConsensusStateImpl {
         self.clone().msg_chan_sender.try_send(msg_info)
     }
 
+    /// should be called from node instance
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
         // TODO:
 
+        // Start new round
         if let Ok(rs_guard) = self.clone().rs.clone().lock() {
             let round = rs_guard.round;
             drop(rs_guard);
@@ -157,49 +153,54 @@ impl ConsensusStateImpl {
         }
     }
 
-    async fn process_msg_chan(self: Arc<Self>, mut msg_chan_receiver: Receiver<MessageInfo>) {
-        while let Some(msg_info) = msg_chan_receiver.recv().await {
-            let msg = msg_info.msg.clone();
-            match msg.as_ref() {
-                ConsensusMessageType::ProposalMessage(_msg) => {
-                    log::debug!("set proposal: proposal={:?}", _msg.clone());
-                    if let Err(e) = self.clone().set_proposal(_msg.clone()) {
-                        log::error!(
-                            "set proposal failed: peerid={} msg={:?}, err={}",
-                            msg_info.peer_id,
-                            _msg.clone(),
-                            e
-                        );
+    fn process_msg_chan(self: Arc<Self>) {
+        if let Ok(mut msg_chan_receiver) = self.clone().msg_chan_receiver.lock() {
+            while let Some(msg_info) = msg_chan_receiver.blocking_recv() {
+                let msg = msg_info.msg.clone();
+                match msg.as_ref() {
+                    ConsensusMessageType::ProposalMessage(_msg) => {
+                        log::debug!("set proposal: proposal={:?}", _msg.clone());
+                        if let Err(e) = self.clone().set_proposal(_msg.clone()) {
+                            log::error!(
+                                "set proposal failed: peerid={} msg={:?}, err={}",
+                                msg_info.peer_id,
+                                _msg.clone(),
+                                e
+                            );
+                        }
                     }
-                }
-                ConsensusMessageType::BlockPartMessage(_msg) => {
-                    log::debug!("set block part: blockpart={:?}", _msg.clone());
-                    if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
-                        log::error!(
-                            "set block part failed: peerid={} msg={:?}, err={}",
-                            msg_info.peer_id,
-                            _msg.clone(),
-                            e
-                        );
+                    ConsensusMessageType::BlockPartMessage(_msg) => {
+                        log::debug!("set block part: blockpart={:?}", _msg.clone());
+                        if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
+                            log::error!(
+                                "set block part failed: peerid={} msg={:?}, err={}",
+                                msg_info.peer_id,
+                                _msg.clone(),
+                                e
+                            );
+                        }
                     }
-                }
-                ConsensusMessageType::VoteMessage(_msg) => {
-                    log::debug!("set vote: vote={:?}", _msg.clone());
-                    if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
-                        log::error!(
-                            "set vote failed: peerid={} msg={:?}, err={}",
-                            msg_info.peer_id,
-                            _msg.clone(),
-                            e
-                        );
+                    ConsensusMessageType::VoteMessage(_msg) => {
+                        log::debug!("set vote: vote={:?}", _msg.clone());
+                        if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
+                            log::error!(
+                                "set vote failed: peerid={} msg={:?}, err={}",
+                                msg_info.peer_id,
+                                _msg.clone(),
+                                e
+                            );
+                        }
                     }
-                }
-                _ => {
-                    log::error!("unknown msg type: type={:?}", msg);
-                }
-            };
+                    _ => {
+                        log::error!("unknown msg type: type={:?}", msg);
+                    }
+                };
 
-            self.clone().check_upon_rules(msg);
+                self.clone().check_upon_rules(msg);
+            }
+        } else {
+            log::error!("cannot lock on msg_chan_receiver");
+            panic!("cannot lock on msg_chan_receiver");
         }
     }
 
@@ -290,12 +291,11 @@ impl ConsensusStateImpl {
     }
 
     fn try_add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
-        todo!()
-
         // route votes
         // - listen for 2/3 votes
 
         // TODO: check upons rule
+        Ok(())
     }
 
     fn schedule_timeout(self: Arc<Self>, height: u64, round: u32, step: RoundStep) {
@@ -587,17 +587,22 @@ impl ConsensusStateImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Add, sync::Arc, thread, time::Duration};
+    use std::{collections::HashMap, ops::Add, sync::Arc, thread, time::Duration};
 
     use kai_types::{
         block_operations::MockBlockOperations,
         common::address::Address,
-        consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
+        consensus::{
+            executor::MockBlockExecutor,
+            height_vote_set::{HeightVoteSet, RoundVoteSet},
+            state::MockLatestBlockState,
+        },
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
         round::RoundStep,
         types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
+        vote_set::VoteSet,
     };
     use tokio::runtime::Runtime;
 
