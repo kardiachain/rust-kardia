@@ -6,7 +6,7 @@ use crate::types::{
         VoteMessage,
     },
     peer::internal_peerid,
-    round_state::{RoundState, RULE_4},
+    round_state::{RoundState, RULE_4, RULE_7},
 };
 
 use kai_types::{
@@ -239,7 +239,11 @@ impl ConsensusStateImpl {
                                 {
                                     // if rule has not been triggered
                                     if !rs_guard.triggered_rules.contains(&RULE_4) {
-                                        self.clone().schedule_timeout(rs.height, rs.round, rs.step);
+                                        self.clone().schedule_timeout(
+                                            rs.height,
+                                            rs.round,
+                                            RoundStep::Prevote,
+                                        );
                                         // mark rule has triggered
                                         rs_guard.triggered_rules.insert(RULE_4);
                                     }
@@ -254,7 +258,33 @@ impl ConsensusStateImpl {
                         }
                     }
                     SignedMsgType::Precommit => {
-                        // TODO:
+                        if let Ok(mut rs_guard) = self.rs.clone().lock() {
+                            let rs = rs_guard.clone();
+
+                            // checking rule #7
+                            if let Some(_) = rs
+                                .votes
+                                .expect("vote should not nil")
+                                .precommits(rs.round)
+                                .expect("precommits should not nil")
+                                .two_thirds_majority()
+                            {
+                                // if rule has not been triggered
+                                if !rs_guard.triggered_rules.contains(&RULE_7) {
+                                    self.clone().schedule_timeout(
+                                        rs.height,
+                                        rs.round,
+                                        RoundStep::Precommit,
+                                    );
+                                    // mark rule has triggered
+                                    rs_guard.triggered_rules.insert(RULE_7);
+                                }
+                            }
+
+                            drop(rs_guard);
+                        } else {
+                            log::trace!("lock round state failed")
+                        }
                     }
                     other => {
                         debug!("no upon rules checking on vote type: {:?}", other)
@@ -935,6 +965,115 @@ mod tests {
             // assertions
             let rs = cs.clone().get_rs().expect("should get round state");
             assert_eq!(rs.step, RoundStep::Precommit);
+        });
+    }
+
+    #[test]
+    fn precommit_timeout_start_new_round() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let mut m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const("".to_string());
+
+        let mut signature: Vec<u8> = vec![4, 5, 6];
+
+        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        m_priv_validator
+            .expect_sign_vote()
+            .returning(move |_, vote| {
+                vote.signature.append(&mut signature);
+                Ok(())
+            });
+
+        let mut config = ConsensusConfig::new_default();
+        config.timeout_propose = Duration::from_millis(100);
+        config.timeout_prevote = Duration::from_millis(100);
+        config.timeout_precommit = Duration::from_millis(100);
+
+        let cs = ConsensusStateImpl::new(
+            config.clone(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
+
+        // arrange round state
+        let binding = arc_cs_1.clone();
+        let mut rs_guard = binding.rs.lock().expect("should lock ok");
+        rs_guard.height = 1;
+        rs_guard.round = 1;
+        rs_guard.step = RoundStep::Propose;
+        rs_guard.validators = Some(val_set.clone());
+        let rs = rs_guard.clone();
+        let mut hvs = HeightVoteSet {
+            chain_id: "".to_owned(),
+            height: 1,
+            round: 1,
+            validator_set: Some(val_set.clone()),
+            round_vote_sets: HashMap::new(),
+            peer_catchup_rounds: HashMap::new(),
+        };
+        hvs.round_vote_sets.insert(
+            rs.round,
+            RoundVoteSet {
+                prevotes: Some(VoteSet {
+                    maj23: Some(new_zero_block_id()),
+                }),
+                precommits: Some(VoteSet {
+                    maj23: Some(new_zero_block_id()),
+                }),
+            },
+        );
+
+        rs_guard.votes = Some(hvs);
+        drop(rs_guard);
+
+        let timeout_propose = config.timeout_propose;
+        let timeout_prevote = config.timeout_prevote;
+        let timeout_precommit = config.timeout_precommit;
+
+        // start this task first
+        thread::spawn(move || {
+            let cs = arc_cs_1.clone();
+            cs.process_msg_chan();
+        });
+
+        // then starts this task and wait until complete
+        Runtime::new().unwrap().block_on(async move {
+            let cs = arc_cs.clone();
+            // start consensus state at new round
+            cs.clone().start().expect("should start successfully");
+            let last_rs = cs.clone().get_rs().expect("should get round state");
+
+            // wait for propose timeout happens
+            thread::sleep(timeout_propose.add(timeout_propose));
+
+            // wait for prevote timeout happens
+            thread::sleep(timeout_prevote.add(timeout_prevote));
+
+            // wait for precommit timeout happens
+            thread::sleep(timeout_precommit.add(timeout_precommit));
+
+            // assertions
+            let rs = cs.clone().get_rs().expect("should get round state");
+            assert_eq!(rs.step, RoundStep::Propose);
+            assert_eq!(rs.height, last_rs.height); // assert height
+            assert_eq!(rs.round, last_rs.round + 1); // assert new round
         });
     }
 }
