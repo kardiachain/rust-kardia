@@ -1,10 +1,7 @@
 use crate::types::{
     config::ConsensusConfig,
     error::ConsensusStateError::{self, CreateSignedVoteError},
-    messages::{
-        BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo, ProposalMessage,
-        VoteMessage,
-    },
+    messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_7},
 };
@@ -25,11 +22,10 @@ use kai_types::{
 use log::debug;
 use mockall::automock;
 use std::{
-    collections::{HashMap, HashSet},
     convert::TryInto,
     fmt::Debug,
     ops::{Add, Mul},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex},
     thread,
 };
 use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
@@ -44,11 +40,10 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_block_exec(&self) -> Arc<Box<dyn BlockExecutor>>;
     fn get_evidence_pool(&self) -> Arc<Box<dyn EvidencePool>>;
     fn get_rs(&self) -> Option<RoundState>;
-    fn send_peer_msg_chan(&self, msg_info: MessageInfo);
-    fn send_internal_msg_chan(&self, msg_info: MessageInfo);
-    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
+    fn external_send(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
+    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
 }
 
@@ -95,12 +90,8 @@ impl ConsensusState for ConsensusStateImpl {
         }
     }
 
-    fn send_peer_msg_chan(&self, msg_info: MessageInfo) {
-        todo!()
-    }
-
-    fn send_internal_msg_chan(&self, msg_info: MessageInfo) {
-        todo!()
+    fn external_send(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
+        self.clone().msg_chan_sender.try_send(msg_info)
     }
 
     fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
@@ -138,7 +129,7 @@ impl ConsensusStateImpl {
         block_exec: Arc<Box<dyn BlockExecutor>>,
         evidence_pool: Arc<Box<dyn EvidencePool>>,
     ) -> Self {
-        let (msg_chan_sender, mut msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
+        let (msg_chan_sender, msg_chan_receiver) = tokio::sync::mpsc::channel(MSG_QUEUE_SIZE);
 
         Self {
             config: Arc::new(config),
@@ -632,7 +623,6 @@ mod tests {
         evidence::MockEvidencePool,
         priv_validator::MockPrivValidator,
         round::RoundStep,
-        types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
         vote_set::VoteSet,
     };
@@ -647,7 +637,7 @@ mod tests {
     use super::{ConsensusState, ConsensusStateImpl};
 
     #[test]
-    fn send() {
+    fn internal_send() {
         let m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -678,7 +668,7 @@ mod tests {
                     msg_info.clone().peer_id == internal_peerid()
                         && matches!(
                             msg_info.clone().msg.clone().as_ref(),
-                            ConsensusMessageType::ProposalMessage(p)
+                            ConsensusMessageType::ProposalMessage(_)
                         )
                 );
             } else {
@@ -927,7 +917,9 @@ mod tests {
                     prevotes: Some(VoteSet {
                         maj23: Some(new_zero_block_id()),
                     }),
-                    precommits: None,
+                    precommits: Some(VoteSet {
+                        maj23: Some(new_zero_block_id()),
+                    }),
                 },
             );
 
@@ -954,10 +946,6 @@ mod tests {
 
             // wait for propose timeout happens
             thread::sleep(timeout_propose.add(timeout_propose));
-
-            // assertions
-            let rs = cs.clone().get_rs().expect("should get round state");
-            assert_eq!(rs.step, RoundStep::Prevote);
 
             // wait for prevote timeout happens
             thread::sleep(timeout_prevote.add(timeout_prevote));

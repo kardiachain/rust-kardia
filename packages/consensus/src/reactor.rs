@@ -273,7 +273,7 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match msg.as_ref() {
             ConsensusMessageType::ProposalMessage(_msg) => {
-                self.cs.send_peer_msg_chan(MessageInfo {
+                _ = self.cs.external_send(MessageInfo {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -297,7 +297,7 @@ impl ConsensusReactorImpl {
                 }
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
-                self.cs.send_peer_msg_chan(MessageInfo {
+                _ = self.cs.external_send(MessageInfo {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -322,7 +322,7 @@ impl ConsensusReactorImpl {
         match msg.as_ref() {
             ConsensusMessageType::VoteMessage(_msg) => {
                 if let Some(vote) = _msg.vote.clone() {
-                    self.cs.send_peer_msg_chan(MessageInfo {
+                    _ = self.cs.external_send(MessageInfo {
                         peer_id: src.get_id().clone(),
                         msg: msg.clone(),
                     });
@@ -869,12 +869,12 @@ impl ConsensusReactorImpl {
 #[cfg(test)]
 mod tests {
     use std::{
-        convert::{TryFrom, TryInto},
+        convert::{TryInto},
         sync::{Arc, Mutex},
     };
 
     use crate::{
-        reactor::{ConsensusReactor, ConsensusReactorImpl, DATA_CHANNEL, STATE_CHANNEL},
+        reactor::{ConsensusReactor, ConsensusReactorImpl, DATA_CHANNEL},
         state::MockConsensusState,
         types::{
             config::ConsensusConfig,
@@ -1111,9 +1111,9 @@ mod tests {
         let mock_peer_id = "".to_string();
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
-            .expect_send_peer_msg_chan()
+            .expect_external_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
-            .return_const(());
+            .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();
         mock_ps
@@ -1199,9 +1199,9 @@ mod tests {
         let mock_peer_id = "".to_string();
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
-            .expect_send_peer_msg_chan()
+            .expect_external_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
-            .return_const(());
+            .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();
         mock_ps
@@ -1274,9 +1274,9 @@ mod tests {
             .expect_get_rs()
             .returning(|| Some(RoundState::new_default()));
         mock_cs
-            .expect_send_peer_msg_chan()
+            .expect_external_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
-            .return_const(());
+            .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();
         mock_ps
