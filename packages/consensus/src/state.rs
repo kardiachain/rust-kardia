@@ -9,7 +9,7 @@ use crate::types::{
 use async_trait::async_trait;
 
 use kai_types::{
-    block::{new_zero_block_id, Block, BlockId},
+    block::{Block, BlockId},
     block_operations::BlockOperations,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     evidence::EvidencePool,
@@ -386,7 +386,7 @@ impl ConsensusStateImpl {
                 match self.clone().create_signed_vote(
                     rs_guard.clone(),
                     SignedMsgType::Prevote,
-                    new_zero_block_id(), // nil block
+                    BlockId::new_zero_block_id(), // nil block
                 ) {
                     Ok(signed_vote) => {
                         let msg = MessageInfo {
@@ -425,7 +425,7 @@ impl ConsensusStateImpl {
                 match self.clone().create_signed_vote(
                     rs_guard.clone(),
                     SignedMsgType::Precommit,
-                    new_zero_block_id(), // nil block
+                    BlockId::new_zero_block_id(), // nil block
                 ) {
                     Ok(signed_vote) => {
                         let msg = MessageInfo {
@@ -621,7 +621,7 @@ mod tests {
     use std::{collections::HashMap, ops::Add, sync::Arc, thread, time::Duration};
 
     use kai_types::{
-        block::new_zero_block_id,
+        block::BlockId,
         block_operations::MockBlockOperations,
         common::address::Address,
         consensus::{
@@ -927,10 +927,10 @@ mod tests {
                 rs.round,
                 RoundVoteSet {
                     prevotes: Some(VoteSet {
-                        maj23: Some(new_zero_block_id()),
+                        maj23: Some(BlockId::new_zero_block_id()),
                     }),
                     precommits: Some(VoteSet {
-                        maj23: Some(new_zero_block_id()),
+                        maj23: Some(BlockId::new_zero_block_id()),
                     }),
                 },
             );
@@ -1032,10 +1032,10 @@ mod tests {
             rs.round,
             RoundVoteSet {
                 prevotes: Some(VoteSet {
-                    maj23: Some(new_zero_block_id()),
+                    maj23: Some(BlockId::new_zero_block_id()),
                 }),
                 precommits: Some(VoteSet {
-                    maj23: Some(new_zero_block_id()),
+                    maj23: Some(BlockId::new_zero_block_id()),
                 }),
             },
         );

@@ -8,10 +8,16 @@ pub struct BlockId {
     pub part_set_header: ::core::option::Option<PartSetHeader>,
 }
 
-pub fn new_zero_block_id() -> BlockId {
-    BlockId {
-        hash: vec![],
-        part_set_header: None,
+impl BlockId {
+    pub fn is_zero(&self) -> bool {
+        self.hash.len() == 0 && self.part_set_header.is_none()
+    }
+
+    pub fn new_zero_block_id() -> BlockId {
+        BlockId {
+            hash: vec![],
+            part_set_header: None,
+        }
     }
 }
 
