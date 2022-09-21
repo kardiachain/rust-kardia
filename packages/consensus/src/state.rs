@@ -48,11 +48,7 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_rs(&self) -> Option<RoundState>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
-    async fn external_send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
-    async fn internal_send(
-        self: Arc<Self>,
-        msg_info: MessageInfo,
-    ) -> Result<(), SendError<MessageInfo>>;
+    async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
 }
 
@@ -100,14 +96,7 @@ impl ConsensusState for ConsensusStateImpl {
         }
     }
 
-    async fn external_send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>> {
-        self.clone().msg_chan_sender.send(msg_info).await
-    }
-
-    async fn internal_send(
-        self: Arc<Self>,
-        msg_info: MessageInfo,
-    ) -> Result<(), SendError<MessageInfo>> {
+    async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>> {
         self.clone().msg_chan_sender.send(msg_info).await
     }
 
@@ -155,6 +144,13 @@ impl ConsensusStateImpl {
             msg_chan_sender: msg_chan_sender,
             msg_chan_receiver: Mutex::new(msg_chan_receiver),
         }
+    }
+
+    async fn internal_send(
+        self: Arc<Self>,
+        msg_info: MessageInfo,
+    ) -> Result<(), SendError<MessageInfo>> {
+        self.clone().msg_chan_sender.send(msg_info).await
     }
 
     fn process_msg_chan(self: Arc<Self>) {
@@ -670,8 +666,11 @@ mod tests {
             proposal: None,
         }));
 
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+
         let rc = thread::spawn(move || {
-            if let Ok(mut rx_guard) = cs.msg_chan_receiver.lock() {
+            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
                 let rev_msg = rx_guard.blocking_recv();
                 assert!(rev_msg.is_some());
 
@@ -690,8 +689,8 @@ mod tests {
         });
 
         Runtime::new().unwrap().block_on(async move {
-            let _ = cs
-                .msg_chan_sender
+            let _ = arc_cs_1
+                .clone()
                 .send(MessageInfo {
                     msg: msg.clone(),
                     peer_id: internal_peerid(),

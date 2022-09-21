@@ -273,7 +273,7 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match msg.as_ref() {
             ConsensusMessageType::ProposalMessage(_msg) => {
-                _ = self.cs.external_send(MessageInfo {
+                _ = self.cs.send(MessageInfo {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -297,7 +297,7 @@ impl ConsensusReactorImpl {
                 }
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
-                _ = self.cs.external_send(MessageInfo {
+                _ = self.cs.send(MessageInfo {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -322,7 +322,7 @@ impl ConsensusReactorImpl {
         match msg.as_ref() {
             ConsensusMessageType::VoteMessage(_msg) => {
                 if let Some(vote) = _msg.vote.clone() {
-                    _ = self.cs.external_send(MessageInfo {
+                    _ = self.cs.send(MessageInfo {
                         peer_id: src.get_id().clone(),
                         msg: msg.clone(),
                     });
@@ -1111,7 +1111,7 @@ mod tests {
         let mock_peer_id = "".to_string();
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
-            .expect_external_send()
+            .expect_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
             .returning(|_| Ok(()));
 
@@ -1199,7 +1199,7 @@ mod tests {
         let mock_peer_id = "".to_string();
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
-            .expect_external_send()
+            .expect_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
             .returning(|_| Ok(()));
 
@@ -1274,7 +1274,7 @@ mod tests {
             .expect_get_rs()
             .returning(|| Some(RoundState::new_default()));
         mock_cs
-            .expect_external_send()
+            .expect_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
             .returning(|_| Ok(()));
 
