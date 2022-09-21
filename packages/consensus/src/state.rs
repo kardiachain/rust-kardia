@@ -6,6 +6,8 @@ use crate::types::{
     round_state::{RoundState, RULE_4, RULE_7},
 };
 
+use async_trait::async_trait;
+
 use kai_types::{
     block::{new_zero_block_id, Block, BlockId},
     block_operations::BlockOperations,
@@ -28,11 +30,15 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use tokio::sync::mpsc::{error::TrySendError, Receiver, Sender};
+use tokio::sync::mpsc::{
+    error::{SendError, TrySendError},
+    Receiver, Sender,
+};
 
 const MSG_QUEUE_SIZE: usize = 1000;
 
 #[automock]
+#[async_trait]
 pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_config(&self) -> Arc<ConsensusConfig>;
     fn get_state(&self) -> Arc<Box<dyn LatestBlockState>>;
@@ -42,8 +48,11 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_rs(&self) -> Option<RoundState>;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
-    fn external_send(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
-    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>>;
+    async fn external_send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
+    async fn internal_send(
+        self: Arc<Self>,
+        msg_info: MessageInfo,
+    ) -> Result<(), SendError<MessageInfo>>;
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
 }
 
@@ -60,6 +69,7 @@ pub struct ConsensusStateImpl {
     pub evidence_pool: Arc<Box<dyn EvidencePool>>,
 }
 
+#[async_trait]
 impl ConsensusState for ConsensusStateImpl {
     fn get_config(&self) -> Arc<ConsensusConfig> {
         self.config.clone()
@@ -90,12 +100,15 @@ impl ConsensusState for ConsensusStateImpl {
         }
     }
 
-    fn external_send(&self, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
-        self.clone().msg_chan_sender.try_send(msg_info)
+    async fn external_send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>> {
+        self.clone().msg_chan_sender.send(msg_info).await
     }
 
-    fn send(self: Arc<Self>, msg_info: MessageInfo) -> Result<(), TrySendError<MessageInfo>> {
-        self.clone().msg_chan_sender.try_send(msg_info)
+    async fn internal_send(
+        self: Arc<Self>,
+        msg_info: MessageInfo,
+    ) -> Result<(), SendError<MessageInfo>> {
+        self.clone().msg_chan_sender.send(msg_info).await
     }
 
     /// should be called from node instance
