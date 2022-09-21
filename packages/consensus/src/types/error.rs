@@ -33,4 +33,6 @@ pub enum ConsensusStateError {
     LockFailed(String),
     #[error("create signed vote error: `{0}`")]
     CreateSignedVoteError(String),
+    #[error("verify signature error: `{0}`")]
+    VerifySignatureError(String),
 }

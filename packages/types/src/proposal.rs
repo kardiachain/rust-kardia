@@ -1,4 +1,10 @@
-use crate::block::BlockId;
+use prost::Message;
+
+use crate::{
+    block::BlockId,
+    canonical_types::{create_canonical_proposal, CanonicalProposal},
+    consensus::state::ChainId,
+};
 use kai_proto::types::SignedMsgType;
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -51,4 +57,8 @@ impl Into<kai_proto::types::Proposal> for Proposal {
             signature: self.signature,
         }
     }
+}
+
+pub fn proposal_sign_bytes(chain_id: ChainId, proposal: Proposal) -> Option<Vec<u8>> {
+    create_canonical_proposal(chain_id, proposal).map(|cp| cp.encode_length_delimited_to_vec())
 }

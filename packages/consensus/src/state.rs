@@ -1,6 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::ConsensusStateError::{self, CreateSignedVoteError},
+    error::ConsensusStateError::{self, CreateSignedVoteError, VerifySignatureError},
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_7},
@@ -15,8 +15,9 @@ use kai_types::{
     evidence::EvidencePool,
     part_set::PartSet,
     priv_validator::PrivValidator,
-    proposal::Proposal,
+    proposal::{proposal_sign_bytes, Proposal},
     round::RoundStep,
+    signable::verify_signature,
     timestamp,
     types::SignedMsgType,
     vote::Vote,
@@ -215,7 +216,7 @@ impl ConsensusStateImpl {
                 todo!()
             }
             ConsensusMessageType::VoteMessage(_msg) => {
-                log::debug!("set vote: vote={:?}", _msg.clone());
+                log::debug!("checking upon rules for proposal: vote={:?}", _msg.clone());
 
                 match _msg
                     .clone()
@@ -296,11 +297,55 @@ impl ConsensusStateImpl {
     }
 
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
-        todo!()
+        let rs = self.clone().get_rs().expect("cannot get round state");
 
-        // check for existing proposal...
+        // check for existing proposal
+        if rs.proposal.is_none() {
+            log::warn!("ignored invalid proposal: nil proposal");
+            return Ok(());
+        }
 
-        // TODO: check upons rule
+        // ignore proposal comes from different height, round
+        let proposal = msg.proposal.expect("forgot to validate proposal?");
+        if proposal.height != rs.height || proposal.round != rs.round {
+            log::warn!("ignored invalid proposal: height or round mismatch with round state");
+            return Ok(());
+        }
+
+        if proposal.pol_round >= proposal.round {
+            log::warn!("ignored invalid proposal: pol_round");
+            return Ok(());
+        }
+
+        let proposer_address = rs
+            .clone()
+            .validators
+            .expect("should has validators")
+            .get_proposer()
+            .expect("should get proposer")
+            .address;
+
+        // verify signature
+        let chain_id = self.state.clone().get_chain_id();
+        if let Some(psb) = proposal_sign_bytes(chain_id, proposal.clone()) {
+            if !verify_signature(proposer_address, psb, proposal.clone().signature) {
+                return Err(VerifySignatureError("wrong signature".to_owned()));
+            }
+            let binding = self.rs.clone();
+            let mut rs_guard = binding.lock().expect("cannot lock round state");
+            // set proposal
+            rs_guard.proposal = Some(proposal.clone());
+            // reset proposal block parts
+            rs_guard.proposal_block_parts = None;
+
+            log::info!("set proposal: proposal={:?}", proposal.clone());
+            Ok(())
+        } else {
+            log::error!("cannot get proposal sign bytes");
+            return Err(VerifySignatureError(
+                "cannot get proposal sign bytes".to_owned(),
+            ));
+        }
     }
 
     /**

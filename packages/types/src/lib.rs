@@ -3,6 +3,7 @@
 pub mod bit_array;
 pub mod block;
 pub mod block_operations;
+pub mod canonical_types;
 pub mod commit;
 pub mod common;
 pub mod consensus;
@@ -14,6 +15,7 @@ pub mod peer;
 pub mod priv_validator;
 pub mod proposal;
 pub mod round;
+pub mod signable;
 pub mod timestamp;
 pub mod types;
 pub mod validator_set;
