@@ -166,7 +166,10 @@ impl PeerStateImpl {
         signed_msg_type: SignedMsgType,
         index: u32,
     ) {
-        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+        if let Some(ps_votes) = self
+            .get_vote_bit_array(height, round, signed_msg_type)
+            .as_mut()
+        {
             ps_votes.set_index(index.try_into().unwrap(), true);
         }
     }
@@ -209,7 +212,7 @@ impl PeerState for PeerStateImpl {
             return;
         }
 
-        if let Some(pbp) = self.prs.proposal_block_parts.clone() {
+        if let Some(pbp) = self.prs.proposal_block_parts.as_mut() {
             // TODO: implement BitArray.set_index for Proposal Block Parts
             pbp.set_index(msg.part.unwrap().index.try_into().unwrap(), true);
         }
@@ -235,7 +238,10 @@ impl PeerState for PeerStateImpl {
         signed_msg_type: SignedMsgType,
         index: usize,
     ) {
-        if let Some(ps_votes) = self.get_vote_bit_array(height, round, signed_msg_type) {
+        if let Some(ps_votes) = self
+            .get_vote_bit_array(height, round, signed_msg_type)
+            .as_mut()
+        {
             ps_votes.set_index(index.try_into().unwrap(), true);
         }
     }
