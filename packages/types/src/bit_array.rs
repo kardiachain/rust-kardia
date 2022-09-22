@@ -1,46 +1,49 @@
-// pub type BitArray = BitArr!(for 64, in u64, Msb0);
+use bitvec::{macros::internal::funty::Fundamental, prelude::Msb0, vec::BitVec};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BitArray {
-    pub bits: i64,
-    pub elems: Vec<u64>,
+    bv: BitVec<u64, Msb0>,
 }
 
 impl From<kai_proto::types::BitArray> for BitArray {
     fn from(m: kai_proto::types::BitArray) -> Self {
-        Self {
-            bits: m.bits,
-            elems: m.elems,
-        }
+        let mut bv: BitVec<u64, Msb0> = BitVec::with_capacity(m.bits as usize);
+        bv.copy_from_bitslice(BitVec::from_vec(m.elems).as_bitslice());
+        Self { bv: bv }
     }
 }
 
 impl Into<kai_proto::types::BitArray> for BitArray {
     fn into(self: Self) -> kai_proto::types::BitArray {
         kai_proto::types::BitArray {
-            bits: self.bits,
-            elems: self.elems,
+            bits: self.bv.capacity() as i64,
+            elems: self.bv.into_vec(),
         }
     }
 }
 
-
-// TODO: implement fns of bit_array.go
-
 impl BitArray {
-    pub fn set_index(mut self, i: usize , v :bool) -> bool {
-        todo!()
-        // if i >= self.bits.try_into().unwrap() {
-        //     return false
-        // }
+    pub fn new_bit_array(bits: usize) -> Self {
+        Self {
+            bv: BitVec::with_capacity(bits),
+        }
+    }
 
-        // if v {
-        //     self.elems[i/64] |= 1u64 << (i%64);
-        // } else {
-		//     self.elems[i/64] &= !(1u64 << (i%64));
-        // }
+    pub fn set_index(&mut self, i: usize, v: bool) -> bool {
+        if i >= self.bv.capacity() {
+            return false;
+        }
 
-        // return true
+        self.bv.set(i, v);
+        return true;
+    }
+
+    pub fn get_index(&self, i: usize) -> Result<bool, String> {
+        if let Some(v) = self.bv.get(i) {
+            Ok(v.as_bool())
+        } else {
+            Err("index out of bound".to_owned())
+        }
     }
 
     pub fn not(self) -> Self {
