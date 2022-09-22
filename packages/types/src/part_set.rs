@@ -2,11 +2,11 @@ use crate::{bit_array::BitArray, crypto::Proof};
 
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Part {
-    #[prost(uint32, tag="1")]
+    #[prost(uint32, tag = "1")]
     pub index: u32,
-    #[prost(bytes="vec", tag="2")]
+    #[prost(bytes = "vec", tag = "2")]
     pub bytes: ::prost::alloc::vec::Vec<u8>,
-    #[prost(message, optional, tag="3")]
+    #[prost(message, optional, tag = "3")]
     pub proof: ::core::option::Option<super::crypto::Proof>,
 }
 
@@ -32,9 +32,9 @@ impl Into<kai_proto::types::Part> for Part {
 
 #[derive(Clone, ::prost::Message)]
 pub struct PartSetHeader {
-    #[prost(uint32, tag="1")]
+    #[prost(uint32, tag = "1")]
     pub total: u32,
-    #[prost(bytes="vec", tag="2")]
+    #[prost(bytes = "vec", tag = "2")]
     pub hash: ::prost::alloc::vec::Vec<u8>,
 }
 
@@ -88,5 +88,33 @@ impl PartSet {
 
     pub fn get_part(&self, index: usize) -> Part {
         self.parts[index].clone()
+    }
+
+    pub fn add_part(&mut self, part: Part) -> Result<(), String> {
+        if part.clone().index >= self.total {
+            return Err("unexpected index".to_owned());
+        }
+
+        // check hash proof
+
+        // add part
+        self.parts[part.clone().index as usize] = part.clone();
+        self.count += 1;
+        if let Some(pba) = self.parts_bit_array.as_mut() {
+            pba.set_index(part.index as usize, true);
+        } else {
+            return Err("parts bit array isn't initialized".to_owned());
+        }
+        Ok(())
+    }
+
+    pub fn new_part_set_from_header(header: PartSetHeader) -> Self {
+        Self {
+            total: header.total,
+            hash: header.hash,
+            parts: Vec::with_capacity(header.total as usize),
+            parts_bit_array: Some(BitArray::new_bit_array(header.total as usize)),
+            count: 0,
+        }
     }
 }
