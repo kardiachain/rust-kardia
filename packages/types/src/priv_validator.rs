@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 
 use crate::vote::Vote;
+use ethereum_types::Address;
 use mockall::automock;
 
-use crate::{common::address::Address, consensus::state::ChainId, proposal::Proposal};
+use crate::{consensus::state::ChainId, proposal::Proposal};
 
 #[automock]
 pub trait PrivValidator: Debug + Sync + Send + 'static {

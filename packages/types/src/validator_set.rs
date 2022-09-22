@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, fmt::Debug};
 
-use crate::common::address::Address;
+use ethereum_types::Address;
 
 pub trait ValidatorSetTrait: Debug + Sync + Send + 'static {
     fn get_proposer(&self) -> Option<Validator>;
@@ -43,11 +43,11 @@ impl ValidatorSet {
     pub fn get_by_address(&self, address: Address) -> Option<(usize, Validator)> {
         for (i, v) in self.validators.iter().enumerate() {
             if address.eq(&v.address) {
-                return Some((i, v.clone()))
+                return Some((i, v.clone()));
             }
         }
 
-        return None
+        return None;
     }
 }
 
@@ -68,7 +68,7 @@ impl Validator {
             return other;
         }
 
-        match self.address.to_vec().cmp(&other.address.to_vec()) {
+        match self.address.cmp(&other.address) {
             Ordering::Less => self.clone(),
             Ordering::Greater => other,
             _ => panic!("cannot compare identical validators"),

@@ -1,10 +1,13 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::ConsensusStateError::{self, CreateSignedVoteError, VerifySignatureError},
+    error::ConsensusStateError::{
+        self, AddBlockPartError, CreateSignedVoteError, VerifySignatureError,
+    },
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_7},
 };
+use bytes::Bytes;
 
 use async_trait::async_trait;
 
@@ -328,15 +331,21 @@ impl ConsensusStateImpl {
         // verify signature
         let chain_id = self.state.clone().get_chain_id();
         if let Some(psb) = proposal_sign_bytes(chain_id, proposal.clone()) {
-            if !verify_signature(proposer_address, psb, proposal.clone().signature) {
+            if !verify_signature(
+                proposer_address,
+                Bytes::from(psb),
+                Bytes::from(proposal.clone().signature),
+            ) {
                 return Err(VerifySignatureError("wrong signature".to_owned()));
             }
             let binding = self.rs.clone();
             let mut rs_guard = binding.lock().expect("cannot lock round state");
             // set proposal
             rs_guard.proposal = Some(proposal.clone());
-            // reset proposal block parts
-            rs_guard.proposal_block_parts = None;
+            // create new proposal block parts
+            rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(
+                proposal.clone().block_id.unwrap().part_set_header.unwrap(),
+            ));
 
             log::info!("set proposal: proposal={:?}", proposal.clone());
             Ok(())
@@ -353,17 +362,43 @@ impl ConsensusStateImpl {
     * full proposal block, then it makes state transition to PREVOTE step
     */
     fn add_proposal_block_part(&self, msg: BlockPartMessage) -> Result<(), ConsensusStateError> {
-        todo!()
+        let rs = self.clone().get_rs().expect("cannot get round state");
 
-        // check for proposal
+        if rs.height != msg.height {
+            log::debug!(
+                "ignored block part from wrong height: height={}, round={}",
+                msg.height,
+                msg.round
+            );
+            return Ok(());
+        }
 
-        // add block part
+        // we're not expecting a block part
+        if rs.proposal_block_parts.is_none() {
+            log::info!(
+                "ignored a block part when we're not expecting any: height={} round={} index={}",
+                msg.height,
+                msg.round,
+                msg.part.unwrap().index
+            );
+            return Ok(());
+        }
 
-        // check full proposal block
-        //    => switch to prevote
-        //    => if valid block => send prevote
+        let binding = self.rs.clone();
+        let mut rs_guard = binding.lock().expect("cannot lock round state");
+        // add to proposal block parts
+        let pbp = rs_guard
+            .proposal_block_parts
+            .as_mut()
+            .expect("proposal block parts should not nil");
 
-        // TODO: check upons rule
+        match pbp.add_part(msg.clone().part.unwrap()) {
+            Ok(_) => {
+                log::info!("set proposal block part: part={:?}", msg.clone());
+                return Ok(());
+            }
+            Err(e) => return Err(AddBlockPartError(e)),
+        }
     }
 
     fn try_add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
@@ -514,6 +549,11 @@ impl ConsensusStateImpl {
         if let Ok(mut rs_guard) = self.rs.clone().lock() {
             rs_guard.round = round;
             rs_guard.step = RoundStep::Propose;
+
+            // clear old proposal
+            rs_guard.proposal = None;
+            rs_guard.proposal_block = None;
+            rs_guard.proposal_block_parts = None;
             // clear triggered rules
             rs_guard.triggered_rules.clear();
             let rs = rs_guard.clone();
@@ -637,7 +677,7 @@ impl ConsensusStateImpl {
                             round: rs.round,
                             block_id: Some(block_id),
                             timestamp: Some(timestamp::now()),
-                            validator_address: validator_address.to_vec(),
+                            validator_address: validator_address.as_bytes().to_vec(),
                             validator_index: validator_index.try_into().unwrap(),
                             signature: vec![], // set nil for now, will be signed below
                         };
@@ -668,7 +708,6 @@ mod tests {
     use kai_types::{
         block::BlockId,
         block_operations::MockBlockOperations,
-        common::address::Address,
         consensus::{
             executor::MockBlockExecutor,
             height_vote_set::{HeightVoteSet, RoundVoteSet},
@@ -689,6 +728,8 @@ mod tests {
     };
 
     use super::{ConsensusState, ConsensusStateImpl};
+
+    use ethereum_types::Address;
 
     #[test]
     fn internal_send() {
@@ -746,9 +787,12 @@ mod tests {
         rc.join().unwrap();
     }
 
-    pub const ADDR_1: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
-    pub const ADDR_2: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2];
-    pub const ADDR_3: Address = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3];
+    pub const ADDR_1: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    pub const ADDR_2: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+    pub const ADDR_3: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]);
 
     pub const VAL_1: Validator = Validator {
         address: ADDR_1,

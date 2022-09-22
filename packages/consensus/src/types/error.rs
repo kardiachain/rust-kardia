@@ -35,4 +35,6 @@ pub enum ConsensusStateError {
     CreateSignedVoteError(String),
     #[error("verify signature error: `{0}`")]
     VerifySignatureError(String),
+    #[error("add block part error: `{0}`")]
+    AddBlockPartError(String),
 }
