@@ -1,19 +1,30 @@
+#![allow(dead_code)]
+
 [package]
-name = "kai-p2p"
+name = "kai_p2p"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic = { version = "0.7", default-features = false, features = [
-  "codegen",
-  "prost",
-  "transport",
-] }
 secp256k1 = "0.24.0"
-
 p256 = { version = "0.11.1", features = ["ecdsa-core", "arithmetic"] }
 hex = { version = "0.4.3" }
 thiserror = { version = "1.0.32" }
+tokio = { version = "1.20.1"}
+async-trait = {version = "0.1.57"}
+defer-lite= {version="1.0.0"}
+aead = {version = "0.5.1"}
+# zeroize = { version = "1.1"}
+
+futures-core        = { version = "0.3.24",   defaul-features = false }
+eyre                = { version = "0.6.8",    defaul-features = false }
+ed25519-consensus   = { version = "2.0.1",    defaul-features = false }
+x25519-dalek        = { version = "1.1",    default-features = false, features = [ "u64_backend" ] }
+chacha20poly1305    = { version = "0.10.1",   default-features = false }
+zeroize             = { version = "1.5.7",    default-features = false }
+
+
+# path dependencies
 kai_utils = { path = "../utils" }
