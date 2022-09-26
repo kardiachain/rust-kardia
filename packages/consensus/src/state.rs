@@ -217,6 +217,8 @@ impl ConsensusStateImpl {
                     _msg.clone()
                 );
                 todo!()
+
+                // TODO check upon 8
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
                 log::debug!(
@@ -426,6 +428,8 @@ impl ConsensusStateImpl {
                             drop(rs_guard);
                             return;
                         }
+
+                        // TODO check upon 8
                     }
                 }
             }
