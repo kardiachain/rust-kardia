@@ -5,7 +5,7 @@ use crate::types::{
     },
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
-    round_state::{RoundState, RULE_4, RULE_7},
+    round_state::{RoundState, RULE_4, RULE_5, RULE_7},
 };
 use bytes::Bytes;
 
@@ -218,6 +218,217 @@ impl ConsensusStateImpl {
                 );
                 todo!()
             }
+            ConsensusMessageType::BlockPartMessage(_msg) => {
+                log::debug!(
+                    "checking upon rules for proposal block part: block_part={:?}",
+                    _msg.clone()
+                );
+
+                if let Ok(mut rs_guard) = self.rs.clone().lock() {
+                    let rs = rs_guard.clone();
+
+                    if rs
+                        .proposal_block_parts
+                        .is_some_and(|pbp| pbp.is_completed())
+                    {
+                        let proposal = rs.proposal.clone().unwrap();
+                        let proposal_block_id = proposal.clone().block_id.clone().unwrap();
+                        let pbp = rs.proposal_block_parts.clone().unwrap();
+
+                        // TODO: validate fully received proposal block
+
+                        // checking rule #2
+                        if proposal.pol_round == 0 && rs.step == RoundStep::Propose {
+                            if rs.locked_round == 0
+                                || rs
+                                    .locked_block_parts
+                                    .is_some_and(|lb| lb.has_header(pbp.header()))
+                            {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+
+                                        self.msg_chan_sender
+                                            .blocking_send(msg)
+                                            .expect("send vote failed"); // should panics here?
+
+                                        log::debug!("signed and sent vote")
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            } else {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    BlockId::new_zero_block_id(), // nil block
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+
+                                        self.msg_chan_sender
+                                            .blocking_send(msg)
+                                            .expect("send vote failed"); // should panics here?
+
+                                        log::debug!("signed and sent vote")
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            }
+                            rs_guard.step = RoundStep::Prevote;
+                            drop(rs_guard);
+                            return;
+                        }
+
+                        // checking rule #3
+                        if proposal.pol_round > 0
+                            && proposal.pol_round < rs.round
+                            && rs.step == RoundStep::Propose
+                            && rs
+                                .clone()
+                                .votes
+                                .expect("vote should not nil")
+                                .prevotes(proposal.pol_round)
+                                .expect("prevotes should not nil")
+                                .two_thirds_majority()
+                                .is_some_and(|bid| bid.eq(&proposal_block_id))
+                        {
+                            if rs.locked_round <= proposal.pol_round
+                                || rs
+                                    .locked_block_parts
+                                    .is_some_and(|lb| lb.has_header(pbp.header()))
+                            {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+
+                                        self.msg_chan_sender
+                                            .blocking_send(msg)
+                                            .expect("send vote failed"); // should panics here?
+
+                                        log::debug!("signed and sent vote")
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            } else {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    BlockId::new_zero_block_id(), // nil block
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+
+                                        self.msg_chan_sender
+                                            .blocking_send(msg)
+                                            .expect("send vote failed"); // should panics here?
+
+                                        log::debug!("signed and sent vote")
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            }
+                            rs_guard.step = RoundStep::Prevote;
+                            drop(rs_guard);
+                            return;
+                        }
+
+                        // checking rule #5
+                        if rs.step >= RoundStep::Prevote
+                            && rs
+                                .clone()
+                                .votes
+                                .expect("vote should not nil")
+                                .prevotes(rs.round)
+                                .expect("prevotes should not nil")
+                                .two_thirds_majority()
+                                .is_some_and(|bid| bid.eq(&proposal_block_id))
+                            && !rs.triggered_rules.contains(&RULE_5)
+                        {
+                            if rs.step == RoundStep::Prevote {
+                                rs_guard.locked_round = proposal.round;
+                                rs_guard.locked_block = rs.proposal_block.clone();
+                                rs_guard.locked_block_parts = rs.proposal_block_parts.clone();
+
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Precommit,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+
+                                        self.msg_chan_sender
+                                            .blocking_send(msg)
+                                            .expect("send vote failed"); // should panics here?
+
+                                        log::debug!("signed and sent vote")
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                                rs_guard.step = RoundStep::Precommit;
+                            }
+                            rs_guard.valid_round = proposal.round;
+                            rs_guard.valid_block = rs.proposal_block.clone();
+                            rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
+                            drop(rs_guard);
+                            return;
+                        }
+                    }
+                }
+            }
             ConsensusMessageType::VoteMessage(_msg) => {
                 log::debug!("checking upon rules for proposal: vote={:?}", _msg.clone());
 
@@ -299,6 +510,14 @@ impl ConsensusStateImpl {
         };
     }
 
+    /// sets proposal if and only if following conditions are satisfied:
+    /// - no existing proposal
+    /// - proposal comes from different height, round
+    /// - proposal proof-of-lock invalid
+    /// - proposal must comes current round proposer
+    ///
+    /// Once the proposal is set, `proposal_block_parts` is initialized from `proposal.part_set_header`
+    /// in order to add block parts which is done via gossiping.
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
         let rs = self.clone().get_rs().expect("cannot get round state");
 
