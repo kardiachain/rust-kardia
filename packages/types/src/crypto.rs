@@ -31,3 +31,12 @@ impl Into<kai_proto::crypto::Proof> for Proof {
         }
     }
 }
+
+impl Proof {
+    pub fn verify(&self, root_hash: Vec<u8>) -> bool {
+        // compare root_hash with self.leaf_hash
+        // TODO: not implemented! return true for all cases
+        return true
+        // todo!()
+    }
+}

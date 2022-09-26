@@ -96,6 +96,14 @@ impl PartSet {
         }
 
         // check hash proof
+        if !part
+            .clone()
+            .proof
+            .expect("part invalid: proof does not existed")
+            .verify(self.hash.clone())
+        {
+            return Err("invalid proof".to_owned());
+        }
 
         // add part
         self.parts[part.clone().index as usize] = part.clone();
@@ -116,5 +124,9 @@ impl PartSet {
             parts_bit_array: Some(BitArray::new_bit_array(header.total as usize)),
             count: 0,
         }
+    }
+
+    pub fn is_completed(&self) -> bool {
+        self.count == self.total
     }
 }
