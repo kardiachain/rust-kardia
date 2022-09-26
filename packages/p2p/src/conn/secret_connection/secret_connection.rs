@@ -2,7 +2,9 @@
 
 use p256::elliptic_curve::subtle::ConstantTimeEq;
 use secp256k1::PublicKey;
-use chacha20poly1305::ChaCha20Poly1305;
+use chacha20poly1305::{
+    ChaCha20Poly1305, aead::NewAead,
+};
 use x25519_dalek::{EphemeralSecret, PublicKey as EphemeralPublic};
 use crate::conn::{secret_connection::{kdf::Kdf, error::Error, protocol::Version}};
 use merlin::Transcript;
@@ -149,6 +151,16 @@ impl Handshake<AwaitingAuthSig> {
         auth_sig_msg: String,
     ) {
         todo!()
+    }
+}
+
+/// Return is of the form lo, hi
+#[must_use]
+pub fn sort32(first: [u8; 32], second: [u8; 32]) -> ([u8; 32], [u8; 32]) {
+    if second > first {
+        (first, second)
+    } else {
+        (second, first)
     }
 }
 
