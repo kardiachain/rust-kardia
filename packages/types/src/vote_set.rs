@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::{bit_array::BitArray, block::BlockId, commit::Commit};
+use crate::{bit_array::BitArray, block::BlockId, commit::Commit, vote::Vote};
 
 pub trait VoteSetReader: Debug + Sync + Send + 'static {}
 
@@ -24,6 +24,10 @@ impl VoteSet {
     }
 
     pub fn make_commit(&self) -> Option<Commit> {
+        todo!()
+    }
+
+    pub fn add_vote(&mut self, vote: Vote) -> Result<(), String> {
         todo!()
     }
 }

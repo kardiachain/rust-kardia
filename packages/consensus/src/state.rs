@@ -790,11 +790,177 @@ impl ConsensusStateImpl {
     }
 
     fn try_add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
-        // route votes
-        // - listen for 2/3 votes
+        if let Ok(mut rs_guard) = self.clone().rs.lock() {
+            let rs = rs_guard.clone();
 
-        // TODO: check upons rule
-        Ok(())
+            // this is safe, vote msg has been validated
+            let vote = msg.vote.unwrap();
+
+            // precommit vote of previous height
+            if vote.height + 1 == rs.height && vote.r#type == SignedMsgType::Precommit.into() {
+                if rs.step > RoundStep::Propose {
+                    log::debug!("ignored late precommit of previous height came after propose step of next height");
+                    return Ok(());
+                }
+
+                if let Some(mut last_commit) = rs_guard.last_commit.clone() {
+                    if let Err(e) = last_commit.add_vote(vote.clone()) {
+                        log::error!("ignored adding vote due to: {}", e);
+                        return Err(ConsensusStateError::AddingVote(e));
+                    }
+
+                    // update last commit with added vote
+                    rs_guard.last_commit = Some(last_commit);
+                    drop(rs_guard);
+
+                    // cs.Logger.Info(cmn.Fmt("Added to lastPrecommits: %v", cs.LastCommit.StringShort()))
+                    // if err := cs.eventBus.PublishEventVote(types.EventDataVote{Vote: vote}); err != nil {
+                    //     return added, err
+                    // }
+
+                    // cs.evsw.FireEvent(types.EventVote, vote)
+
+                    log::info!("addded to last precommits: {:?}", vote.clone());
+                    return Ok(());
+                } else {
+                    log::error!("ignored adding vote due to: last commit is nil");
+                    return Err(ConsensusStateError::AddingVote(
+                        "last commit is nil".to_owned(),
+                    ));
+                }
+            }
+
+            // height mismatch is ignored.
+            if vote.height != rs.height {
+                log::debug!(
+                    "ignored vote due to height mismatch: voteHeight={} rsHeight={}",
+                    vote.height,
+                    rs.height
+                );
+                return Ok(());
+            }
+
+            if let Some(mut votes) = rs.votes.clone() {
+                if let Err(e) = votes.add_vote(vote) {
+                    log::error!("ignored adding vote due to: {}", e);
+                    return Err(ConsensusStateError::AddingVote(e));
+                }
+
+                // update votes to state with added vote
+                rs_guard.votes = Some(votes);
+
+                drop(rs_guard);
+            }
+
+            // if err := cs.eventBus.PublishEventVote(types.EventDataVote{Vote: vote}); err != nil {
+            //     return added, err
+            // }
+            // cs.evsw.FireEvent(types.EventVote, vote)
+        
+            // switch vote.Type {
+            //     case kproto.PrevoteType:
+            //         prevotes := cs.Votes.Prevotes(vote.Round)
+            //         cs.Logger.Info("Added to prevote", "vote", vote, "prevotes", prevotes.StringShort())
+            
+            //         // If +2/3 prevotes for a block or nil for *any* round:
+            //         if blockID, ok := prevotes.TwoThirdsMajority(); ok {
+            //             // There was a polka!
+            //             // If we're locked but this is a recent polka, unlock.
+            //             // If it matches our ProposalBlock, update the ValidBlock
+            
+            //             // Unlock if `cs.LockedRound < vote.Round <= cs.Round`
+            //             // NOTE: If vote.Round > cs.Round, we'll deal with it when we get to vote.Round
+            //             if (cs.LockedBlock != nil) &&
+            //                 (cs.LockedRound < vote.Round) &&
+            //                 (vote.Round <= cs.Round) &&
+            //                 !cs.LockedBlock.HashesTo(blockID.Hash) {
+            
+            //                 cs.Logger.Info("Unlocking because of POL.", "lockedRound", cs.LockedRound, "POLRound", vote.Round)
+            //                 cs.LockedRound = 0
+            //                 cs.LockedBlock = nil
+            //                 cs.LockedBlockParts = nil
+            //                 if err4 := cs.eventBus.PublishEventUnlock(cs.RoundStateEvent()); err4 != nil {
+            //                     return added, err4
+            //                 }
+            //             }
+            
+            //             // Update Valid* if we can.
+            //             // NOTE: our proposal block may be nil or not what received a polka..
+            //             if !blockID.Hash.IsZero() && (cs.ValidRound < vote.Round) && (vote.Round == cs.Round) {
+            //                 if cs.ProposalBlock.HashesTo(blockID.Hash) {
+            //                     cs.Logger.Info("Updating ValidBlock because of POL.", "validRound", cs.ValidRound, "POLRound", vote.Round)
+            //                     cs.ValidRound = vote.Round
+            //                     cs.ValidBlock = cs.ProposalBlock
+            //                     cs.ValidBlockParts = cs.ProposalBlockParts
+            //                 } else {
+            //                     cs.Logger.Info(
+            //                         "Valid block we don't know about. Set ProposalBlock=nil",
+            //                         "proposal", cs.ProposalBlock.Hash(), "blockId", blockID.Hash)
+            //                     // We're getting the wrong block.
+            //                     cs.ProposalBlock = nil
+            //                 }
+            
+            //                 if !cs.ProposalBlockParts.HasHeader(blockID.PartsHeader) {
+            //                     cs.ProposalBlockParts = types.NewPartSetFromHeader(blockID.PartsHeader)
+            //                 }
+            
+            //                 cs.evsw.FireEvent(types.EventValidBlock, &cs.RoundState)
+            //                 if err5 := cs.eventBus.PublishEventValidBlock(cs.RoundStateEvent()); err5 != nil {
+            //                     return added, err
+            //                 }
+            //             }
+            //         }
+            
+            //         // If +2/3 prevotes for *anything* for future round:
+            //         switch {
+            //         case (cs.Round < vote.Round) && prevotes.HasTwoThirdsAny():
+            //             // Round-skip if there is any 2/3+ of votes ahead of us
+            //             cs.enterNewRound(height, vote.Round)
+            //         case (cs.Round == vote.Round) && (cstypes.RoundStepPrevote <= cs.Step):
+            //             blockID, ok := prevotes.TwoThirdsMajority()
+            //             if ok && (cs.isProposalComplete() || blockID.Hash.IsZero()) {
+            //                 cs.enterPrecommit(height, vote.Round)
+            //             } else if prevotes.HasTwoThirdsAny() {
+            //                 cs.enterPrevoteWait(height, vote.Round)
+            //             }
+            //         case cs.Proposal != nil && (1 <= cs.Proposal.POLRound) && (cs.Proposal.POLRound == vote.Round):
+            //             // If the proposal is now complete, enter prevote of cs.Round.
+            //             if cs.isProposalComplete() {
+            //                 cs.enterPrevote(height, cs.Round)
+            //             }
+            //         }
+            
+            //     case kproto.PrecommitType:
+            //         precommits := cs.Votes.Precommits(vote.Round)
+            
+            //         cs.Logger.Info("Added to precommit", "vote", vote, "precommits", precommits.StringShort())
+            //         blockID, ok := precommits.TwoThirdsMajority()
+            //         if ok {
+            //             // Executed as TwoThirdsMajority could be from a higher round
+            //             cs.enterNewRound(height, vote.Round)
+            //             cs.enterPrecommit(height, vote.Round)
+            //             if !blockID.Hash.IsZero() {
+            //                 cs.enterCommit(height, vote.Round)
+            //                 if cs.config.IsSkipTimeoutCommit && precommits.HasAll() {
+            //                     cs.enterNewRound(cs.Height, 1)
+            //                 }
+            //             } else {
+            //                 cs.enterPrecommitWait(height, vote.Round)
+            //             }
+            //         } else if (cs.Round <= vote.Round) && precommits.HasTwoThirdsAny() {
+            //             cs.enterNewRound(height, vote.Round)
+            //             cs.enterPrecommitWait(height, vote.Round)
+            //         }
+            //     default:
+            //         panic(cmn.Fmt("Unexpected vote type %X", vote.Type)) // go-wire should prevent this.
+            //     }
+
+
+            return Ok(());
+        } else {
+            log::error!("cannot get round state");
+            return Err(ConsensusStateError::LockFailed("round state".to_owned()));
+        }
     }
 
     fn schedule_timeout(self: Arc<Self>, height: u64, round: u32, step: RoundStep) {

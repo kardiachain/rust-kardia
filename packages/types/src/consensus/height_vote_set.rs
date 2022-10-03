@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{peer::PeerId, types::SignedMsgType, validator_set::ValidatorSet, vote_set::VoteSet};
+use crate::{
+    peer::PeerId, types::SignedMsgType, validator_set::ValidatorSet, vote::Vote, vote_set::VoteSet,
+};
 
 #[derive(Debug, Clone)]
 pub struct HeightVoteSet {
@@ -35,6 +37,10 @@ impl HeightVoteSet {
     }
 
     pub fn set_peer_maj23(&self) -> Result<(), String> {
+        todo!()
+    }
+
+    pub fn add_vote(&mut self, vote: Vote) -> Result<(), String> {
         todo!()
     }
 }

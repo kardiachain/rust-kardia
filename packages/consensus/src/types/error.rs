@@ -25,8 +25,8 @@ pub enum ConsensusReactorError {
 
 #[derive(Error, Debug)]
 pub enum ConsensusStateError {
-    #[error("add vote error")]
-    AddingVote,
+    #[error("add vote error: `{0}`")]
+    AddingVote(String),
     #[error("unknown msg type")]
     UnknownMessageTypeError,
     #[error("lock failed: `{0}`")]
