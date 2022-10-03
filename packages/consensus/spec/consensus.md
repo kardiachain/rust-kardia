@@ -101,7 +101,7 @@ while valid(v) and step_p >= prevote for the first time do
   validRound_p := round_p
 
 upon 6: 2f+1 <PREVOTE, h_p, round_p, nil>
-while step_p = prevote do
+while step_p = prevote for the first time do
   broadcast <PRECOMMIT, h_p, round_p, nil>
   step_p := precommit
 

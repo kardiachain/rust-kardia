@@ -5,7 +5,7 @@ use crate::types::{
     },
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
-    round_state::{RoundState, RULE_4, RULE_5, RULE_7},
+    round_state::{RoundState, RULE_4, RULE_5, RULE_6, RULE_7, RULE_8},
 };
 use bytes::Bytes;
 
@@ -479,9 +479,11 @@ impl ConsensusStateImpl {
                             let rs = rs_guard.clone();
 
                             if rs.step == RoundStep::Prevote {
-                                // checking rule #4
-                                if let Some(_) = rs
+                                // checking rule #4, #5, #6
+                                if let Some(maj23_block_id) = rs
+                                    .clone()
                                     .votes
+                                    .clone()
                                     .expect("vote should not nil")
                                     .prevotes(rs.round)
                                     .expect("prevotes should not nil")
@@ -497,10 +499,107 @@ impl ConsensusStateImpl {
                                         // mark rule has triggered
                                         rs_guard.triggered_rules.insert(RULE_4);
                                     }
-                                }
 
-                                // checking rule #6
-                                // TODO:
+                                    // check rule #5
+                                    // TODO: validate proposal, only valid proposal can proceed
+                                    if rs
+                                        .clone()
+                                        .proposal
+                                        .clone()
+                                        .and_then(|p| p.block_id)
+                                        .is_some_and(|pbid| pbid.eq(&maj23_block_id))
+                                        && self.clone().block_operations.height() == rs.height - 1
+                                        && rs.step >= RoundStep::Prevote
+                                        && !rs_guard.triggered_rules.contains(&RULE_8)
+                                    {
+                                        let proposal = rs.clone().proposal.unwrap();
+                                        let proposal_block_id = proposal.block_id.unwrap();
+
+                                        if rs.step == RoundStep::Prevote {
+                                            rs_guard.locked_round = proposal.round;
+                                            rs_guard.locked_block = rs.proposal_block.clone();
+                                            rs_guard.locked_block_parts =
+                                                rs.proposal_block_parts.clone();
+
+                                            match self.clone().create_signed_vote(
+                                                rs_guard.clone(),
+                                                SignedMsgType::Precommit,
+                                                proposal_block_id.clone(),
+                                            ) {
+                                                Ok(signed_vote) => {
+                                                    let msg = MessageInfo {
+                                                        msg: Arc::new(
+                                                            ConsensusMessageType::VoteMessage(
+                                                                VoteMessage {
+                                                                    vote: Some(signed_vote),
+                                                                },
+                                                            ),
+                                                        ),
+                                                        peer_id: internal_peerid(),
+                                                    };
+
+                                                    self.msg_chan_sender
+                                                        .blocking_send(msg)
+                                                        .expect("send vote failed"); // should panics here?
+
+                                                    log::debug!("signed and sent vote")
+                                                }
+                                                Err(reason) => {
+                                                    debug!(
+                                                        "create signed vote failed, reason: {:?}",
+                                                        reason
+                                                    );
+                                                }
+                                            };
+                                            rs_guard.step = RoundStep::Precommit;
+                                        }
+                                        rs_guard.valid_round = proposal.round;
+                                        rs_guard.valid_block = rs.proposal_block.clone();
+                                        rs_guard.valid_block_parts =
+                                            rs.proposal_block_parts.clone();
+
+                                        rs_guard.triggered_rules.insert(RULE_8);
+                                    }
+
+                                    // check rule #6
+                                    if !maj23_block_id.is_zero()
+                                        && rs.step == RoundStep::Prevote
+                                        && !rs_guard.triggered_rules.contains(&RULE_6)
+                                    {
+                                        match self.clone().create_signed_vote(
+                                            rs_guard.clone(),
+                                            SignedMsgType::Precommit,
+                                            BlockId::new_zero_block_id().clone(),
+                                        ) {
+                                            Ok(signed_vote) => {
+                                                let msg = MessageInfo {
+                                                    msg: Arc::new(
+                                                        ConsensusMessageType::VoteMessage(
+                                                            VoteMessage {
+                                                                vote: Some(signed_vote),
+                                                            },
+                                                        ),
+                                                    ),
+                                                    peer_id: internal_peerid(),
+                                                };
+
+                                                self.msg_chan_sender
+                                                    .blocking_send(msg)
+                                                    .expect("send vote failed"); // should panics here?
+
+                                                log::debug!("signed and sent vote")
+                                            }
+                                            Err(reason) => {
+                                                debug!(
+                                                    "create signed vote failed, reason: {:?}",
+                                                    reason
+                                                );
+                                            }
+                                        };
+                                        rs_guard.triggered_rules.insert(RULE_6);
+                                        rs_guard.step = RoundStep::Precommit;
+                                    }
+                                }
                             }
                             drop(rs_guard);
                         } else {
@@ -531,11 +630,13 @@ impl ConsensusStateImpl {
                                     rs_guard.triggered_rules.insert(RULE_7);
                                 }
 
+                                // check rule #8
+                                // TODO: validate proposal, only valid proposal can proceed
                                 if rs
                                     .proposal
                                     .and_then(|p| p.block_id)
                                     .is_some_and(|pbid| pbid.eq(&maj23_block_id))
-                                    && self.clone().block_operations.height() < rs.height
+                                    && self.clone().block_operations.height() == rs.height - 1
                                 {
                                     let precommits =
                                         rs.votes.clone().unwrap().precommits(rs.round).unwrap();

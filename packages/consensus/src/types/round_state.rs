@@ -8,7 +8,9 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug};
 pub type RULE_NUMBER = u8;
 pub const RULE_4: RULE_NUMBER = 4;
 pub const RULE_5: RULE_NUMBER = 5;
+pub const RULE_6: RULE_NUMBER = 6;
 pub const RULE_7: RULE_NUMBER = 7;
+pub const RULE_8: RULE_NUMBER = 8;
 
 #[derive(Debug, Clone)]
 pub struct RoundState {
