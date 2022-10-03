@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::{bit_array::BitArray, block::BlockId};
+use crate::{bit_array::BitArray, block::BlockId, commit::Commit};
 
 pub trait VoteSetReader: Debug + Sync + Send + 'static {}
 
@@ -21,6 +21,10 @@ impl VoteSet {
     /// returns block id that has +2/3 votes
     pub fn two_thirds_majority(&self) -> Option<BlockId> {
         return self.maj23.clone();
+    }
+
+    pub fn make_commit(&self) -> Option<Commit> {
+        todo!()
     }
 }
 

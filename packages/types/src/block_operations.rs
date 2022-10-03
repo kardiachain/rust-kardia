@@ -2,7 +2,11 @@ use std::fmt::Debug;
 
 use mockall::automock;
 
-use crate::{block::BlockMeta, commit::Commit, part_set::Part};
+use crate::{
+    block::{Block, BlockMeta},
+    commit::Commit,
+    part_set::{Part, PartSet},
+};
 
 #[automock]
 pub trait BlockOperations: Debug + Sync + Send + 'static {
@@ -13,6 +17,7 @@ pub trait BlockOperations: Debug + Sync + Send + 'static {
     fn load_block_commit(&self, height: u64) -> Option<Commit>;
     fn load_seen_commit(&self, height: u64) -> Option<Commit>;
     fn load_commit(&self, height: u64) -> Option<Commit>;
+    fn save_block(&self, block: Block, block_parts: PartSet, seen_commit: Commit);
 }
 
 #[derive(Debug, Clone)]
@@ -49,5 +54,9 @@ impl BlockOperations for BlockOperationsImpl {
         } else {
             return self.load_block_commit(height);
         }
+    }
+
+    fn save_block(&self, block: Block, block_parts: PartSet, seen_commit: Commit) {
+        todo!()
     }
 }

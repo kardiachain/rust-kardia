@@ -213,12 +213,8 @@ impl ConsensusStateImpl {
         match msg.as_ref() {
             ConsensusMessageType::ProposalMessage(_msg) => {
                 log::debug!(
-                    "checking upon rules for proposal: proposal={:?}",
-                    _msg.clone()
+                    "no upon rules to check for proposal, they are checked in block part message",
                 );
-                todo!()
-
-                // TODO check upon 8
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
                 log::debug!(
@@ -429,7 +425,42 @@ impl ConsensusStateImpl {
                             return;
                         }
 
-                        // TODO check upon 8
+                        // checking rule #8
+                        if rs
+                            .clone()
+                            .votes
+                            .expect("vote should not nil")
+                            .precommits(rs.round)
+                            .expect("precommits should not nil")
+                            .two_thirds_majority()
+                            .is_some_and(|bid| bid.eq(&proposal_block_id))
+                            && self.clone().block_operations.height() < rs.height
+                        {
+                            let precommits = rs.votes.unwrap().precommits(rs.round).unwrap();
+                            let seen_commit = precommits
+                                .make_commit()
+                                .expect("error on creating commit from precommits");
+
+                            self.clone().block_operations.save_block(
+                                rs.proposal_block.unwrap(),
+                                rs.proposal_block_parts.unwrap(),
+                                seen_commit,
+                            );
+
+                            rs_guard.height += 1;
+
+                            rs_guard.locked_round = 0;
+                            rs_guard.locked_block = None;
+                            rs_guard.locked_block_parts = None;
+
+                            rs_guard.valid_round = 0;
+                            rs_guard.valid_block = None;
+                            rs_guard.valid_block_parts = None;
+
+                            self.start_new_round(0);
+                            drop(rs_guard);
+                            return;
+                        }
                     }
                 }
             }
