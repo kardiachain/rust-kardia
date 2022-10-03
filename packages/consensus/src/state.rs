@@ -487,7 +487,7 @@ impl ConsensusStateImpl {
                                     .expect("prevotes should not nil")
                                     .two_thirds_majority()
                                 {
-                                    // if rule has not been triggered
+                                    // if rule has not bee n triggered
                                     if !rs_guard.triggered_rules.contains(&RULE_4) {
                                         self.clone().schedule_timeout(
                                             rs.height,
@@ -511,16 +511,17 @@ impl ConsensusStateImpl {
                         if let Ok(mut rs_guard) = self.rs.clone().lock() {
                             let rs = rs_guard.clone();
 
-                            // checking rule #7
-                            if let Some(_) = rs
+                            // checking rule #7 and partial rule #8
+                            if let Some(maj23_block_id) = rs
                                 .votes
+                                .clone()
                                 .expect("vote should not nil")
                                 .precommits(rs.round)
                                 .expect("precommits should not nil")
                                 .two_thirds_majority()
                             {
-                                // if rule has not been triggered
-                                if !rs_guard.triggered_rules.contains(&RULE_7) {
+                                // if rule #7 has not been triggered
+                                if !rs.triggered_rules.contains(&RULE_7) {
                                     self.clone().schedule_timeout(
                                         rs.height,
                                         rs.round,
@@ -529,8 +530,40 @@ impl ConsensusStateImpl {
                                     // mark rule has triggered
                                     rs_guard.triggered_rules.insert(RULE_7);
                                 }
-                            }
 
+                                if rs
+                                    .proposal
+                                    .and_then(|p| p.block_id)
+                                    .is_some_and(|pbid| pbid.eq(&maj23_block_id))
+                                    && self.clone().block_operations.height() < rs.height
+                                {
+                                    let precommits =
+                                        rs.votes.clone().unwrap().precommits(rs.round).unwrap();
+                                    let seen_commit = precommits
+                                        .make_commit()
+                                        .expect("error on creating commit from precommits");
+
+                                    self.clone().block_operations.save_block(
+                                        rs.proposal_block.unwrap(),
+                                        rs.proposal_block_parts.unwrap(),
+                                        seen_commit,
+                                    );
+
+                                    rs_guard.height += 1;
+
+                                    rs_guard.locked_round = 0;
+                                    rs_guard.locked_block = None;
+                                    rs_guard.locked_block_parts = None;
+
+                                    rs_guard.valid_round = 0;
+                                    rs_guard.valid_block = None;
+                                    rs_guard.valid_block_parts = None;
+
+                                    self.start_new_round(0);
+                                } else {
+                                    log::debug!("skipped checking for rule #8 due to received +2/3 precommits of block other than our proposal block");
+                                };
+                            }
                             drop(rs_guard);
                         } else {
                             log::trace!("lock round state failed")
