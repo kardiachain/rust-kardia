@@ -34,10 +34,7 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use tokio::sync::mpsc::{
-    error::{SendError, TrySendError},
-    Receiver, Sender,
-};
+use tokio::sync::mpsc::{error::SendError, Receiver, Sender};
 
 const MSG_QUEUE_SIZE: usize = 1000;
 
@@ -1164,15 +1161,51 @@ mod tests {
     };
     use tokio::runtime::Runtime;
 
-    use crate::types::{
-        config::ConsensusConfig,
-        messages::{ConsensusMessageType, MessageInfo, ProposalMessage},
-        peer::internal_peerid,
+    use crate::{
+        state::{ConsensusState, ConsensusStateImpl},
+        types::{
+            config::ConsensusConfig,
+            messages::{ConsensusMessageType, MessageInfo, ProposalMessage},
+            peer::internal_peerid,
+        },
     };
 
-    use super::{ConsensusState, ConsensusStateImpl};
-
     use ethereum_types::Address;
+
+    /**
+     * ------------------------
+     * Constants
+     * ------------------------
+     */
+
+    pub const ADDR_1: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    pub const ADDR_2: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+    pub const ADDR_3: Address =
+        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]);
+
+    pub const VAL_1: Validator = Validator {
+        address: ADDR_1,
+        voting_power: 1,
+        proposer_priority: 1,
+    };
+    pub const VAL_2: Validator = Validator {
+        address: ADDR_2,
+        voting_power: 2,
+        proposer_priority: 2,
+    };
+    pub const VAL_3: Validator = Validator {
+        address: ADDR_3,
+        voting_power: 3,
+        proposer_priority: 3,
+    };
+
+    /**
+     * ------------------------
+     * Internal functions tests
+     * ------------------------
+     */
 
     #[test]
     fn internal_send() {
@@ -1230,29 +1263,6 @@ mod tests {
         rc.join().unwrap();
     }
 
-    pub const ADDR_1: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-    pub const ADDR_2: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
-    pub const ADDR_3: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]);
-
-    pub const VAL_1: Validator = Validator {
-        address: ADDR_1,
-        voting_power: 1,
-        proposer_priority: 1,
-    };
-    pub const VAL_2: Validator = Validator {
-        address: ADDR_2,
-        voting_power: 2,
-        proposer_priority: 2,
-    };
-    pub const VAL_3: Validator = Validator {
-        address: ADDR_3,
-        voting_power: 3,
-        proposer_priority: 3,
-    };
-
     #[test]
     fn is_proposer() {
         let m_latest_block_state = MockLatestBlockState::new();
@@ -1301,6 +1311,12 @@ mod tests {
             panic!("could not lock round state for arrangement")
         }
     }
+
+    /**
+     * ------------------------
+     * State transitions tests
+     * ------------------------
+     */
 
     #[test]
     fn propose_timeout_send_prevote_for_nil() {

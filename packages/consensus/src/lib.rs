@@ -1,9 +1,9 @@
 #![feature(is_some_with)]
 #![feature(async_closure)]
 
-mod types;
 mod reactor;
 mod state;
+mod types;
 mod utils;
 
 #[cfg(test)]
