@@ -392,6 +392,7 @@ dependencies = [
  "bytes",
  "env_logger",
  "ethereum-types",
+ "kai-lib",
  "kai-proto",
  "kai-types",
  "log",

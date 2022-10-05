@@ -1,5 +1,5 @@
 pub mod crypto;
-pub mod signature;
+pub use secp256k1;
 
 #[cfg(test)]
 mod tests {
