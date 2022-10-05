@@ -34,7 +34,10 @@ use std::{
     sync::{Arc, Mutex},
     thread,
 };
-use tokio::sync::mpsc::{error::SendError, Receiver, Sender};
+use tokio::sync::mpsc::{
+    error::{SendError, TryRecvError},
+    Receiver, Sender,
+};
 
 const MSG_QUEUE_SIZE: usize = 1000;
 
@@ -155,53 +158,60 @@ impl ConsensusStateImpl {
     }
 
     fn process_msg_chan(self: Arc<Self>) {
-        if let Ok(mut msg_chan_receiver) = self.clone().msg_chan_receiver.lock() {
-            while let Some(msg_info) = msg_chan_receiver.blocking_recv() {
-                let msg = msg_info.msg.clone();
-                match msg.as_ref() {
-                    ConsensusMessageType::ProposalMessage(_msg) => {
-                        log::debug!("set proposal: proposal={:?}", _msg.clone());
-                        if let Err(e) = self.clone().set_proposal(_msg.clone()) {
-                            log::error!(
-                                "set proposal failed: peerid={} msg={:?}, err={}",
-                                msg_info.peer_id,
-                                _msg.clone(),
-                                e
-                            );
-                        }
-                    }
-                    ConsensusMessageType::BlockPartMessage(_msg) => {
-                        log::debug!("set block part: blockpart={:?}", _msg.clone());
-                        if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
-                            log::error!(
-                                "set block part failed: peerid={} msg={:?}, err={}",
-                                msg_info.peer_id,
-                                _msg.clone(),
-                                e
-                            );
-                        }
-                    }
-                    ConsensusMessageType::VoteMessage(_msg) => {
-                        log::debug!("set vote: vote={:?}", _msg.clone());
-                        if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
-                            log::error!(
-                                "set vote failed: peerid={} msg={:?}, err={}",
-                                msg_info.peer_id,
-                                _msg.clone(),
-                                e
-                            );
-                        }
-                    }
-                    _ => {
-                        log::error!("unknown msg type: type={:?}", msg);
-                    }
-                };
+        loop {
+            if let Ok(mut msg_chan_rx) = self.clone().msg_chan_receiver.lock() {
+                match msg_chan_rx.try_recv() {
+                    Ok(msg_info) => {
+                        let msg = msg_info.msg.clone();
+                        match msg.as_ref() {
+                            ConsensusMessageType::ProposalMessage(_msg) => {
+                                log::debug!("set proposal: proposal={:?}", _msg.clone());
+                                if let Err(e) = self.clone().set_proposal(_msg.clone()) {
+                                    log::error!(
+                                        "set proposal failed: peerid={} msg={:?}, err={}",
+                                        msg_info.peer_id,
+                                        _msg.clone(),
+                                        e
+                                    );
+                                }
+                            }
+                            ConsensusMessageType::BlockPartMessage(_msg) => {
+                                log::debug!("set block part: blockpart={:?}", _msg.clone());
+                                if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
+                                    log::error!(
+                                        "set block part failed: peerid={} msg={:?}, err={}",
+                                        msg_info.peer_id,
+                                        _msg.clone(),
+                                        e
+                                    );
+                                }
+                            }
+                            ConsensusMessageType::VoteMessage(_msg) => {
+                                log::debug!("set vote: vote={:?}", _msg.clone());
+                                if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
+                                    log::error!(
+                                        "set vote failed: peerid={} msg={:?}, err={}",
+                                        msg_info.peer_id,
+                                        _msg.clone(),
+                                        e
+                                    );
+                                }
+                            }
+                            _ => {
+                                log::error!("unknown msg type: type={:?}", msg);
+                            }
+                        };
 
-                self.clone().check_upon_rules(msg);
+                        self.clone().check_upon_rules(msg);
+                    }
+                    Err(e) => match e {
+                        TryRecvError::Empty => todo!(),
+                        TryRecvError::Disconnected => todo!(),
+                    },
+                }
+            } else {
+                log::error!("cannot lock message channel receiver to process");
             }
-        } else {
-            log::error!("cannot lock on msg_chan_receiver");
-            panic!("cannot lock on msg_chan_receiver");
         }
     }
 
