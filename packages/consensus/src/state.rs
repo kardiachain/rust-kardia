@@ -11,6 +11,7 @@ use bytes::Bytes;
 
 use async_trait::async_trait;
 
+use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
 use kai_types::{
     block::{Block, BlockId},
     block_operations::BlockOperations,
@@ -20,7 +21,6 @@ use kai_types::{
     priv_validator::PrivValidator,
     proposal::{proposal_sign_bytes, Proposal},
     round::RoundStep,
-    signable::verify_signature,
     timestamp,
     types::SignedMsgType,
     vote::Vote,
@@ -727,60 +727,89 @@ impl ConsensusStateImpl {
     /// Once the proposal is set, `proposal_block_parts` is initialized from `proposal.part_set_header`
     /// in order to add block parts which is done via gossiping.
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
-        let rs = self.clone().get_rs().expect("cannot get round state");
+        match self.clone().get_rs() {
+            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
+            Some(rs) => {
+                // check for existing proposal
+                if rs.proposal.is_some() {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "ignored proposal: already have proposal".to_owned(),
+                    ));
+                }
 
-        // check for existing proposal
-        if rs.proposal.is_none() {
-            log::warn!("ignored invalid proposal: nil proposal");
-            return Ok(());
-        }
+                // ignore proposal comes from different height, round
+                if msg.proposal.is_none() {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "invalid proposal, forgot to validate proposal?".to_owned(),
+                    ));
+                }
+                let proposal = msg.proposal.unwrap();
 
-        // ignore proposal comes from different height, round
-        let proposal = msg.proposal.expect("forgot to validate proposal?");
-        if proposal.height != rs.height || proposal.round != rs.round {
-            log::warn!("ignored invalid proposal: height or round mismatch with round state");
-            return Ok(());
-        }
+                if proposal.height != rs.height || proposal.round != rs.round {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "ignored invalid proposal: height or round mismatch with round state"
+                            .to_owned(),
+                    ));
+                }
 
-        if proposal.pol_round >= proposal.round {
-            log::warn!("ignored invalid proposal: pol_round");
-            return Ok(());
-        }
+                if proposal.pol_round >= proposal.round {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "ignored proposal: invalid pol_round".to_owned(),
+                    ));
+                }
 
-        let proposer_address = rs
-            .clone()
-            .validators
-            .expect("should has validators")
-            .get_proposer()
-            .expect("should get proposer")
-            .address;
+                if rs.validators.is_none() {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "proposal verification error: cannot get validator set".to_owned(),
+                    ));
+                }
+                let mut validator_set = rs.validators.unwrap();
 
-        // verify signature
-        let chain_id = self.state.clone().get_chain_id();
-        if let Some(psb) = proposal_sign_bytes(chain_id, proposal.clone()) {
-            if !verify_signature(
-                proposer_address,
-                Bytes::from(psb),
-                Bytes::from(proposal.clone().signature),
-            ) {
-                return Err(VerifySignatureError("wrong signature".to_owned()));
+                let proposer = validator_set.get_proposer();
+                if proposer.is_none() {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "proposal verification error: cannot get proposer".to_owned(),
+                    ));
+                }
+
+                let proposer_address = proposer.unwrap().address;
+
+                let chain_id = self.state.clone().get_chain_id();
+                let psb = proposal_sign_bytes(chain_id, proposal.clone());
+                if psb.is_none() {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "proposal verification error: cannot get proposal sign bytes".to_owned(),
+                    ));
+                }
+                if !verify_signature(
+                    proposer_address,
+                    keccak256(psb.unwrap()),
+                    Bytes::from(proposal.clone().signature),
+                ) {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "proposal verification error: wrong signature from proposer".to_owned(),
+                    ));
+                }
+
+                if let Ok(mut rs_guard) = self.clone().rs.lock() {
+                    // update validators
+                    rs_guard.validators = Some(validator_set);
+                    // set proposal
+                    rs_guard.proposal = Some(proposal.clone());
+                    // set proposal block, it's empty until all block parts received
+                    rs_guard.proposal_block = None;
+                    // create new proposal block parts
+                    rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(
+                        proposal.clone().block_id.unwrap().part_set_header.unwrap(),
+                    ));
+                } else {
+                    return Err(ConsensusStateError::AddProposalError(
+                        "add proposal failed: cannot lock on round state".to_owned(),
+                    ));
+                }
+
+                Ok(())
             }
-            let binding = self.rs.clone();
-            let mut rs_guard = binding.lock().expect("cannot lock round state");
-            // set proposal
-            rs_guard.proposal = Some(proposal.clone());
-            // create new proposal block parts
-            rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(
-                proposal.clone().block_id.unwrap().part_set_header.unwrap(),
-            ));
-
-            log::info!("set proposal: proposal={:?}", proposal.clone());
-            Ok(())
-        } else {
-            log::error!("cannot get proposal sign bytes");
-            return Err(VerifySignatureError(
-                "cannot get proposal sign bytes".to_owned(),
-            ));
         }
     }
 
@@ -811,8 +840,7 @@ impl ConsensusStateImpl {
             return Ok(());
         }
 
-        let binding = self.rs.clone();
-        let mut rs_guard = binding.lock().expect("cannot lock round state");
+        let mut rs_guard = self.clone().rs.lock().expect("cannot lock round state");
         // add to proposal block parts
         let pbp = rs_guard
             .proposal_block_parts
@@ -1187,6 +1215,7 @@ impl ConsensusStateImpl {
 mod tests {
     use std::{collections::HashMap, ops::Add, sync::Arc, thread, time::Duration};
 
+    use bytes::Bytes;
     use kai_types::{
         block::BlockId,
         block_operations::MockBlockOperations,
@@ -1196,8 +1225,11 @@ mod tests {
             state::MockLatestBlockState,
         },
         evidence::MockEvidencePool,
+        part_set::PartSetHeader,
         priv_validator::MockPrivValidator,
+        proposal::{proposal_sign_bytes, Proposal},
         round::RoundStep,
+        types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
         vote_set::VoteSet,
     };
@@ -1358,6 +1390,127 @@ mod tests {
         t.join().unwrap();
     }
 
+    use kai_lib::{
+        crypto::{
+            crypto::{keccak256, pub_to_address},
+            signature::sign,
+        },
+        secp256k1::{self, SECP256K1},
+    };
+
+    #[test]
+    fn set_proposal() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let M_CHAIN_ID: String = "".to_string();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const(M_CHAIN_ID.clone());
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        // create unsigned proposal
+        let mut m_proposal = Proposal {
+            r#type: SignedMsgType::Proposal.into(),
+            height: 1,
+            round: 1,
+            pol_round: 0,
+            block_id: Some(BlockId {
+                hash: keccak256(Bytes::new()).to_vec(),
+                part_set_header: Some(PartSetHeader {
+                    total: 10,
+                    hash: keccak256(Bytes::new()).to_vec(),
+                }),
+            }),
+            timestamp: None,
+            signature: vec![],
+        };
+
+        // sign the proposal
+        let psb = proposal_sign_bytes(M_CHAIN_ID.clone(), m_proposal.clone()).unwrap();
+        let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+        let signer_public_key =
+            secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
+
+        let signature = sign(keccak256(psb), signer_secret_key).unwrap();
+        m_proposal.signature = signature.to_vec();
+
+        // create proposer validator
+        let proposer: Validator = Validator {
+            address: pub_to_address(signer_public_key),
+            voting_power: 4,
+            proposer_priority: 4,
+        };
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3, proposer],
+            proposer: None,
+            total_voting_power: 10,
+        };
+
+        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+            proposal: Some(m_proposal.clone()),
+        }));
+
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+        let arc_cs_2 = arc_cs.clone();
+
+        // arrange round state
+        let mut rs_guard = arc_cs
+            .rs
+            .lock()
+            .expect("could not lock round state for arrangement");
+        rs_guard.validators = Some(val_set);
+        drop(rs_guard);
+
+        // start processing messages in a thread
+        // it will be terminated only the channel is closed
+        let t = thread::spawn(move || {
+            let cs = arc_cs;
+            cs.process_msg_chan();
+        });
+
+        Runtime::new().unwrap().block_on(async move {
+            _ = arc_cs_1
+                .send(MessageInfo {
+                    msg: msg,
+                    peer_id: internal_peerid(),
+                })
+                .await;
+
+            // wait for a while for processing message
+            thread::sleep(Duration::from_millis(200));
+
+            // stop the consensus state
+            // closes the channel
+            // msg process will stop
+            _ = arc_cs_1.stop();
+        });
+
+        // make sure this processing message thread is stopped
+        t.join().unwrap();
+
+        let rs = arc_cs_2.clone().get_rs().unwrap();
+        assert!(
+            rs.proposal.is_some()
+                && rs.proposal_block.is_none()
+                && rs.proposal_block_parts.is_some()
+        );
+    }
+
     #[test]
     fn is_proposer() {
         let m_latest_block_state = MockLatestBlockState::new();
@@ -1456,14 +1609,14 @@ mod tests {
         };
 
         // arrange round state
-        if let Ok(mut rs_guard) = arc_cs.clone().rs.lock() {
-            rs_guard.height = 1;
-            rs_guard.round = 1;
-            rs_guard.validators = Some(val_set);
-            drop(rs_guard);
-        } else {
-            panic!("could not lock round state for arrangement")
-        }
+        let mut rs_guard = arc_cs
+            .rs
+            .lock()
+            .expect("could not lock round state for arrangement");
+        rs_guard.height = 1;
+        rs_guard.round = 1;
+        rs_guard.validators = Some(val_set);
+        drop(rs_guard);
 
         let rc = thread::spawn(move || {
             if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {

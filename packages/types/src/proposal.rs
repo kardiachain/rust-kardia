@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use prost::Message;
 
 use crate::{
@@ -59,6 +60,7 @@ impl Into<kai_proto::types::Proposal> for Proposal {
     }
 }
 
-pub fn proposal_sign_bytes(chain_id: ChainId, proposal: Proposal) -> Option<Vec<u8>> {
-    create_canonical_proposal(chain_id, proposal).map(|cp| cp.encode_length_delimited_to_vec())
+pub fn proposal_sign_bytes(chain_id: ChainId, proposal: Proposal) -> Option<Bytes> {
+    create_canonical_proposal(chain_id, proposal)
+        .map(|cp| Bytes::copy_from_slice(&cp.encode_length_delimited_to_vec()))
 }

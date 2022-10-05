@@ -37,4 +37,6 @@ pub enum ConsensusStateError {
     VerifySignatureError(String),
     #[error("add block part error: `{0}`")]
     AddBlockPartError(String),
+    #[error("add proposal error: `{0}`")]
+    AddProposalError(String),
 }

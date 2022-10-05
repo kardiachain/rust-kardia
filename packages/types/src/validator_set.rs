@@ -18,11 +18,12 @@ impl ValidatorSet {
         if self.clone().validators.len() == 0 {
             return None;
         }
-        if let Some(proposer) = self.proposer.clone() {
+        if let Some(proposer) = self.clone().proposer {
             Some(proposer)
         } else {
-            self.proposer = self.find_proposer();
-            self.proposer.clone()
+            let proposer = self.clone().find_proposer();
+            self.proposer = proposer.clone();
+            proposer.clone()
         }
     }
 
