@@ -1406,11 +1406,11 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        let M_CHAIN_ID: String = "".to_string();
+        let m_chain_id: String = "".to_string();
 
         m_latest_block_state
             .expect_get_chain_id()
-            .return_const(M_CHAIN_ID.clone());
+            .return_const(m_chain_id.clone());
 
         let cs = ConsensusStateImpl::new(
             ConsensusConfig::new_default(),
@@ -1439,7 +1439,7 @@ mod tests {
         };
 
         // sign the proposal
-        let psb = proposal_sign_bytes(M_CHAIN_ID.clone(), m_proposal.clone()).unwrap();
+        let psb = proposal_sign_bytes(m_chain_id.clone(), m_proposal.clone()).unwrap();
         let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
         let signer_public_key =
             secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
