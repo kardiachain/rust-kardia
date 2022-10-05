@@ -19,3 +19,9 @@ impl Kdf {
         todo!()
     }
 }
+
+impl Drop for Kdf {
+    fn drop(&mut self) {
+        todo!()
+    }
+}

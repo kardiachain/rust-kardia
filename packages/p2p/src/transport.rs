@@ -1,250 +1,149 @@
-use crate::{netaddress::{NetAddress, new_net_address}, peer::Peer, conn::{mconnection::{ChannelDescriptor, MConnConfig}, secret_connection::SecretConnection}, base_reactor::Reactor, node_info::NodeInfo, key::{NodeKey, pubkey_to_id}, conn_set::ConnSetTrait};
-use core::time;
-use std::{error::Error, collections::HashMap, time::Duration};
-use tokio::{net::{TcpListener, TcpStream}, select, sync::mpsc::Sender};
+//! Abstractions that describe types which support the physical transport - i.e. connection
+//! management - used in the p2p stack.
+
+use std::net::{SocketAddr, ToSocketAddrs};
+
 use async_trait::async_trait;
-use tokio::sync::mpsc::Receiver;
-use defer_lite::defer;
-use std::panic;
+use eyre::Result;
+use futures_core::Stream;
+use kardia::{node, public_key::PublicKey};
 
-
-const DEFAULT_DIAL_TIMEOUT: time::Duration = Duration::from_secs(1);
-const DEFAULT_FILTER_TIMEOUT: time::Duration = Duration::from_secs(5);
-const DEFAULT_HANDSHAKE_TIMEOUT: time::Duration = Duration::from_secs(3);
-
-
-// Transport emits and connects to Peers. The implementation of Peer is left to
-// the transport. Each transport is also responsible to filter establishing
-// peers specific to its domain.
-pub trait Transport {
-    fn net_address(&self) -> NetAddress;
-
-    fn accept(&self, peer_cfg: PeerConfig) -> bool;
-
-    fn dial(&self, net_addr: NetAddress, cfg: PeerConfig) -> Result<Peer, Box<dyn Error>>;
-
-    fn cleanup(&self, peer: Peer);
+/// Information which resources to bind to and how to identify on the network.
+pub struct BindInfo<A>
+where
+    A: ToSocketAddrs,
+{
+    /// List of addresses to be communicated as publicly reachable to other nodes, which in turn
+    /// can use that to share with third parties.
+    ///
+    /// TODO(xla): Depending on where this information is going to be disseminated it might be
+    /// better placed in a higher-level protocol. What stands in opposition to that is the fact
+    /// that advertised addresses will be helpful for hole punching and other involved network
+    /// traversals.
+    pub advertise_addrs: A,
+    /// Local address(es) to bind to and accept connections on.
+    pub bind_addrs: A,
+    /// Public key of the peer used for identity on the network.
+    pub public_key: PublicKey,
 }
 
-// transportLifecycle bundles the methods for callers to control start and stop
-// behaviour.
+/// Information to establish a connection to a remote peer and validate its identity.
+pub struct ConnectInfo<A>
+where
+    A: ToSocketAddrs,
+{
+    /// Known address(es) of the peer.
+    pub addrs: A,
+    /// The expected id of the remote peer.
+    pub id: node::Id,
+}
+
+/// Known list of typed streams.
+#[derive(Clone, Copy, Hash, Eq, PartialEq)]
+pub enum StreamId {
+    /// Stream to exchange message concerning Peer Exchange.
+    Pex,
+}
+
+/// Envelope to trace the original direction of an established connection.
+pub enum Direction<Conn> {
+    /// A peer that connected to the local node.
+    Incoming(Conn),
+    /// A remote peer the local node established a connection to.
+    Outgoing(Conn),
+}
+
+/// Trait that describes the send end of a stream.
 #[async_trait]
-pub trait TransportLifeCycle {
-    fn close() -> Result<(), Box<dyn Error>>;
-    async fn listen(na: NetAddress);
+pub trait StreamSend: Send + Sync {
+    /// Sends the message to the peer over the open stream. `msg` should be a valid and properly
+    /// encoded byte array according to the supported messages of the stream.
+    ///
+    /// # Errors
+    ///
+    /// * If the underlying I/O operations fail.
+    /// * If the stream is closed.
+    /// * If the peer is gone
+    async fn send<B: AsRef<[u8]>>(msg: B) -> Result<()>;
 }
 
-// peerConfig is used to bundle data we need to fully setup a Peer with an
-// MConn, provided by the caller of Accept and Dial (currently the Switch). This
-// a temporary measure until reactor setup is less dynamic and we introduce the
-// concept of PeerBehaviour to communicate about significant Peer lifecycle
-// events.
-pub struct PeerConfig {
-    ch_descs: Vec<ChannelDescriptor>,
-    // onPeerError func(Peer, interface{}),
-    outbound: bool,
-	// isPersistent allows you to set a function, which, given socket address
-	// (for outbound peers) OR self-reported address (for inbound peers), tells
-	// if the peer is persistent or not.
-    is_persistent: fn(&NetAddress)-> bool, 
-    reactors_by_ch: HashMap<u8, Box<dyn Reactor>>,
+/// Trait which describes the core concept of a connection between two peers established by
+/// `[Transport]`.
+#[async_trait]
+pub trait Connection: Send {
+    /// Errors emitted by the connection.
+    type Error;
+    /// Read end of a bidirectional stream. Carries a finite stream of framed messages. Decoding is
+    /// left to the caller and should correspond to the type of stream.
+    type StreamRead: Stream<Item = Result<Vec<u8>>> + Send + Sync;
+    /// Send end of a stream.
+    type StreamSend: StreamSend;
+
+    /// Returns the list of advertised addresses known for this connection.
+    fn advertised_addrs(&self) -> Vec<SocketAddr>;
+    /// Tears down the connection  and releases all attached resources.
+    ///
+    /// # Errors
+    ///
+    /// * If release of attached resources failed.
+    async fn close(&self) -> Result<()>;
+    /// Returns the local address for the connection.
+    fn local_addr(&self) -> SocketAddr;
+    /// Opens a new bi-bidirectional stream for the given [`StreamId`].
+    ///
+    /// # Errors
+    ///
+    /// * If the stream type is not supported.
+    /// * If the peer is gone.
+    /// * If resources necessary for the stream creation aren't available/accessible.
+    async fn open_bidirectional(
+        &self,
+        stream_id: StreamId,
+    ) -> Result<(Self::StreamRead, Self::StreamSend), Self::Error>;
+    /// Public key of the remote peer.
+    fn public_key(&self) -> PublicKey;
+    /// Local address(es) to the endpoint listens on.
+    fn remote_addr(&self) -> SocketAddr;
 }
 
-// accept is the container to carry the upgraded connection and NodeInfo from an
-// asynchronously running routine to the Accept method.
-pub struct Accept {
-    net_addr: Option<&'static NetAddress>,
-    conn: Option<TcpStream>,
-    node_info: Option<Box<dyn NodeInfo>>,
-    err: Option<Box<dyn Error>>
+/// Local handle on a resource which allows connecting to remote peers.
+#[async_trait]
+pub trait Endpoint<A>: Send + Sync
+where
+    A: ToSocketAddrs,
+{
+    /// Core type that represents a connection between two peers established through the transport.
+    type Connection;
+
+    /// Establishes a new connection to a remote peer.
+    ///
+    /// # Errors
+    ///
+    /// * If the remote is not reachable.
+    /// * If resources necessary for the connection creation aren't available/accessible.
+    async fn connect(&self, info: ConnectInfo<A>) -> Result<Self::Connection>;
+    /// Local address(es) the endpoint listens on.
+    fn listen_addrs(&self) -> Vec<SocketAddr>;
 }
 
-pub struct MultiplexTransport {
-    na: Option<NetAddress>,
-    listener: Option<TcpListener>,
-    max_incoming_connections: Option<i32>,
+/// Trait that describes types which support connection management of the p2p stack.
+#[async_trait]
+pub trait Transport<A>
+where
+    A: ToSocketAddrs,
+{
+    /// Core type that represents a connection between two peers established through the transport.
+    type Connection: Connection;
+    /// Local handle on a resource which allows connecting to remote peers.
+    type Endpoint: Endpoint<A, Connection = <Self as Transport<A>>::Connection> + Drop;
+    /// Infinite stream of inbound connections.
+    type Incoming: Stream<Item = Result<<Self as Transport<A>>::Connection>> + Send + Sync;
 
-    acceptc_tx: Sender<Accept>,
-    acceptc_rx: Receiver<Accept>,
-    closec_tx: Sender<bool>,
-    closec_rx: Receiver<bool>,
-
-	// Lookup table for duplicate ip and id checks.
-	conns: Box<dyn ConnSetTrait>,
-	// connFilters []ConnFilterFunc
-
-    dial_timeout: time::Duration,
-    filter_timeout: time::Duration,
-    handshake_timeout: time::Duration,
-    node_info: Box<dyn NodeInfo>,
-    node_key: NodeKey,
-
-    // TODO(xla): This config is still needed as we parameterise peerConn and
-	// peer currently. All relevant configuration should be refactored into options
-	// with sane defaults.
-    mconfig: MConnConfig
-}
-
-impl MultiplexTransport {
-    pub fn new(node_info: Box<dyn NodeInfo>, node_key: NodeKey, m_config: MConnConfig) -> Self {
-        // MultiplexTransport { na: None, listener: None, max_incoming_connections: None, dial_timeout: DEFAULT_DIAL_TIMEOUT, filter_timeout: DEFAULT_FILTER_TIMEOUT, handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT, node_info: node_info, node_key: node_key, mconfig: m_config }
-        todo!()
-    }
-    // NetAddress implements Transport.
-    pub fn net_address(&self) -> Option<&NetAddress> {
-        self.na.as_ref()
-    }
-
-    pub fn accept(&self, cfg: PeerConfig) -> Result<Peer, Box<dyn Error>> {
-        todo!()
-    }
-
-    // Dial implements Transport.
-    pub fn dial(addr: NetAddress, cfg: PeerConfig) -> Result<Peer, Box<dyn Error>> {
-        todo!()
-    }
-
-    pub fn upgrade(&self, c: &TcpStream, dialed_addr: Option<&NetAddress>) -> Result<(&SecretConnection, Box<dyn NodeInfo>), Box<dyn Error>> {
-        todo!()
-    }
-
-    async fn accept_peers(&mut self) -> Result<(), Box<dyn Error>>{
-        loop {
-                let conn = self.listener.as_ref().unwrap().accept().await;
-                match conn {
-                    Ok((mut stream, _)) => {
-                        // Connection upgrade and filtering should be asynchronous to avoid
-                        // Head-of-line blocking[0].
-                        //
-                        // [0] https://en.wikipedia.org/wiki/Head-of-line_blocking
-                        async {
-                            // recover from panicking thread
-                            defer! {
-                                let ok = panic::catch_unwind(|| {
-
-                                });
-                                match ok {
-                                    Err(e) => {},
-                                    _ => {},
-                                }
-                            }
-
-                            match self.filter_conn(&stream) {
-                                Ok(()) => {
-                                    match self.upgrade(&stream, None) {
-                                        Ok((secret_conn, node_info)) => {
-                                            let addr = stream.peer_addr();
-                                            let id = pubkey_to_id(&secret_conn.remote_pubkey());
-                                            let net_address = new_net_address(id, addr.unwrap().to_string().as_str());
-                                        },
-                                        Err(e) => {},
-                                    }
-                                },
-                                Err(e) => {},
-                            }
-                        };
-                    },
-                    Err(e) => {
-                        select! {
-                            // If Close() has been called, silently exit.
-                            ok = self.closec_rx.recv() => {
-                                if ok.is_some() && !ok.unwrap() {
-                                    return Ok(())
-                                }
-                            },
-                            else => {
-                                // Transport is not closed
-                            }
-                        }
-                        self.acceptc_tx.send(Accept { net_addr: None, conn: None, node_info: None, err: Some(Box::new(e)) }).await;
-                        ()
-                    }
-                };
-                
-
-        }
-    }
-
-    // Cleanup removes the given address from the connections set and
-    // closes the connection.
-    pub fn cleanup(p: Peer) {
-        todo!()
-    }
-
-    pub fn filter_conn(&self, c: &TcpStream) -> Result<(), Box<dyn Error>> {
-        // Reject if connection is already present.
-
-        // Resolve ips for incoming conn.
-        Ok(())
-    }
-
-    fn wrap_peer(c: TcpStream, ni: Box<dyn NodeInfo>, cfg: PeerConfig, socket_addr: &NetAddress) -> Peer {
-        todo!()
-    }
-
-    fn close() -> Result<(), Box<dyn Error>> {
-        todo!()
-    }
-
-    async fn listen(&mut self, addr: NetAddress) -> Result<(), Box<dyn Error>>{
-        let ln = TcpListener::bind(addr.dial_string()).await?;
-
-        self.na = Some(addr);
-        self.listener = Some(ln);
-
-        if self.max_incoming_connections.is_some() && self.max_incoming_connections.unwrap() > 0 {
-            // set limit listeners
-        }
-        // let t = tokio::spawn(|| {
-        //     self.accept_peers();
-        // });
-        Ok(())
-    }
-}
-
-// #[async_trait]
-// impl TransportLifeCycle for MultiplexTransport {
-//     fn close() -> Result<(), Box<dyn Error>> {
-//         todo!()
-//     }
-
-//     async fn listen(na: NetAddress) {
-//         // Box::pin(self)
-//         let mut handles = Vec::new();
-//         let listen_thread = tokio::spawn(async {
-//             let ln = TcpListener::bind(na.dial_string()).await;
-//             na.
-//         });
-//         handles.push(listen_thread);
-//     }
-// }
-
-// pub async fn listen_to(mt: &mut MultiplexTransport, na: NetAddress) -> tokio::io::Result<()> {
-//     let ln = TcpListener::bind(na.dial_string()).await?;
-//     mt.na = Some(na);
-//     mt.listener = Some(ln);
-
-//     mt.accept_peers().await;
-
-//     Ok(())
-// }
-
-
-
-pub fn handshake(c: TcpStream, timeout: time::Duration, node_info: Box<dyn NodeInfo>) -> Result<Box<dyn NodeInfo>, Box<dyn Error>> {
-    todo!()
-}
-
-// MultiplexTransportOption sets an optional parameter on the
-// MultiplexTransport.
-pub type MultiplexTransportOption = fn(&MultiplexTransport);
-
-// MultiplexTransportFilterTimeout sets the timeout waited for filter calls to
-// return.
-pub fn multiplex_transport_filter_timeout(time_out: time::Duration) -> MultiplexTransportOption {
-    // let set_filter_timeout = |mt: &MultiplexTransport| {
-    //     mt.filter_timeout = time_out
-    // };
-    // return set_filter_timeout;
-    todo!()
+    /// Consumes the transport to bind the resources in exchange for the `Endpoint` and `Incoming`
+    /// stream.
+    ///
+    /// # Errors
+    ///
+    /// * If resource allocation fails for lack of privileges or being not available.
+    async fn bind(self, bind_info: BindInfo<A>) -> Result<(Self::Endpoint, Self::Incoming)>;
 }
