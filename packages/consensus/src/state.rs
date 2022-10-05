@@ -54,6 +54,7 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
     async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
+    fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError>;
 }
 
 #[derive(Debug)]
@@ -121,6 +122,15 @@ impl ConsensusState for ConsensusStateImpl {
         }
     }
 
+    fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError> {
+        // close msg_channel
+        if let Ok(mut msg_chan_receiver) = self.msg_chan_receiver.lock() {
+            msg_chan_receiver.close();
+        }
+
+        Ok(())
+    }
+
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>) {
         todo!()
     }
@@ -157,60 +167,82 @@ impl ConsensusStateImpl {
         self.clone().msg_chan_sender.send(msg_info).await
     }
 
+    /// Process incoming messages by polling the receiver.
+    /// This process runs until the message channel is closed.
     fn process_msg_chan(self: Arc<Self>) {
         loop {
-            if let Ok(mut msg_chan_rx) = self.clone().msg_chan_receiver.lock() {
-                match msg_chan_rx.try_recv() {
-                    Ok(msg_info) => {
-                        let msg = msg_info.msg.clone();
-                        match msg.as_ref() {
-                            ConsensusMessageType::ProposalMessage(_msg) => {
-                                log::debug!("set proposal: proposal={:?}", _msg.clone());
-                                if let Err(e) = self.clone().set_proposal(_msg.clone()) {
-                                    log::error!(
-                                        "set proposal failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        _msg.clone(),
-                                        e
-                                    );
-                                }
-                            }
-                            ConsensusMessageType::BlockPartMessage(_msg) => {
-                                log::debug!("set block part: blockpart={:?}", _msg.clone());
-                                if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
-                                    log::error!(
-                                        "set block part failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        _msg.clone(),
-                                        e
-                                    );
-                                }
-                            }
-                            ConsensusMessageType::VoteMessage(_msg) => {
-                                log::debug!("set vote: vote={:?}", _msg.clone());
-                                if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
-                                    log::error!(
-                                        "set vote failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        _msg.clone(),
-                                        e
-                                    );
-                                }
-                            }
-                            _ => {
-                                log::error!("unknown msg type: type={:?}", msg);
-                            }
-                        };
+            let cs = self.clone();
 
-                        self.clone().check_upon_rules(msg);
-                    }
-                    Err(e) => match e {
-                        TryRecvError::Empty => todo!(),
-                        TryRecvError::Disconnected => todo!(),
-                    },
+            // stop processing if channel is closed
+            if cs.msg_chan_sender.is_closed() {
+                log::info!("message channel is closed, stop processing messages");
+                break;
+            }
+
+            let lock_rs = cs.msg_chan_receiver.lock();
+            if lock_rs.is_err() {
+                log::error!("try lock receiver poisoned, exit the message processing");
+                break;
+            }
+
+            let mut msg_chan_rx = lock_rs.unwrap();
+            let rs = msg_chan_rx.try_recv();
+            // unlock msg_chan_rx
+            drop(msg_chan_rx);
+
+            match rs {
+                Ok(msg_info) => {
+                    let msg = msg_info.msg.clone();
+                    match msg.as_ref() {
+                        ConsensusMessageType::ProposalMessage(_msg) => {
+                            log::debug!("set proposal: proposal={:?}", _msg.clone());
+                            if let Err(e) = self.clone().set_proposal(_msg.clone()) {
+                                log::error!(
+                                    "set proposal failed: peerid={} msg={:?}, err={}",
+                                    msg_info.peer_id,
+                                    _msg.clone(),
+                                    e
+                                );
+                            }
+                        }
+                        ConsensusMessageType::BlockPartMessage(_msg) => {
+                            log::debug!("set block part: blockpart={:?}", _msg.clone());
+                            if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
+                                log::error!(
+                                    "set block part failed: peerid={} msg={:?}, err={}",
+                                    msg_info.peer_id,
+                                    _msg.clone(),
+                                    e
+                                );
+                            }
+                        }
+                        ConsensusMessageType::VoteMessage(_msg) => {
+                            log::debug!("set vote: vote={:?}", _msg.clone());
+                            if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
+                                log::error!(
+                                    "set vote failed: peerid={} msg={:?}, err={}",
+                                    msg_info.peer_id,
+                                    _msg.clone(),
+                                    e
+                                );
+                            }
+                        }
+                        _ => {
+                            log::error!("unknown msg type: type={:?}", msg);
+                        }
+                    };
+
+                    self.clone().check_upon_rules(msg);
                 }
-            } else {
-                log::error!("cannot lock message channel receiver to process");
+                Err(e) => match e {
+                    TryRecvError::Disconnected => {
+                        // break loop when channel is closed
+                        break;
+                    }
+                    TryRecvError::Empty => {
+                        // no messages, continue the loop
+                    }
+                },
             }
         }
     }
@@ -1271,6 +1303,59 @@ mod tests {
         });
 
         rc.join().unwrap();
+    }
+
+    #[test]
+    fn process_msg_chan() {
+        let m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        // here we send invalid proposal
+        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+            proposal: None,
+        }));
+
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+
+        // start processing messages in a thread
+        // it will be terminated only the channel is closed
+        let t = thread::spawn(move || {
+            let cs = arc_cs;
+            cs.process_msg_chan();
+        });
+
+        Runtime::new().unwrap().block_on(async move {
+            _ = arc_cs_1
+                .send(MessageInfo {
+                    msg: msg,
+                    peer_id: internal_peerid(),
+                })
+                .await;
+
+            // wait for a while for processing message
+            thread::sleep(Duration::from_millis(200));
+
+            // stop the consensus state
+            // closes the channel
+            // msg process will stop
+            _ = arc_cs_1.stop();
+        });
+
+        // make sure this processing message thread is stopped
+        t.join().unwrap();
     }
 
     #[test]
