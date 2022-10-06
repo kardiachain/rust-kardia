@@ -1,5 +1,11 @@
-use bitvec::{macros::internal::funty::Fundamental, prelude::Msb0, vec::BitVec};
+use bitvec::{
+    bitvec,
+    macros::internal::funty::Fundamental,
+    prelude::{Lsb0, Msb0},
+    vec::BitVec,
+};
 
+/// BitArray is a wrapper struct that extends BitVec.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BitArray {
     bv: BitVec<u64, Msb0>,
@@ -25,7 +31,7 @@ impl Into<kai_proto::types::BitArray> for BitArray {
 impl BitArray {
     pub fn new_bit_array(bits: usize) -> Self {
         Self {
-            bv: BitVec::with_capacity(bits),
+            bv: BitVec::<u64, Msb0>::repeat(false, bits),
         }
     }
 
@@ -39,8 +45,8 @@ impl BitArray {
     }
 
     pub fn get_index(&self, i: usize) -> Result<bool, String> {
-        if let Some(v) = self.bv.get(i) {
-            Ok(v.as_bool())
+        if let Some(v) = self.bv.get(i).as_deref() {
+            Ok(*v)
         } else {
             Err("index out of bound".to_owned())
         }

@@ -1,7 +1,7 @@
 use crate::types::{
     config::ConsensusConfig,
     error::ConsensusStateError::{
-        self, AddBlockPartError, CreateSignedVoteError, VerifySignatureError,
+        self, AddBlockPartError, CreateSignedVoteError,
     },
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
@@ -109,7 +109,6 @@ impl ConsensusState for ConsensusStateImpl {
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
         // TODO:
 
-        
         // start processing messages
         let cs = self.clone();
         tokio::spawn(async move {
@@ -725,14 +724,6 @@ impl ConsensusStateImpl {
         };
     }
 
-    /// sets proposal if and only if following conditions are satisfied:
-    /// - no existing proposal
-    /// - proposal comes from different height, round
-    /// - proposal proof-of-lock invalid
-    /// - proposal must comes current round proposer
-    ///
-    /// Once the proposal is set, `proposal_block_parts` is initialized from `proposal.part_set_header`
-    /// in order to add block parts which is done via gossiping.
     fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
         match self.clone().get_rs() {
             None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
@@ -820,46 +811,45 @@ impl ConsensusStateImpl {
         }
     }
 
-    /**
-    This function adds proposal block part and it checks:
-    * full proposal block, then it makes state transition to PREVOTE step
-    */
     fn add_proposal_block_part(&self, msg: BlockPartMessage) -> Result<(), ConsensusStateError> {
-        let rs = self.clone().get_rs().expect("cannot get round state");
+        match self.clone().get_rs() {
+            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
+            Some(rs) => {
+                if rs.height != msg.height {
+                    log::debug!(
+                        "ignored block part from wrong height: height={}, round={}",
+                        msg.height,
+                        msg.round
+                    );
+                    return Ok(());
+                }
 
-        if rs.height != msg.height {
-            log::debug!(
-                "ignored block part from wrong height: height={}, round={}",
-                msg.height,
-                msg.round
-            );
-            return Ok(());
-        }
+                // we're not expecting a block part
+                if rs.proposal_block_parts.is_none() {
+                    log::info!(
+                        "ignored a block part when we're not expecting any: height={} round={} index={}",
+                        msg.height,
+                        msg.round,
+                        msg.part.unwrap().index
+                    );
+                    return Ok(());
+                }
 
-        // we're not expecting a block part
-        if rs.proposal_block_parts.is_none() {
-            log::info!(
-                "ignored a block part when we're not expecting any: height={} round={} index={}",
-                msg.height,
-                msg.round,
-                msg.part.unwrap().index
-            );
-            return Ok(());
-        }
-
-        let mut rs_guard = self.clone().rs.lock().expect("cannot lock round state");
-        // add to proposal block parts
-        let pbp = rs_guard
-            .proposal_block_parts
-            .as_mut()
-            .expect("proposal block parts should not nil");
-
-        match pbp.add_part(msg.clone().part.unwrap()) {
-            Ok(_) => {
-                log::info!("set proposal block part: part={:?}", msg.clone());
-                return Ok(());
+                if let Ok(mut rs_guard) = self.clone().rs.lock() {
+                    let pbp = rs_guard.proposal_block_parts.as_mut().unwrap();
+                    match pbp.add_part(msg.clone().part.unwrap()) {
+                        Ok(_) => {
+                            log::info!("set proposal block part: part={:?}", msg.clone());
+                            return Ok(());
+                        }
+                        Err(e) => return Err(AddBlockPartError(e)),
+                    }
+                } else {
+                    return Err(ConsensusStateError::AddBlockPartError(
+                        "add proposal block part: cannot lock on round state".to_owned(),
+                    ));
+                }
             }
-            Err(e) => return Err(AddBlockPartError(e)),
         }
     }
 
@@ -1231,8 +1221,9 @@ mod tests {
             height_vote_set::{HeightVoteSet, RoundVoteSet},
             state::MockLatestBlockState,
         },
+        crypto::Proof,
         evidence::MockEvidencePool,
-        part_set::PartSetHeader,
+        part_set::{Part, PartSet, PartSetHeader},
         priv_validator::MockPrivValidator,
         proposal::{proposal_sign_bytes, Proposal},
         round::RoundStep,
@@ -1246,7 +1237,7 @@ mod tests {
         state::{ConsensusState, ConsensusStateImpl},
         types::{
             config::ConsensusConfig,
-            messages::{ConsensusMessageType, MessageInfo, ProposalMessage},
+            messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage},
             peer::internal_peerid,
         },
     };
@@ -1518,6 +1509,139 @@ mod tests {
     }
 
     #[test]
+    fn add_proposal_block_part() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let m_chain_id: String = "".to_string();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const(m_chain_id.clone());
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        let total_parts = 10;
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
+
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+        let arc_cs_2 = arc_cs.clone();
+
+        // arrange round state
+        let mut rs_guard = arc_cs
+            .rs
+            .lock()
+            .expect("could not lock round state for arrangement");
+        rs_guard.validators = Some(val_set);
+        rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(PartSetHeader {
+            total: total_parts,
+            hash: keccak256(Bytes::new()).to_vec(),
+        }));
+        drop(rs_guard);
+
+        Runtime::new().unwrap().block_on(async move {
+            // start processing messages
+            let msg_thr = tokio::spawn(async move {
+                arc_cs.process_msg_chan();
+            });
+
+            
+            // send block part messages
+            let part_0_index = 0; // first
+            let part_1_index = 1; // second
+
+            let m_block_part_0 = BlockPartMessage {
+                height: 1,
+                round: 1,
+                part: Some(Part {
+                    index: part_0_index,
+                    bytes: vec![],
+                    proof: Some(Proof {
+                        total: total_parts as u64,
+                        index: part_0_index as u64,
+                        leaf_hash: vec![],
+                        aunts: vec![vec![]],
+                    }),
+                }),
+            };
+            let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_0));
+            _ = arc_cs_1
+                .send(MessageInfo {
+                    msg: msg,
+                    peer_id: internal_peerid(),
+                })
+                .await;
+
+            let m_block_part_1 = BlockPartMessage {
+                height: 1,
+                round: 1,
+                part: Some(Part {
+                    index: part_1_index,
+                    bytes: vec![],
+                    proof: Some(Proof {
+                        total: total_parts as u64,
+                        index: part_1_index as u64,
+                        leaf_hash: vec![],
+                        aunts: vec![vec![]],
+                    }),
+                }),
+            };
+
+            let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_1));
+            _ = arc_cs_1
+                .send(MessageInfo {
+                    msg: msg,
+                    peer_id: internal_peerid(),
+                })
+                .await;
+
+            // wait for a while for processing message
+            thread::sleep(Duration::from_millis(200));
+
+            // stop the consensus state
+            // closes the channel
+            // msg process will stop
+            _ = arc_cs_1.stop();
+
+            // make sure this processing message thread is stopped
+            let join_rs = msg_thr.await;
+            assert!(join_rs.is_ok());
+
+            let rs = arc_cs_2.clone().get_rs().unwrap();
+            // assert proposal block part
+            let pbp = rs.proposal_block_parts.unwrap();
+            assert_eq!(pbp.count, 2); // received 1 part
+            assert_eq!(pbp.total, total_parts);
+            assert!(pbp.parts.get(part_0_index as usize).is_some());
+            assert!(pbp.parts.get(part_1_index as usize).is_some());
+            assert!(pbp
+                .parts_bit_array
+                .get_index(part_0_index as usize)
+                .is_ok_and(|v| *v == true));
+            assert!(pbp
+                .parts_bit_array
+                .get_index(part_1_index as usize)
+                .is_ok_and(|v| *v == true));
+        });
+    }
+
+    #[test]
     fn is_proposer() {
         let m_latest_block_state = MockLatestBlockState::new();
         let mut m_priv_validator = MockPrivValidator::new();
@@ -1525,7 +1649,6 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        // set ADDR_2 for our priv validator
         m_priv_validator.expect_get_address().return_const(ADDR_2);
 
         let val_set: ValidatorSet = ValidatorSet {
