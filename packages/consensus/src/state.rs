@@ -218,7 +218,7 @@ impl ConsensusStateImpl {
                         }
                         ConsensusMessageType::VoteMessage(_msg) => {
                             log::debug!("set vote: vote={:?}", _msg.clone());
-                            if let Err(e) = self.clone().try_add_vote(_msg.clone()) {
+                            if let Err(e) = self.clone().add_vote(_msg.clone()) {
                                 log::error!(
                                     "set vote failed: peerid={} msg={:?}, err={}",
                                     msg_info.peer_id,
@@ -856,7 +856,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn try_add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
+    fn add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
         if let Ok(mut rs_guard) = self.clone().rs.lock() {
             let rs = rs_guard.clone();
 
@@ -1362,14 +1362,12 @@ mod tests {
         let arc_cs = Arc::new(cs);
         let arc_cs_1 = arc_cs.clone();
 
-        // start processing messages in a thread
-        // it will be terminated only the channel is closed
-        let t = thread::spawn(move || {
-            let cs = arc_cs;
-            cs.process_msg_chan();
-        });
-
         Runtime::new().unwrap().block_on(async move {
+            // start processing messages
+            let msg_thr = tokio::spawn(async move {
+                arc_cs.process_msg_chan();
+            });
+
             _ = arc_cs_1
                 .send(MessageInfo {
                     msg: msg,
@@ -1384,10 +1382,10 @@ mod tests {
             // closes the channel
             // msg process will stop
             _ = arc_cs_1.stop();
-        });
 
-        // make sure this processing message thread is stopped
-        t.join().unwrap();
+            let join_rs = msg_thr.await;
+            assert!(join_rs.is_ok());
+        });
     }
 
     use kai_lib::{
@@ -1476,14 +1474,13 @@ mod tests {
         rs_guard.validators = Some(val_set);
         drop(rs_guard);
 
-        // start processing messages in a thread
-        // it will be terminated only the channel is closed
-        let t = thread::spawn(move || {
-            let cs = arc_cs;
-            cs.process_msg_chan();
-        });
-
         Runtime::new().unwrap().block_on(async move {
+            // start processing messages
+            let msg_thr = tokio::spawn(async move {
+                arc_cs.process_msg_chan();
+            });
+
+            // send proposal message
             _ = arc_cs_1
                 .send(MessageInfo {
                     msg: msg,
@@ -1498,17 +1495,19 @@ mod tests {
             // closes the channel
             // msg process will stop
             _ = arc_cs_1.stop();
+
+            // make sure this processing message thread is stopped
+            let join_rs = msg_thr.await;
+            assert!(join_rs.is_ok());
+
+            let rs = arc_cs_2.clone().get_rs().unwrap();
+            // assert proposal
+            assert!(
+                rs.proposal.is_some()
+                    && rs.proposal_block.is_none()
+                    && rs.proposal_block_parts.is_some()
+            );
         });
-
-        // make sure this processing message thread is stopped
-        t.join().unwrap();
-
-        let rs = arc_cs_2.clone().get_rs().unwrap();
-        assert!(
-            rs.proposal.is_some()
-                && rs.proposal_block.is_none()
-                && rs.proposal_block_parts.is_some()
-        );
     }
 
     #[test]
