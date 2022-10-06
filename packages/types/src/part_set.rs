@@ -69,8 +69,8 @@ pub struct PartSet {
     pub total: u32,
     pub hash: Vec<u8>,
 
-    pub parts: Vec<Part>,
-    pub parts_bit_array: Option<BitArray>,
+    pub parts: Vec<Option<Part>>,
+    pub parts_bit_array: BitArray,
     pub count: u32,
 }
 
@@ -86,7 +86,7 @@ impl PartSet {
         return self.header().eq(&header);
     }
 
-    pub fn get_part(&self, index: usize) -> Part {
+    pub fn get_part(&self, index: usize) -> Option<Part> {
         self.parts[index].clone()
     }
 
@@ -106,13 +106,11 @@ impl PartSet {
         }
 
         // add part
-        self.parts[part.clone().index as usize] = part.clone();
+        self.parts
+            .insert(part.clone().index as usize, Some(part.clone()));
+        self.parts_bit_array
+            .set_index(part.clone().index as usize, true);
         self.count += 1;
-        if let Some(pba) = self.parts_bit_array.as_mut() {
-            pba.set_index(part.index as usize, true);
-        } else {
-            return Err("parts bit array isn't initialized".to_owned());
-        }
         Ok(())
     }
 
@@ -120,8 +118,8 @@ impl PartSet {
         Self {
             total: header.total,
             hash: header.hash,
-            parts: Vec::with_capacity(header.total as usize),
-            parts_bit_array: Some(BitArray::new_bit_array(header.total as usize)),
+            parts: vec![None; header.total as usize],
+            parts_bit_array: BitArray::new_bit_array(header.total as usize),
             count: 0,
         }
     }

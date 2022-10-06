@@ -409,20 +409,16 @@ impl ConsensusReactorImpl {
                         .map(|pbp| pbp.header())
                         .eq(&prs.proposal_block_parts_header)
                     {
-                        if let Some(index) = rs
-                            .proposal_block_parts
-                            .clone()
-                            .and_then(|pbp| pbp.parts_bit_array)
-                            .and_then(|pba| {
-                                pba.sub(prs.proposal_block_parts.clone().unwrap())
-                                    .pick_random()
-                            })
-                        {
+                        if let Some(index) = rs.proposal_block_parts.clone().and_then(|pbp| {
+                            pbp.parts_bit_array
+                                .sub(prs.proposal_block_parts.clone().unwrap())
+                                .pick_random()
+                        }) {
                             let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
                             let msg = BlockPartMessage {
                                 height: rs.height,
                                 round: rs.round,
-                                part: Some(part),
+                                part: part,
                             };
 
                             log::debug!(
@@ -869,7 +865,7 @@ impl ConsensusReactorImpl {
 #[cfg(test)]
 mod tests {
     use std::{
-        convert::{TryInto},
+        convert::TryInto,
         sync::{Arc, Mutex},
     };
 
