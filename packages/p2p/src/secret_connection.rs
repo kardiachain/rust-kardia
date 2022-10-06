@@ -184,10 +184,6 @@ impl Handshake<AwaitingAuthSig> {
             .ok_or_else(Error::missing_key)?;
 
         let remote_pubkey = match pk_sum {
-            // proto::crypto::public_key::Sum::Ed25519(ref bytes) => {
-            //     ed25519_consensus::VerificationKey::try_from(&bytes[..])
-            //         .map_err(|_| Error::signature())
-            // },
             proto::crypto::public_key::Sum::Ecdsa(ref bytes) => {
                 ed25519_consensus::VerificationKey::try_from(&bytes[..])
                     .map_err(|_| Error::signature())
