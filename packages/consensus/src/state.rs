@@ -1,8 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::ConsensusStateError::{
-        self, AddBlockPartError, CreateSignedVoteError,
-    },
+    error::ConsensusStateError::{self, AddBlockPartError, CreateSignedVoteError},
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_5, RULE_6, RULE_7, RULE_8},
@@ -23,7 +21,7 @@ use kai_types::{
     round::RoundStep,
     timestamp,
     types::SignedMsgType,
-    vote::Vote,
+    vote::Vote, peer::PeerId,
 };
 use log::debug;
 use mockall::automock;
@@ -224,7 +222,7 @@ impl ConsensusStateImpl {
                         }
                         ConsensusMessageType::VoteMessage(_msg) => {
                             log::debug!("set vote: vote={:?}", _msg.clone());
-                            if let Err(e) = self.clone().add_vote(_msg.clone()) {
+                            if let Err(e) = self.clone().add_vote(_msg.clone(), msg_info.peer_id) {
                                 log::error!(
                                     "set vote failed: peerid={} msg={:?}, err={}",
                                     msg_info.peer_id,
@@ -853,66 +851,79 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn add_vote(self: Arc<Self>, msg: VoteMessage) -> Result<(), ConsensusStateError> {
-        if let Ok(mut rs_guard) = self.clone().rs.lock() {
-            let rs = rs_guard.clone();
+    fn add_vote(self: Arc<Self>, msg: VoteMessage, peer_id: PeerId) -> Result<(), ConsensusStateError> {
+        match self.clone().get_rs() {
+            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
+            Some(rs) => {
+                // this is safe, vote msg has been validated
+                let vote = msg.vote.unwrap();
 
-            // this is safe, vote msg has been validated
-            let vote = msg.vote.unwrap();
-
-            // precommit vote of previous height
-            if vote.height + 1 == rs.height && vote.r#type == SignedMsgType::Precommit.into() {
-                if rs.step > RoundStep::Propose {
-                    log::debug!("ignored late precommit of previous height came after propose step of next height");
-                    return Ok(());
-                }
-
-                if let Some(mut last_commit) = rs_guard.last_commit.clone() {
-                    if let Err(e) = last_commit.add_vote(vote.clone()) {
-                        log::error!("ignored adding vote due to: {}", e);
-                        return Err(ConsensusStateError::AddingVote(e));
+                // precommit vote of previous height
+                if vote.height + 1 == rs.height && vote.r#type == SignedMsgType::Precommit.into() {
+                    if rs.step > RoundStep::Propose {
+                        log::debug!("ignored late precommit of previous height came after propose step of next height");
+                        return Ok(());
                     }
 
-                    // update last commit with added vote
-                    rs_guard.last_commit = Some(last_commit);
-                    drop(rs_guard);
+                    match rs.last_commit {
+                        None => {
+                            return Err(ConsensusStateError::AddingVoteError(
+                                "last commit is nil".to_owned(),
+                            ))
+                        }
+                        Some(mut last_commit) => {
+                            if let Ok(mut rs_guard) = self.clone().rs.lock() {
+                                if let Err(e) = last_commit.add_vote(vote.clone()) {
+                                    log::error!("ignored adding vote due to: {}", e);
+                                    return Err(ConsensusStateError::AddingVoteError(e));
+                                }
 
-                    log::info!("addded to last precommits: {:?}", vote.clone());
+                                // update last commit with added vote
+                                rs_guard.last_commit = Some(last_commit);
+                                drop(rs_guard);
+                                log::info!("addded to last precommits: {:?}", vote.clone());
+                            } else {
+                                return Err(ConsensusStateError::LockFailed(
+                                    "round state".to_owned(),
+                                ));
+                            }
+                            return Ok(());
+                        }
+                    }
+                }
+
+                // height mismatch is ignored.
+                if vote.height != rs.height {
+                    log::debug!(
+                        "ignored vote due to height mismatch: voteHeight={} rsHeight={}",
+                        vote.height,
+                        rs.height
+                    );
                     return Ok(());
-                } else {
-                    log::error!("ignored adding vote due to: last commit is nil");
-                    return Err(ConsensusStateError::AddingVote(
-                        "last commit is nil".to_owned(),
-                    ));
-                }
-            }
-
-            // height mismatch is ignored.
-            if vote.height != rs.height {
-                log::debug!(
-                    "ignored vote due to height mismatch: voteHeight={} rsHeight={}",
-                    vote.height,
-                    rs.height
-                );
-                return Ok(());
-            }
-
-            if let Some(mut votes) = rs.votes.clone() {
-                if let Err(e) = votes.add_vote(vote) {
-                    log::error!("ignored adding vote due to: {}", e);
-                    return Err(ConsensusStateError::AddingVote(e));
                 }
 
-                // update votes to state with added vote
-                rs_guard.votes = Some(votes);
+                match rs.votes.clone() {
+                    None => {
+                        return Err(ConsensusStateError::AddingVoteError(
+                            "votes is nil".to_owned(),
+                        ))
+                    }
+                    Some(mut votes) => {
+                        if let Err(e) = votes.add_vote(vote, peer_id) {
+                            return Err(ConsensusStateError::AddingVoteError(e));
+                        }
 
-                drop(rs_guard);
+                        // update votes to state with added vote
+                        if let Ok(mut rs_guard) = self.clone().rs.lock() {
+                            rs_guard.votes = Some(votes);
+                            drop(rs_guard);
+                            return Ok(());
+                        } else {
+                            return Err(ConsensusStateError::LockFailed("round state".to_owned()));
+                        }
+                    }
+                }
             }
-
-            return Ok(());
-        } else {
-            log::error!("cannot get round state");
-            return Err(ConsensusStateError::LockFailed("round state".to_owned()));
         }
     }
 
@@ -1229,6 +1240,7 @@ mod tests {
         round::RoundStep,
         types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
+        vote::Vote,
         vote_set::VoteSet,
     };
     use tokio::runtime::Runtime;
@@ -1237,7 +1249,9 @@ mod tests {
         state::{ConsensusState, ConsensusStateImpl},
         types::{
             config::ConsensusConfig,
-            messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage},
+            messages::{
+                BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage,
+            },
             peer::internal_peerid,
         },
     };
@@ -1638,6 +1652,102 @@ mod tests {
                 .parts_bit_array
                 .get_index(part_1_index as usize)
                 .is_ok_and(|v| *v == true));
+        });
+    }
+
+    #[test]
+    fn add_vote() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let m_priv_validator = MockPrivValidator::new();
+        let m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        let m_chain_id: String = "".to_string();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const(m_chain_id.clone());
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+
+        let total_parts = 10;
+
+        let val_set: ValidatorSet = ValidatorSet {
+            validators: vec![VAL_1, VAL_2, VAL_3],
+            proposer: None,
+            total_voting_power: 6,
+        };
+
+        let arc_cs = Arc::new(cs);
+        let arc_cs_1 = arc_cs.clone();
+        let arc_cs_2 = arc_cs.clone();
+
+        // arrange round state
+        let mut rs_guard = arc_cs
+            .rs
+            .lock()
+            .expect("could not lock round state for arrangement");
+        // TODO: set up round state
+        rs_guard.validators = Some(val_set.clone());
+        rs_guard.votes = Some(HeightVoteSet {
+            chain_id: m_chain_id,
+            height: 1,
+            round: 1,
+            validator_set: Some(val_set),
+            round_vote_sets: HashMap::new(),
+            peer_catchup_rounds: HashMap::new(),
+        });
+        drop(rs_guard);
+
+        Runtime::new().unwrap().block_on(async move {
+            // start processing messages
+            let msg_thr = tokio::spawn(async move {
+                arc_cs.process_msg_chan();
+            });
+
+            let vote_msg = VoteMessage {
+                vote: Some(Vote {
+                    r#type: SignedMsgType::Precommit.into(),
+                    height: 1,
+                    round: 1,
+                    block_id: Some(BlockId::new_zero_block_id()),
+                    timestamp: None,
+                    validator_address: VAL_1.address.0.to_vec(),
+                    validator_index: 1,
+                    signature: vec![],
+                }),
+            };
+            let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
+            _ = arc_cs_1
+                .send(MessageInfo {
+                    msg: msg,
+                    peer_id: internal_peerid(),
+                })
+                .await;
+
+            // wait for a while for processing message
+            thread::sleep(Duration::from_millis(200));
+
+            // stop the consensus state
+            // closes the channel
+            // msg process will stop
+            _ = arc_cs_1.stop();
+
+            // make sure this processing message thread is stopped
+            let join_rs = msg_thr.await;
+            assert!(join_rs.is_ok());
+
+            let rs = arc_cs_2.clone().get_rs().unwrap();
+
+            // TODO: assertions.
         });
     }
 
