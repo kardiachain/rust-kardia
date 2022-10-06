@@ -105,11 +105,18 @@ impl ConsensusState for ConsensusStateImpl {
         self.clone().msg_chan_sender.send(msg_info).await
     }
 
-    /// should be called from node instance
+    /// should be called from node instance, in a tokio Runtime
     fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
         // TODO:
 
-        // Start new round
+        
+        // start processing messages
+        let cs = self.clone();
+        tokio::spawn(async move {
+            cs.process_msg_chan();
+        });
+
+        // start new round
         if let Ok(rs_guard) = self.clone().rs.clone().lock() {
             let round = rs_guard.round;
             drop(rs_guard);
@@ -924,7 +931,7 @@ impl ConsensusStateImpl {
             RoundStep::Propose => {
                 let timeout_propose = self.clone().get_config().timeout_propose.clone();
                 let timeout_propose_delta = self.clone().get_config().timeout_propose_delta.clone();
-                thread::spawn(move || {
+                tokio::spawn(async move {
                     let sleep_duration = if round > 1 {
                         timeout_propose.add(timeout_propose_delta.mul(round - 1))
                     } else {
@@ -937,7 +944,7 @@ impl ConsensusStateImpl {
             RoundStep::Prevote => {
                 let timeout_prevote = self.clone().get_config().timeout_prevote.clone();
                 let timeout_prevote_delta = self.clone().get_config().timeout_prevote_delta.clone();
-                thread::spawn(move || {
+                tokio::spawn(async move {
                     let sleep_duration = if round > 1 {
                         timeout_prevote.add(timeout_prevote_delta.mul(round - 1))
                     } else {
@@ -951,7 +958,7 @@ impl ConsensusStateImpl {
                 let timeout_precommit = self.clone().get_config().timeout_precommit.clone();
                 let timeout_precommit_delta =
                     self.clone().get_config().timeout_precommit_delta.clone();
-                thread::spawn(move || {
+                tokio::spawn(async move {
                     let sleep_duration = if round > 1 {
                         timeout_precommit.add(timeout_precommit_delta.mul(round - 1))
                     } else {
