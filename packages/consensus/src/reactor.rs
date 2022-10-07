@@ -1,7 +1,7 @@
 use crate::{
     state::ConsensusState,
     types::{
-        error::ConsensusReactorError,
+        errors::ConsensusReactorError,
         messages::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
             ProposalMessage, ProposalPOLMessage, VoteSetBitsMessage, VoteSetMaj23Message,
@@ -874,7 +874,7 @@ mod tests {
         state::MockConsensusState,
         types::{
             config::ConsensusConfig,
-            error::ConsensusReactorError,
+            errors::ConsensusReactorError,
             messages::{
                 msg_from_proto, BlockPartMessage, ConsensusMessageType, HasVoteMessage,
                 NewRoundStepMessage, NewValidBlockMessage, ProposalMessage, ProposalPOLMessage,

@@ -1,4 +1,4 @@
-use super::error::ConsensusReactorError;
+use super::errors::ConsensusReactorError;
 use kai_proto::consensus::{message::Sum, Message as ConsensusMessageProto};
 use kai_types::{
     bit_array::BitArray, part_set::Part, peer::PeerId, round::RoundStep, types::SignedMsgType,

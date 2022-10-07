@@ -1,6 +1,6 @@
 use crate::types::{
     config::ConsensusConfig,
-    error::ConsensusStateError::{self, AddBlockPartError, CreateSignedVoteError},
+    errors::ConsensusStateError::{self, AddBlockPartError, CreateSignedVoteError},
     messages::{BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage},
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_5, RULE_6, RULE_7, RULE_8},
@@ -867,7 +867,7 @@ impl ConsensusStateImpl {
 
                     match rs.last_commit {
                         None => {
-                            return Err(ConsensusStateError::AddingVoteError(
+                            return Err(ConsensusStateError::AddVoteError(
                                 "last commit is nil".to_owned(),
                             ))
                         }
@@ -875,7 +875,7 @@ impl ConsensusStateImpl {
                             if let Ok(mut rs_guard) = self.clone().rs.lock() {
                                 if let Err(e) = last_commit.add_vote(vote.clone()) {
                                     log::error!("ignored adding vote due to: {}", e);
-                                    return Err(ConsensusStateError::AddingVoteError(e));
+                                    return Err(ConsensusStateError::AddVoteError(e));
                                 }
 
                                 // update last commit with added vote
@@ -904,13 +904,13 @@ impl ConsensusStateImpl {
 
                 match rs.votes.clone() {
                     None => {
-                        return Err(ConsensusStateError::AddingVoteError(
+                        return Err(ConsensusStateError::AddVoteError(
                             "votes is nil".to_owned(),
                         ))
                     }
                     Some(mut votes) => {
                         if let Err(e) = votes.add_vote(vote, peer_id) {
-                            return Err(ConsensusStateError::AddingVoteError(e));
+                            return Err(ConsensusStateError::AddVoteError(e));
                         }
 
                         // update votes to state with added vote
