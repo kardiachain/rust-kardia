@@ -6,10 +6,10 @@ license = "GPL-3.0, LGPL-3.0"
 authors = ["KardiaChain Contributors"]
 edition = "2021"
 
-[workspace]
-members = [
-    "source/chainspec"
-]
+# [workspace]
+# members = [
+#     "source/chainspec"
+# ]
 
 [[bin]]
 name = "client"
@@ -19,13 +19,15 @@ path = "source/client/src/main.rs"
 # internal packages
 # kai-core = { path = "packages/core" }
 # kai-accounts = { path = "packages/accounts" }
+kai_p2p = { path = "packages/p2p" }
 kai-consensus = { path = "packages/consensus" }
 kai_proto = { path = "packages/proto" }
 # kai-db = { path = "packages/db" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }
-# kai-utils = { path = "packages/utils" }
-# kai-vm = { path = "packages/vm" }
+kai_utils = { path = "packages/utils" }
+kardia = { path = "packages/kardia" }
+std-ext = { path = "packages/std-ext"}
 prost = "0.11.0"
 tonic = "0.8.0"
 
@@ -33,9 +35,6 @@ tonic = "0.8.0"
 prost-build = "0.11.0"
 tonic-build = "0.8.0"
 
-[[bin]]
-name = "kai_proto"
-path = "packages/proto/build.rs"
 
 [[bin]]
 name = "kardia-sentry"

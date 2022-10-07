@@ -1,5 +1,5 @@
-use prost_build::compile_protos;
 use walkdir::WalkDir;
+use prost_build::compile_protos;
 
 fn main() {
     let mut pb_filepaths: Vec<String> = Vec::new();
@@ -17,5 +17,5 @@ fn main() {
         }
     }
 
-    compile_protos(&pb_filepaths, &["src"]).unwrap();
+    compile_protos(&pb_filepaths, &["src/"]).unwrap();
 }
