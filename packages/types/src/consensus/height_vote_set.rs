@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 
 use crate::{
-    peer::PeerId, types::SignedMsgType, validator_set::ValidatorSet, vote::Vote, vote_set::VoteSet,
+    errors::AddVoteError, peer::PeerId, types::SignedMsgType, validator_set::ValidatorSet,
+    vote::Vote, vote_set::VoteSet,
 };
+
+use super::state::ChainId;
 
 #[derive(Debug, Clone)]
 pub struct HeightVoteSet {
-    pub chain_id: String,
+    pub chain_id: ChainId,
     pub height: u64,
     pub round: u32,
 
@@ -40,7 +43,7 @@ impl HeightVoteSet {
         todo!()
     }
 
-    pub fn add_vote(&mut self, vote: Vote, peer_id: PeerId) -> Result<(), String> {
+    pub fn add_vote(&mut self, vote: Vote, peer_id: PeerId) -> Result<(), AddVoteError> {
         let vote_set = match self.get_mut_vote_set(vote.round, vote.r#type()) {
             Some(vs) => vs,
             None => {
@@ -56,7 +59,7 @@ impl HeightVoteSet {
                     // return newly created vote set
                     self.get_mut_vote_set(vote.round, vote.r#type()).unwrap()
                 } else {
-                    return Err("ErrGotVoteFromUnwantedRound".to_owned());
+                    return Err(AddVoteError::VoteFromUnwantedRound);
                 }
             }
         };

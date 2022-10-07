@@ -442,6 +442,7 @@ dependencies = [
  "prost-types",
  "secp256k1",
  "sha3",
+ "thiserror",
 ]
 
 [[package]]

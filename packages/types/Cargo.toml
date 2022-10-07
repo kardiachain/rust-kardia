@@ -10,6 +10,7 @@ edition = "2021"
 "kai-lib" = { path = "../lib" }
 "prost" = "0.11.0"
 "prost-types" = "0.11.1"
+"thiserror" = "1.0.32"
 "bytes" = { version = "1", features = ["serde"] }
 "bitvec" = "1"
 "num" = "0.4"

@@ -1,5 +1,5 @@
 pub mod config;
-pub mod error;
+pub mod errors;
 pub mod messages;
 pub mod peer;
 pub mod round_state;

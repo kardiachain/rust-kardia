@@ -8,6 +8,7 @@ pub mod commit;
 pub mod common;
 pub mod consensus;
 pub mod crypto;
+pub mod errors;
 pub mod evidence;
 pub mod misc;
 pub mod part_set;

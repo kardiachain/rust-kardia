@@ -1,4 +1,15 @@
-use crate::{block::BlockId, types::SignedMsgType};
+use bytes::Bytes;
+use ethereum_types::Address;
+use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
+use prost::Message;
+
+use crate::{
+    block::BlockId,
+    canonical_types::create_canonical_vote,
+    consensus::state::ChainId,
+    errors::{VoteError},
+    types::SignedMsgType,
+};
 
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Vote {
@@ -29,7 +40,8 @@ impl From<kai_proto::types::Vote> for Vote {
                 2 => SignedMsgType::Precommit,
                 32 => SignedMsgType::Proposal,
                 _ => SignedMsgType::Unknown,
-            }.into(),
+            }
+            .into(),
             height: m.height,
             round: m.round,
             block_id: m.block_id.map(|x| x.into()),
@@ -61,5 +73,29 @@ pub fn is_valid_vote_type(t: SignedMsgType) -> bool {
         SignedMsgType::Precommit => true,
         SignedMsgType::Prevote => true,
         _ => false,
+    }
+}
+
+impl Vote {
+    pub fn verify(&self, chain_id: ChainId, validator_address: Address) -> Result<(), VoteError> {
+        let psb = Self::vote_sign_bytes(chain_id, self.clone());
+        if psb.is_none() {
+            return Err(VoteError::CreateVoteSignBytesError);
+        }
+
+        if !verify_signature(
+            validator_address,
+            keccak256(psb.unwrap()),
+            Bytes::from(self.clone().signature),
+        ) {
+            return Err(VoteError::InvalidSignature);
+        }
+
+        return Ok(());
+    }
+
+    pub fn vote_sign_bytes(chain_id: ChainId, vote: Vote) -> Option<Bytes> {
+        create_canonical_vote(chain_id, vote)
+            .map(|cv| Bytes::copy_from_slice(&cv.encode_length_delimited_to_vec()))
     }
 }

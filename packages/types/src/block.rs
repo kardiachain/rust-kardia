@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{commit::Commit, evidence::EvidenceData, misc::Data, part_set::PartSetHeader};
 
 #[derive(Clone, ::prost::Message)]
@@ -18,6 +20,12 @@ impl BlockId {
             hash: vec![],
             part_set_header: None,
         }
+    }
+
+    pub fn key(&self) -> String {
+        let mut key = self.hash.clone();
+        key.append(&mut self.part_set_header.clone().map_or_else(|| vec![], |psh| psh.hash));
+        String::from_utf8(key).unwrap()
     }
 }
 
