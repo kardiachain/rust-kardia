@@ -29,11 +29,10 @@ merlin              = { version = "2.0",  default-features = false }
 sha2                = { version = "0.9", default-features = false }
 subtle              = { version = "2.4.1" }
 hkdf                = { version = "0.10", default-features = false }
+flume               = { version = "0.10.14", default-features = false }
+readwrite           = { version = "^0.1.1", default-features = false }
 
-
-
-# path dependencies
-kai_utils = { path = "../utils" }
+# internal dependencies
 kai_proto = { path = "../proto" }
 kardia = { path = "../kardia" }
 std-ext = { path = "../std-ext" }
