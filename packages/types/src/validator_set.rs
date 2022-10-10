@@ -10,7 +10,7 @@ pub trait ValidatorSetTrait: Debug + Sync + Send + 'static {
 pub struct ValidatorSet {
     pub validators: Vec<Validator>,
     pub proposer: Option<Validator>,
-    pub total_voting_power: i64,
+    pub total_voting_power: u64,
 }
 
 impl ValidatorSet {
@@ -50,13 +50,17 @@ impl ValidatorSet {
 
         return None;
     }
+
+    pub fn size(&self) -> usize {
+        return self.validators.len();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Validator {
     pub address: Address,
-    pub voting_power: i64,
-    pub proposer_priority: i64,
+    pub voting_power: u64,
+    pub proposer_priority: u64,
 }
 
 impl Validator {

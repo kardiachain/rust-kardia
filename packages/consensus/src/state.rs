@@ -14,14 +14,16 @@ use kai_types::{
     block::{Block, BlockId},
     block_operations::BlockOperations,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
+    errors::{AddVoteError, VoteError},
     evidence::EvidencePool,
     part_set::PartSet,
+    peer::PeerId,
     priv_validator::PrivValidator,
     proposal::{proposal_sign_bytes, Proposal},
     round::RoundStep,
     timestamp,
     types::SignedMsgType,
-    vote::Vote, peer::PeerId,
+    vote::Vote,
 };
 use log::debug;
 use mockall::automock;
@@ -222,7 +224,10 @@ impl ConsensusStateImpl {
                         }
                         ConsensusMessageType::VoteMessage(_msg) => {
                             log::debug!("set vote: vote={:?}", _msg.clone());
-                            if let Err(e) = self.clone().add_vote(_msg.clone(), msg_info.peer_id) {
+                            if let Err(e) = self
+                                .clone()
+                                .add_vote(_msg.clone(), msg_info.peer_id.clone())
+                            {
                                 log::error!(
                                     "set vote failed: peerid={} msg={:?}, err={}",
                                     msg_info.peer_id,
@@ -851,7 +856,11 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn add_vote(self: Arc<Self>, msg: VoteMessage, peer_id: PeerId) -> Result<(), ConsensusStateError> {
+    fn add_vote(
+        self: Arc<Self>,
+        msg: VoteMessage,
+        peer_id: PeerId,
+    ) -> Result<(), ConsensusStateError> {
         match self.clone().get_rs() {
             None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
             Some(rs) => {
@@ -868,7 +877,7 @@ impl ConsensusStateImpl {
                     match rs.last_commit {
                         None => {
                             return Err(ConsensusStateError::AddVoteError(
-                                "last commit is nil".to_owned(),
+                                AddVoteError::InvalidVote(VoteError::NilVote),
                             ))
                         }
                         Some(mut last_commit) => {
@@ -905,7 +914,7 @@ impl ConsensusStateImpl {
                 match rs.votes.clone() {
                     None => {
                         return Err(ConsensusStateError::AddVoteError(
-                            "votes is nil".to_owned(),
+                            kai_types::errors::AddVoteError::InvalidVote(VoteError::NilVote),
                         ))
                     }
                     Some(mut votes) => {
@@ -1575,7 +1584,6 @@ mod tests {
                 arc_cs.process_msg_chan();
             });
 
-            
             // send block part messages
             let part_0_index = 0; // first
             let part_1_index = 1; // second

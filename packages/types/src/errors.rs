@@ -24,6 +24,8 @@ pub enum AddVoteError {
 pub enum VoteError {
     #[error("invalid signature")]
     InvalidSignature,
+    #[error("vote is nil")]
+    NilVote,
     #[error("failed to create vote sign bytes")]
     CreateVoteSignBytesError,
 }

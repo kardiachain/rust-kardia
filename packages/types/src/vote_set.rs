@@ -1,25 +1,35 @@
-use std::{fmt::{format, Debug}, collections::HashMap};
+use std::{
+    collections::HashMap,
+    fmt::{format, Debug},
+};
 
 use ethereum_types::Address;
 
 use crate::{
-    bit_array::BitArray, block::BlockId, commit::Commit, consensus::state::ChainId,
-    errors::AddVoteError, evidence::DuplicateVoteEvidence, types::SignedMsgType,
-    validator_set::ValidatorSet, vote::Vote, peer::PeerId,
+    bit_array::BitArray,
+    block::{self, BlockId},
+    commit::Commit,
+    consensus::state::ChainId,
+    errors::AddVoteError,
+    evidence::DuplicateVoteEvidence,
+    peer::PeerId,
+    types::SignedMsgType,
+    validator_set::ValidatorSet,
+    vote::Vote,
 };
 
 /*
-	Votes for a particular block
-	There are two ways a *blockVotes gets created for a blockKey.
-	1. first (non-conflicting) vote of a validator w/ blockKey (peerMaj23=false)
-	2. A peer claims to have a 2/3 majority w/ blockKey (peerMaj23=true)
+    Votes for a particular block
+    There are two ways a *blockVotes gets created for a blockKey.
+    1. first (non-conflicting) vote of a validator w/ blockKey (peerMaj23=false)
+    2. A peer claims to have a 2/3 majority w/ blockKey (peerMaj23=true)
 */
 #[derive(Debug, Clone, PartialEq)]
-struct BlockVotes {
-    peer_maj23: bool, // peer claims to have maj23
-    bit_array: BitArray, // valIndex -> hasVote?
+pub struct BlockVotes {
+    peer_maj23: bool,         // peer claims to have maj23
+    bit_array: BitArray,      // valIndex -> hasVote?
     votes: Vec<Option<Vote>>, // valIndex -> *Vote
-    sum: u64, // vote sum
+    sum: u64,                 // vote sum
 }
 
 impl BlockVotes {
@@ -40,7 +50,7 @@ impl BlockVotes {
             self.sum += voting_power
         }
     }
-    
+
     fn get_by_index(&self, index: usize) -> Option<Vote> {
         self.votes.get(index).unwrap().clone()
     }
@@ -59,8 +69,8 @@ pub struct VoteSet {
     pub sum: u64,
     pub r#type: SignedMsgType,
     pub maj23: Option<BlockId>,
-    pub votes_by_block:  HashMap<String, BlockVotes>, // string(blockHash|blockParts) -> blockVotes
-    pub peer_maj23s: HashMap<PeerId, BlockId>, // maj23 for each peer
+    pub votes_by_block: HashMap<String, BlockVotes>, // string(blockHash|blockParts) -> blockVotes
+    pub peer_maj23s: HashMap<PeerId, BlockId>,       // maj23 for each peer
 }
 
 impl VoteSet {
@@ -158,93 +168,115 @@ impl VoteSet {
             iv.clone().unwrap().1.voting_power,
         ) {
             Ok(_) => return Ok(()),
-            Err(conflicting) => {
-                return Err(AddVoteError::NewConflictingVoteError(
-                    DuplicateVoteEvidence {
-                        vote_a: Some(conflicting),
-                        vote_b: Some(vote),
-                        total_voting_power: self.validator_set.total_voting_power,
-                        validator_power: iv.clone().unwrap().1.voting_power,
-                        timestamp: None,
-                    },
-                ))
-            }
+            Err(e) => match e {
+                AddVoteError::ConflictingVote(conflicting_vote) => {
+                    return Err(AddVoteError::NewConflictingVoteError(
+                        DuplicateVoteEvidence {
+                            vote_a: Some(conflicting_vote),
+                            vote_b: Some(vote),
+                            total_voting_power: self.validator_set.total_voting_power as i64,
+                            validator_power: iv.clone().unwrap().1.voting_power as i64,
+                            timestamp: None,
+                        },
+                    ))
+                }
+                _ => panic!("unexpected error"),
+            },
         }
     }
 
-    fn add_verified_vote(&mut self, vote: Vote, block_key: String, voting_power: i64) -> Result<(), AddVoteError> {
-        // TODO: implement
-        
-        let mut conflicting: Option<Vote> = None;
+    /// assumes signature is valid.
+    /// if conflicting vote exists, returns it.
+    fn add_verified_vote(
+        &mut self,
+        vote: Vote,
+        block_key: String,
+        voting_power: u64,
+    ) -> Result<Option<Vote>, AddVoteError> {
+        let mut conflicting_vote: Option<Vote> = None;
         let validator_index = vote.validator_index;
-    
-        let Some(existing) = self.votes.get_mut(validator_index as usize);
 
-        // already exists?
-        if existing.is_some() {
-            if existing.unwrap().block_id.eq(&vote.clone().block_id) {
-                panic!("add_verified_vote does not expect duplicate votes")
+        // Already exists in voteSet.votes?
+        if let Some(existing_vote) = self.votes.get_mut(validator_index as usize) {
+            if existing_vote.is_some() {
+                if existing_vote
+                    .clone()
+                    .unwrap()
+                    .block_id
+                    .eq(&vote.clone().block_id)
+                {
+                    panic!("add_verified_vote does not expect duplicate votes")
+                } else {
+                    conflicting_vote = Some(existing_vote.clone().unwrap());
+                }
+                // Replace vote if blockKey matches voteSet.maj23.
+                if self
+                    .maj23
+                    .is_some_and(|maj23| maj23.key() == block_key.clone())
+                {
+                    *existing_vote = Some(vote.clone());
+                    self.votes_bit_array
+                        .set_index(validator_index as usize, true);
+                }
+                // otherwise don't add it to voteSet.votes
             } else {
-                conflicting = Some(existing.clone().unwrap());
+                // add to voteSet.votes and incr .sum
+                *existing_vote = Some(vote.clone());
+                self.votes_bit_array
+                    .set_index(validator_index as usize, true);
+                self.sum += voting_power;
             }
-            // Replace vote if blockKey matches voteSet.maj23.
-            if self.maj23.is_some() && self.maj23.unwrap().key() == block_key {
-                *existing = Some(vote.clone());
-                self.votes_bit_array.set_index(validator_index as usize, true);
-            }
-            // otherwise don't add it to voteSet.votes
-        } else {
-            // add to voteSet.votes and incr .sum
-            *existing = Some(vote.clone());
-            self.votes_bit_array.set_index(validator_index as usize, true);
-            self.sum += voting_power as u64;
         }
-    
-        if let Some(block_votes) = self.votes_by_block.get(&block_key) {
-            if conflicting.is_some() && block_votes.peer_maj23 {
-			    // There's a conflict and no peer claims that this block is special.
-                return Err(AddVoteError::ConflictingVote(conflicting.unwrap()));
+
+        let votes_by_block = self.votes_by_block.get(&block_key.clone());
+        if votes_by_block.is_some() {
+            if conflicting_vote.is_some() && votes_by_block.unwrap().peer_maj23 {
+                // There's a conflict and no peer claims that this block is special.
+                return Err(AddVoteError::ConflictingVote(conflicting_vote.unwrap()));
             }
-		    // We'll add the vote in a bit.
-        } else {    
+            // We'll add the vote in a bit.
+        } else {
             // .votesByBlock doesn't exist...
-            if conflicting != nil {
+            if conflicting_vote.is_some() {
                 // ... and there's a conflicting vote.
                 // We're not even tracking this blockKey, so just forget it.
-                return false, conflicting
+                return Err(AddVoteError::ConflictingVote(conflicting_vote.unwrap()));
             }
             // ... and there's no conflicting vote.
             // Start tracking this blockKey
-            votesByBlock = newBlockVotes(false, voteSet.valSet.Size())
-            voteSet.votesByBlock[blockKey] = votesByBlock
+            self.votes_by_block.insert(
+                block_key.clone(),
+                BlockVotes::new(false, self.validator_set.size()),
+            );
             // We'll add the vote in a bit.
         }
-    
-        // Before adding to votesByBlock, see if we'll exceed quorum
-        origSum := votesByBlock.sum
-        quorum := voteSet.valSet.TotalVotingPower()*2/3 + 1
-    
-        // Add vote to votesByBlock
-        votesByBlock.addVerifiedVote(vote, votingPower)
-    
-        // If we just crossed the quorum threshold and have 2/3 majority...
-        if origSum < quorum && quorum <= votesByBlock.sum {
-            // Only consider the first quorum reached
-            if voteSet.maj23 == nil {
-                maj23BlockID := vote.BlockID
-                voteSet.maj23 = &maj23BlockID
-                // And also copy votes over to voteSet.votes
-                for i, vote := range votesByBlock.votes {
-                    if vote != nil {
-                        voteSet.votes[i] = vote
+
+        // votes by block must exist
+        if let Some(votes_by_block) = self.votes_by_block.get_mut(&block_key.clone()) {
+            // Before adding to votesByBlock, see if we'll exceed quorum
+            let orig_sum = votes_by_block.sum.clone();
+            let quorum = self.validator_set.total_voting_power * 2 / 3 + 1;
+
+            // Add vote to votesByBlock
+            votes_by_block.add_verified_vote(vote.clone(), voting_power); // TODO: find better way to convert i64 to u64
+
+            // If we just crossed the quorum threshold and have 2/3 majority...
+            if orig_sum < quorum && quorum <= votes_by_block.sum {
+                // Only consider the first quorum reached
+                if self.maj23.is_none() {
+                    let maj23_block_id = vote.clone().block_id;
+                    self.maj23 = maj23_block_id;
+                    // And also copy votes over to voteSet.votes
+                    for (index, vote) in votes_by_block.votes.iter().enumerate() {
+                        if vote.is_some() {
+                            self.votes.insert(index, vote.clone());
+                        }
                     }
                 }
             }
         }
-    
-        return true, conflicting
 
-        Ok(())
+        return Ok(conflicting_vote);
     }
 }
 
