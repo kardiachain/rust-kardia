@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parity-util-mem = { version = "0.12.0", default-features = false, features = ["primitive-types"] }
 primitive-types = { version = "0.12.0", default-features = false, features = ["codec", "scale-info"] }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
 	"derive",
@@ -26,6 +27,7 @@ thiserror = { version = "1.0.30", optional = true }
 lazy_static = { version = "1.4.0", default-features = false, optional = true }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 kp-serializer = { path = "../serializer"}
+kp-storage = { version = "0.1.0", default-features = false, path = "../storage" }
 
 # full crypto
 array-bytes = { version = "4.1", optional = true }
@@ -59,7 +61,11 @@ std = [
 	"ss58-registry/std",
 	"secp256k1/std",
 	"secp256k1/global-context",
-	"libsecp256k1/std"
+	"libsecp256k1/std",
+	"primitive-types/std",
+	"primitive-types/serde",
+	"primitive-types/byteorder",
+	"primitive-types/rustc-hex",
 ]
 # This feature enables all crypto primitives for `no_std` builds like microcontrollers
 # or Intel SGX.

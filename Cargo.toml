@@ -16,7 +16,13 @@ members = [
     "packages/primitives/core/hashing",
 	"packages/primitives/core/hashing/proc-macro",
     "packages/primitives/serializer",
-    "packages/txpool"
+    "packages/primitives/trie",
+    "packages/primitives/storage",
+    "packages/primitives/debug-derive",
+    "packages/primitives/tracing",
+    "packages/primitives/runtime",
+    "packages/primitives/io",
+    "packages/txpool",
 ]
 
 [[bin]]
