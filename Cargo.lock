@@ -587,6 +587,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "hash-db"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d23bd4e7b5eda0d0f3a307e8b381fdc8ba9000f26fbe912250c0a4cc3956364a"
+
+[[package]]
+name = "hash256-std-hasher"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92c171d55b98633f4ed3860808f004099b36c1cc29c42cfc53aa8591b21efcf2"
+dependencies = [
+ "crunchy",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -790,6 +805,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kai-txpool"
+version = "0.1.0"
+dependencies = [
+ "kp-core",
+ "kp-types",
+]
+
+[[package]]
 name = "kardiachain"
 version = "1.0.0"
 dependencies = [
@@ -810,6 +833,8 @@ dependencies = [
  "array-bytes",
  "base58",
  "blake2",
+ "hash-db",
+ "hash256-std-hasher",
  "kp-core-hashing",
  "kp-core-hashing-proc-macro",
  "kp-serializer",
@@ -873,6 +898,7 @@ name = "kp-types"
 version = "0.1.0"
 dependencies = [
  "kp-core",
+ "rlp",
 ]
 
 [[package]]

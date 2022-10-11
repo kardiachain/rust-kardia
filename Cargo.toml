@@ -15,7 +15,8 @@ members = [
     "packages/primitives/types",
     "packages/primitives/core/hashing",
 	"packages/primitives/core/hashing/proc-macro",
-    "packages/primitives/serializer"
+    "packages/primitives/serializer",
+    "packages/txpool"
 ]
 
 [[bin]]
