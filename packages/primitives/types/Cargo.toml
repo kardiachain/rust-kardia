@@ -1,10 +1,9 @@
 [package]
-name = "kai-txpool"
+name = "kp-types"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-kp-types = { path = "../primitives/types" }
-kp-core = { path = "../primitives/core" }
+kp-core = { path = "../core"}
+rlp.workspace = true
