@@ -37,6 +37,7 @@ merlin = { version = "2.0", default-features = false, optional = true }
 secp256k1 = { version = "0.24.0", default-features = false, features = ["recovery", "alloc"], optional = true }
 hash256-std-hasher = { version = "0.15.2", default-features = false }
 hash-db = { version = "0.15.2", default-features = false }
+ed25519-zebra = { version = "3.0.0", default-features = false, optional = true}
 
 [dev-dependencies]
 serde_json = "1.0"
@@ -66,6 +67,7 @@ std = [
 	"primitive-types/serde",
 	"primitive-types/byteorder",
 	"primitive-types/rustc-hex",
+	"ed25519-zebra"
 ]
 # This feature enables all crypto primitives for `no_std` builds like microcontrollers
 # or Intel SGX.
@@ -74,4 +76,5 @@ full_crypto = [
 	"kp-core-hashing",
 	"blake2",
 	"array-bytes",
+	"ed25519-zebra",
 ]
