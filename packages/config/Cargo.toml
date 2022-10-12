@@ -1,0 +1,19 @@
+[package]
+name = "kai-config"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+url         = { version = "2.3.1", default-features = false }
+serde       = { version = "1.0.145", default-features = false }
+flex-error  = { version = "0.4.4", default-features = false }
+serde_json  = { version = "1.0.86", default-features = false }
+toml        = { version = "0.5.9", default-features = false }
+
+# Packages dependencies
+kp-core = { path = "../primitives/core" }
+
+[dev-dependencies]
+pretty_assertions = "0.7.2"
