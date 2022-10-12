@@ -9,6 +9,10 @@ edition = "2021"
 prost = "0.10.4"
 prost-types = "0.10.1"
 bytes = "1.1"
+flex-error = "0.4.4"
 [build-dependencies]
 prost-build = "0.10.4"
 walkdir = "2"
+
+[dev-dependencies]
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
