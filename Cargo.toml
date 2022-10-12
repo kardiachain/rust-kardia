@@ -21,6 +21,7 @@ members = [
     "packages/primitives/debug-derive",
     "packages/primitives/tracing",
     "packages/primitives/runtime",
+    "packages/primitives/bloom",
     "packages/primitives/io",
     "packages/txpool",
 ]
