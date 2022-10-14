@@ -1969,11 +1969,27 @@ mod tests {
             hvs.round_vote_sets.insert(
                 rs.round,
                 RoundVoteSet {
-                    prevotes: Some(VoteSet {
-                        maj23: Some(BlockId::new_zero_block_id()),
+                    prevotes: Some({
+                        let mut vs = VoteSet::new(
+                            "".to_owned(),
+                            1,
+                            1,
+                            SignedMsgType::Prevote,
+                            val_set.clone(),
+                        );
+                        vs.maj23 = Some(BlockId::new_zero_block_id());
+                        vs
                     }),
-                    precommits: Some(VoteSet {
-                        maj23: Some(BlockId::new_zero_block_id()),
+                    precommits: Some({
+                        let mut vs = VoteSet::new(
+                            "".to_owned(),
+                            1,
+                            1,
+                            SignedMsgType::Precommit,
+                            val_set.clone(),
+                        );
+                        vs.maj23 = Some(BlockId::new_zero_block_id());
+                        vs
                     }),
                 },
             );
@@ -2074,11 +2090,22 @@ mod tests {
         hvs.round_vote_sets.insert(
             rs.round,
             RoundVoteSet {
-                prevotes: Some(VoteSet {
-                    maj23: Some(BlockId::new_zero_block_id()),
+                prevotes: Some({
+                    let mut vs =
+                        VoteSet::new("".to_owned(), 1, 1, SignedMsgType::Prevote, val_set.clone());
+                    vs.maj23 = Some(BlockId::new_zero_block_id());
+                    vs
                 }),
-                precommits: Some(VoteSet {
-                    maj23: Some(BlockId::new_zero_block_id()),
+                precommits: Some({
+                    let mut vs = VoteSet::new(
+                        "".to_owned(),
+                        1,
+                        1,
+                        SignedMsgType::Precommit,
+                        val_set.clone(),
+                    );
+                    vs.maj23 = Some(BlockId::new_zero_block_id());
+                    vs
                 }),
             },
         );
