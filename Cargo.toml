@@ -23,7 +23,12 @@ members = [
     "packages/primitives/runtime",
     "packages/primitives/bloom",
     "packages/primitives/io",
+    "packages/primitives/state",
+    "packages/primitives/externalities",
+    "packages/primitives/panic-handler",
+    "packages/primitives/runtime-interface",
     "packages/txpool",
+    "packages/state",
 ]
 
 [[bin]]

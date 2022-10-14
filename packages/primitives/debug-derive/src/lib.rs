@@ -9,7 +9,7 @@
 //! blob from unneeded code.
 //!
 //! ```rust
-//! #[derive(sp_debug_derive::RuntimeDebug)]
+//! #[derive(kp_debug_derive::RuntimeDebug)]
 //! struct MyStruct;
 //!
 //! assert_eq!(format!("{:?}", MyStruct), "MyStruct");

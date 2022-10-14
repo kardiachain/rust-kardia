@@ -704,7 +704,7 @@ mod dummy {
 ///   - the phrase may be followed by one or more items delimited by `/` characters.
 ///   - the path may be followed by `///`, in which case everything after the `///` is treated
 /// as a password.
-/// - If `string` begins with a `/` character it is prefixed with the Substrate public `DEV_PHRASE`
+/// - If `string` begins with a `/` character it is prefixed with the KardiaChain public `DEV_PHRASE`
 ///   and interpreted as above.
 ///
 /// In this case they are interpreted as HDKD junctions; purely numeric items are interpreted as
@@ -722,7 +722,7 @@ mod dummy {
 /// Parse [`DEV_PHRASE`] secret uri with junction:
 ///
 /// ```
-/// # use sp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
+/// # use kp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
 /// # use std::str::FromStr;
 /// let suri = SecretUri::from_str("//Alice").expect("Parse SURI");
 ///
@@ -734,7 +734,7 @@ mod dummy {
 /// Parse [`DEV_PHRASE`] secret ui with junction and password:
 ///
 /// ```
-/// # use sp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
+/// # use kp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
 /// # use std::str::FromStr;
 /// let suri = SecretUri::from_str("//Alice///SECRET_PASSWORD").expect("Parse SURI");
 ///
@@ -746,7 +746,7 @@ mod dummy {
 /// Parse [`DEV_PHRASE`] secret ui with hex phrase and junction:
 ///
 /// ```
-/// # use sp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
+/// # use kp_core::crypto::{SecretUri, DeriveJunction, DEV_PHRASE, ExposeSecret};
 /// # use std::str::FromStr;
 /// let suri = SecretUri::from_str("0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a//Alice").expect("Parse SURI");
 ///
@@ -883,7 +883,7 @@ pub trait Pair: CryptoType + Sized + Clone + Send + Sync + 'static {
 	///   - the phrase may be followed by one or more items delimited by `/` characters.
 	///   - the path may be followed by `///`, in which case everything after the `///` is treated
 	/// as a password.
-	/// - If `s` begins with a `/` character it is prefixed with the Substrate public `DEV_PHRASE`
+	/// - If `s` begins with a `/` character it is prefixed with the KardiaChain public `DEV_PHRASE`
 	///   and
 	/// interpreted as above.
 	///
@@ -1079,7 +1079,7 @@ pub mod key_types {
 	pub const BABE: KeyTypeId = KeyTypeId(*b"babe");
 	/// Key type for Grandpa module, built-in. Identified as `gran`.
 	pub const GRANDPA: KeyTypeId = KeyTypeId(*b"gran");
-	/// Key type for controlling an account in a Substrate runtime, built-in. Identified as `acco`.
+	/// Key type for controlling an account in a KardiaChain runtime, built-in. Identified as `acco`.
 	pub const ACCOUNT: KeyTypeId = KeyTypeId(*b"acco");
 	/// Key type for Aura module, built-in. Identified as `aura`.
 	pub const AURA: KeyTypeId = KeyTypeId(*b"aura");

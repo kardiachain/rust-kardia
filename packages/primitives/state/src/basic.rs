@@ -1,0 +1,1 @@
+//! Basic implementation for Externalities.

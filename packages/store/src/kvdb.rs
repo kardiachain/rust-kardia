@@ -8,7 +8,7 @@ pub enum DatabaseType {
     Full
 }
 
-/// Wrap RocksDb database into a trait object that implements `sp_database::Database`
+/// Wrap RocksDb database into a trait object that implements `kp_database::Database`
 pub fn as_database<D, H>(db: D) -> std::sync::Arc<dyn Database<H>>
 where
 	D: KeyValueDB + 'static,
