@@ -4,6 +4,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
+mod basic;
+#[cfg(feature = "std")]
 pub use log::{debug, error as log_error, warn};
 pub mod backend;
 pub(crate) mod overlayed_changes;
@@ -20,6 +22,10 @@ mod trie_backend_essence;
 pub use execution::*;
 #[cfg(feature = "std")]
 pub use std_reexport::*;
+#[cfg(feature = "std")]
+mod read_only;
+#[cfg(feature = "std")]
+mod testing;
 
 #[cfg(feature = "std")]
 mod std_reexport {
