@@ -1,29 +1,17 @@
-use std::{
-    collections::HashMap,
-    fmt::{format, Debug},
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use ethereum_types::Address;
 
 use crate::{
-    bit_array::BitArray,
-    block::{self, BlockId},
-    commit::Commit,
-    consensus::state::ChainId,
-    errors::AddVoteError,
-    evidence::DuplicateVoteEvidence,
-    peer::PeerId,
-    types::SignedMsgType,
-    validator_set::ValidatorSet,
-    vote::Vote,
+    bit_array::BitArray, block::BlockId, commit::Commit, consensus::state::ChainId,
+    errors::AddVoteError, evidence::DuplicateVoteEvidence, peer::PeerId, types::SignedMsgType,
+    validator_set::ValidatorSet, vote::Vote,
 };
 
-/*
-    Votes for a particular block
-    There are two ways a *blockVotes gets created for a blockKey.
-    1. first (non-conflicting) vote of a validator w/ blockKey (peerMaj23=false)
-    2. A peer claims to have a 2/3 majority w/ blockKey (peerMaj23=true)
-*/
+/// Votes for a particular block
+/// There are two ways a BlockVotes gets created for a block key.
+/// 1. first (non-conflicting) vote of a validator w/ blockKey (peerMaj23=false)
+/// 2. A peer claims to have a 2/3 majority w/ blockKey (peerMaj23=true)
 #[derive(Debug, Clone, PartialEq)]
 pub struct BlockVotes {
     peer_maj23: bool,         // peer claims to have maj23
@@ -44,10 +32,13 @@ impl BlockVotes {
 
     fn add_verified_vote(&mut self, vote: Vote, voting_power: u64) {
         let validator_index = vote.validator_index as usize;
-        if let existing = self.votes.get_mut(validator_index).unwrap() {
-            self.bit_array.set_index(validator_index, true);
-            *existing = Some(vote.clone());
-            self.sum += voting_power
+        match self.votes.get_mut(validator_index) {
+            Some(existing) => {
+                self.bit_array.set_index(validator_index, true);
+                *existing = Some(vote);
+                self.sum += voting_power
+            }
+            _ => (),
         }
     }
 
@@ -55,8 +46,6 @@ impl BlockVotes {
         self.votes.get(index).unwrap().clone()
     }
 }
-
-pub trait VoteSetReader: Debug + Sync + Send + 'static {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoteSet {
@@ -114,7 +103,24 @@ impl VoteSet {
     }
 
     pub fn get_vote(&self, validator_index: u32, block_key: String) -> Option<Vote> {
-        todo!()
+        if let Some(existing_vote) = self.votes.get(validator_index as usize).unwrap() {
+            if existing_vote.clone()
+                .block_id
+                .is_some_and(|bid| bid.key() == block_key)
+            {
+                return Some(existing_vote.clone());
+            }
+        }
+
+        if let Some(existing_vote) = self
+            .votes_by_block
+            .get(&block_key)
+            .and_then(|bv| bv.get_by_index(validator_index as usize))
+        {
+            return Some(existing_vote);
+        }
+
+        return None;
     }
 
     pub fn add_vote(&mut self, vote: Vote) -> Result<(), AddVoteError> {
@@ -258,7 +264,7 @@ impl VoteSet {
             let quorum = self.validator_set.total_voting_power * 2 / 3 + 1;
 
             // Add vote to votesByBlock
-            votes_by_block.add_verified_vote(vote.clone(), voting_power); // TODO: find better way to convert i64 to u64
+            votes_by_block.add_verified_vote(vote.clone(), voting_power);
 
             // If we just crossed the quorum threshold and have 2/3 majority...
             if orig_sum < quorum && quorum <= votes_by_block.sum {
@@ -279,5 +285,7 @@ impl VoteSet {
         return Ok(conflicting_vote);
     }
 }
+
+pub trait VoteSetReader: Debug + Sync + Send + 'static {}
 
 impl VoteSetReader for VoteSet {}

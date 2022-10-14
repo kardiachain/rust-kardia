@@ -19,7 +19,7 @@ use kai_types::{
     part_set::PartSet,
     peer::PeerId,
     priv_validator::PrivValidator,
-    proposal::{proposal_sign_bytes, Proposal},
+    proposal::Proposal,
     round::RoundStep,
     timestamp,
     types::SignedMsgType,
@@ -776,7 +776,7 @@ impl ConsensusStateImpl {
                 let proposer_address = proposer.unwrap().address;
 
                 let chain_id = self.state.clone().get_chain_id();
-                let psb = proposal_sign_bytes(chain_id, proposal.clone());
+                let psb = proposal.proposal_sign_bytes(chain_id);
                 if psb.is_none() {
                     return Err(ConsensusStateError::AddProposalError(
                         "proposal verification error: cannot get proposal sign bytes".to_owned(),
@@ -1245,7 +1245,7 @@ mod tests {
         evidence::MockEvidencePool,
         part_set::{Part, PartSet, PartSetHeader},
         priv_validator::MockPrivValidator,
-        proposal::{proposal_sign_bytes, Proposal},
+        proposal::Proposal,
         round::RoundStep,
         types::SignedMsgType,
         validator_set::{Validator, ValidatorSet},
@@ -1458,7 +1458,7 @@ mod tests {
         };
 
         // sign the proposal
-        let psb = proposal_sign_bytes(m_chain_id.clone(), m_proposal.clone()).unwrap();
+        let psb = m_proposal.proposal_sign_bytes(m_chain_id.clone()).unwrap();
         let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
         let signer_public_key =
             secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
@@ -1686,12 +1686,20 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        let total_parts = 10;
+        let val_4_skey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+        let val_4_pkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val_4_skey);
+        let val_4_addr = pub_to_address(val_4_pkey);
+        let val_4_validator_index = 3;
+        let val_4 = Validator {
+            address: val_4_addr,
+            voting_power: 4,
+            proposer_priority: 4,
+        };
 
         let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
+            validators: vec![VAL_1, VAL_2, VAL_3, val_4.clone()],
             proposer: None,
-            total_voting_power: 6,
+            total_voting_power: 10,
         };
 
         let arc_cs = Arc::new(cs);
@@ -1703,10 +1711,9 @@ mod tests {
             .rs
             .lock()
             .expect("could not lock round state for arrangement");
-        // TODO: set up round state
         rs_guard.validators = Some(val_set.clone());
         rs_guard.votes = Some(HeightVoteSet {
-            chain_id: m_chain_id,
+            chain_id: m_chain_id.clone(),
             height: 1,
             round: 1,
             validator_set: Some(val_set),
@@ -1721,18 +1728,24 @@ mod tests {
                 arc_cs.process_msg_chan();
             });
 
-            let vote_msg = VoteMessage {
-                vote: Some(Vote {
-                    r#type: SignedMsgType::Precommit.into(),
-                    height: 1,
-                    round: 1,
-                    block_id: Some(BlockId::new_zero_block_id()),
-                    timestamp: None,
-                    validator_address: VAL_1.address.0.to_vec(),
-                    validator_index: 1,
-                    signature: vec![],
-                }),
+            let mut vote = Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_4.clone().address.0.to_vec(),
+                validator_index: val_4_validator_index,
+                signature: vec![],
             };
+
+            // sign the vote
+            let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
+            let signature = sign(keccak256(vsb), val_4_skey).unwrap();
+            vote.signature = signature.to_vec();
+
+            let vote_msg = VoteMessage { vote: Some(vote.clone()) };
+
             let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
             _ = arc_cs_1
                 .send(MessageInfo {
@@ -1755,7 +1768,21 @@ mod tests {
 
             let rs = arc_cs_2.clone().get_rs().unwrap();
 
-            // TODO: assertions.
+            assert!(rs.votes.is_some());
+            let heigh_vote_set = rs.votes.unwrap();
+            assert!(heigh_vote_set.prevotes(1).is_some());
+            let prevotes = heigh_vote_set.prevotes(1).unwrap();
+            let votes = prevotes.votes;
+            let votes_by_block = prevotes.votes_by_block;
+            assert!(votes_by_block.get(&vote.clone().block_id.unwrap().key()).is_some());
+            let votes_bit_array = prevotes.votes_bit_array;
+
+            assert!(votes
+                .get(val_4_validator_index as usize)
+                .is_some_and(|v| v.is_some()));
+            assert!(votes_bit_array
+                .get_index(val_4_validator_index as usize)
+                .is_ok_and(|r| *r == true));
         });
     }
 

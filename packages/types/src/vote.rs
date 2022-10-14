@@ -4,11 +4,8 @@ use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
 use prost::Message;
 
 use crate::{
-    block::BlockId,
-    canonical_types::create_canonical_vote,
-    consensus::state::ChainId,
-    errors::{VoteError},
-    types::SignedMsgType,
+    block::BlockId, canonical_types::create_canonical_vote, consensus::state::ChainId,
+    errors::VoteError, types::SignedMsgType,
 };
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -78,7 +75,7 @@ pub fn is_valid_vote_type(t: SignedMsgType) -> bool {
 
 impl Vote {
     pub fn verify(&self, chain_id: ChainId, validator_address: Address) -> Result<(), VoteError> {
-        let psb = Self::vote_sign_bytes(chain_id, self.clone());
+        let psb = self.vote_sign_bytes(chain_id);
         if psb.is_none() {
             return Err(VoteError::CreateVoteSignBytesError);
         }
@@ -94,8 +91,8 @@ impl Vote {
         return Ok(());
     }
 
-    pub fn vote_sign_bytes(chain_id: ChainId, vote: Vote) -> Option<Bytes> {
-        create_canonical_vote(chain_id, vote)
+    pub fn vote_sign_bytes(&self, chain_id: ChainId) -> Option<Bytes> {
+        create_canonical_vote(chain_id, self.clone())
             .map(|cv| Bytes::copy_from_slice(&cv.encode_length_delimited_to_vec()))
     }
 }
