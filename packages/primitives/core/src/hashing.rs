@@ -1,8 +1,8 @@
 //! Hashing functions.
 //!
 //! This module is gated by `full-crypto` feature. If you intend to use any of the functions
-//! defined here within your runtime, you should most likely rather use `sp_io::hashing` instead,
-//! unless you know what you're doing. Using `sp_io` will be more performant, since instead of
+//! defined here within your runtime, you should most likely rather use `kp_io::hashing` instead,
+//! unless you know what you're doing. Using `kp_io` will be more performant, since instead of
 //! computing the hash in WASM it delegates that computation to the host client.
 
 pub use kp_core_hashing::*;

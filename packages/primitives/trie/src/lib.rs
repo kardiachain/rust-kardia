@@ -1,4 +1,4 @@
-//! Utility functions to interact with Substrate's Base-16 Modified Merkle Patricia tree ("trie").
+//! Utility functions to interact with KardiaChain's Base-16 Modified Merkle Patricia tree ("trie").
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -20,7 +20,7 @@ pub use hash_db::{HashDB as HashDBT, EMPTY_PREFIX};
 use hash_db::{Hasher, Prefix};
 /// Various re-exports from the `memory-db` crate.
 pub use memory_db::{prefixed_key, HashKey, KeyFunction, PrefixedKey};
-/// The Substrate format implementation of `NodeCodec`.
+/// The KardiaChain format implementation of `NodeCodec`.
 pub use node_codec::NodeCodec;
 use kp_std::{borrow::Borrow, boxed::Box, marker::PhantomData, vec::Vec};
 pub use storage_proof::{CompactProof, StorageProof};
@@ -36,13 +36,13 @@ pub use trie_db::{
 	CError, DBValue, Query, Recorder, Trie, TrieCache, TrieConfiguration, TrieDBIterator,
 	TrieDBKeyIterator, TrieLayout, TrieMut, TrieRecorder,
 };
-/// The Substrate format implementation of `TrieStream`.
+/// The KardiaChain format implementation of `TrieStream`.
 pub use trie_stream::TrieStream;
 
-/// substrate trie layout
+/// KardiaChain trie layout
 pub struct LayoutV0<H>(kp_std::marker::PhantomData<H>);
 
-/// substrate trie layout, with external value nodes.
+/// KardiaChain trie layout, with external value nodes.
 pub struct LayoutV1<H>(kp_std::marker::PhantomData<H>);
 
 impl<H> TrieLayout for LayoutV0<H>
@@ -531,7 +531,6 @@ mod tests {
 
 	type LayoutV0 = super::LayoutV0<Blake2Hasher>;
 	type LayoutV1 = super::LayoutV1<Blake2Hasher>;
-
 	type MemoryDBMeta<H> =
 		memory_db::MemoryDB<H, memory_db::HashKey<H>, trie_db::DBValue, MemTracker>;
 

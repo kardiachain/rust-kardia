@@ -1,4 +1,4 @@
-//! `TrieStream` implementation for Substrate's trie format.
+//! `TrieStream` implementation for KardiaChain's trie format.
 
 use crate::{
 	node_header::{size_and_prefix_iterator, NodeKind},

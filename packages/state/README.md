@@ -1,0 +1,1 @@
+Package state provides a caching layer atop the KardiaChain state trie.

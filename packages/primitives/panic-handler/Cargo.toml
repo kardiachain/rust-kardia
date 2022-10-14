@@ -1,0 +1,11 @@
+[package]
+name = "kp-panic-handler"
+version = "0.1.0"
+edition = "2021"
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+backtrace = "0.3.64"
+lazy_static = "1.4.0"
+regex = "1.5.5"

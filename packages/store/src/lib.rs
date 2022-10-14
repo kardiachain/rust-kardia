@@ -9,6 +9,7 @@ mod config;
 mod error;
 mod kvdb;
 mod utils;
+mod cache;
 
 pub type DbHash = primitive_types::H256;
 

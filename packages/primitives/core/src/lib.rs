@@ -1,3 +1,15 @@
+/// Initialize a key-value collection from array.
+///
+/// Creates a vector of given pairs and calls `collect` on the iterator from it.
+/// Can be used to create a `HashMap`.
+#[macro_export]
+macro_rules! map {
+	($( $name:expr => $value:expr ),* $(,)? ) => (
+		vec![ $( ( $name, $value ) ),* ].into_iter().collect()
+	);
+}
+
+
 pub mod crypto;
 pub mod ecdsa;
 pub mod hash;
@@ -7,6 +19,8 @@ pub mod hashing;
 pub mod hexdisplay;
 pub mod uint;
 pub mod ed25519;
+pub mod traits;
+pub mod testing;
 
 
 #[cfg(feature = "full_crypto")]
@@ -27,3 +41,4 @@ pub use self::{
 
 pub use kp_storage as storage;
 pub use hash_db::Hasher;
+
