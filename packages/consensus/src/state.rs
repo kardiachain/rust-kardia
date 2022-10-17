@@ -1003,9 +1003,12 @@ impl ConsensusStateImpl {
                             peer_id: internal_peerid(),
                         };
 
-                        self.msg_chan_sender
-                            .blocking_send(msg)
-                            .expect("send vote failed"); // should panics here?
+                        match self.msg_chan_sender.blocking_send(msg) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                log::debug!("failed to send message: {:?}", e)
+                            }
+                        };
 
                         log::debug!("signed and sent vote")
                     }
@@ -1042,9 +1045,12 @@ impl ConsensusStateImpl {
                             peer_id: internal_peerid(),
                         };
 
-                        self.msg_chan_sender
-                            .blocking_send(msg)
-                            .expect("send vote failed"); // should panics here?
+                        match self.msg_chan_sender.blocking_send(msg) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                log::debug!("failed to send message: {:?}", e)
+                            }
+                        };
 
                         log::debug!("signed and sent vote")
                     }
@@ -1744,7 +1750,9 @@ mod tests {
             let signature = sign(keccak256(vsb), val_4_skey).unwrap();
             vote.signature = signature.to_vec();
 
-            let vote_msg = VoteMessage { vote: Some(vote.clone()) };
+            let vote_msg = VoteMessage {
+                vote: Some(vote.clone()),
+            };
 
             let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
             _ = arc_cs_1
@@ -1774,7 +1782,9 @@ mod tests {
             let prevotes = heigh_vote_set.prevotes(1).unwrap();
             let votes = prevotes.votes;
             let votes_by_block = prevotes.votes_by_block;
-            assert!(votes_by_block.get(&vote.clone().block_id.unwrap().key()).is_some());
+            assert!(votes_by_block
+                .get(&vote.clone().block_id.unwrap().key())
+                .is_some());
             let votes_bit_array = prevotes.votes_bit_array;
 
             assert!(votes
@@ -1892,47 +1902,34 @@ mod tests {
         rs_guard.validators = Some(val_set);
         drop(rs_guard);
 
-        let rc = thread::spawn(move || {
-            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
-                let rev_msg = rx_guard.blocking_recv();
-                assert!(rev_msg.is_some());
-
-                let msg_info = rev_msg.unwrap();
-                assert!(
-                    msg_info.clone().peer_id == internal_peerid()
-                        && match msg_info.clone().msg.clone().as_ref() {
-                            ConsensusMessageType::VoteMessage(vm) => vm.vote.is_some_and(|v| v
-                                .block_id
-                                .is_some_and(
-                                    |bid| bid.hash.len() == 0 && bid.part_set_header == None
-                                )),
-                            _ => false,
-                        }
-                );
-            } else {
-                panic!("should lock");
-            }
-        });
-
         let timeout_propose = config.timeout_propose;
-        Runtime::new().unwrap().block_on(async move {
+
+        let rt = Runtime::new().unwrap();
+        rt.spawn(async move {
             if let Ok(_) = arc_cs_2.clone().start() {
             } else {
                 panic!("should not failed to start");
             }
 
             // wait for propose timeout happens
-            thread::sleep(timeout_propose.add(timeout_propose));
+            thread::sleep(timeout_propose);
+
+            // stop the consensus state
+            // closes the channel
+            // msg process will stop
+            _ = arc_cs_2.clone().stop();
 
             // assertions
-            if let Some(rs) = arc_cs_2.clone().get_rs() {
+            if let Ok(rs_guard) = arc_cs_2.clone().rs.lock() {
+                let rs = rs_guard.clone();
                 assert_eq!(rs.step, RoundStep::Prevote);
             } else {
                 panic!("should get round state")
             }
         });
 
-        rc.join().unwrap();
+        // waits for all spawned tasks in runtime
+        rt.handle();
     }
 
     #[test]
@@ -2030,14 +2027,8 @@ mod tests {
         let timeout_propose = config.timeout_propose;
         let timeout_prevote = config.timeout_prevote;
 
-        // start this task first
-        thread::spawn(move || {
-            let cs = arc_cs_1.clone();
-            cs.process_msg_chan();
-        });
-
-        // then starts this task and wait until complete
-        Runtime::new().unwrap().block_on(async move {
+        let rt = Runtime::new().unwrap();
+        rt.spawn(async move {
             let cs = arc_cs.clone();
             // start consensus state at new round
             cs.clone().start().expect("should start successfully");
@@ -2052,6 +2043,9 @@ mod tests {
             let rs = cs.clone().get_rs().expect("should get round state");
             assert_eq!(rs.step, RoundStep::Precommit);
         });
+
+        // waits for all spawned tasks in runtime
+        rt.handle();
     }
 
     #[test]
@@ -2144,14 +2138,8 @@ mod tests {
         let timeout_prevote = config.timeout_prevote;
         let timeout_precommit = config.timeout_precommit;
 
-        // start this task first
-        thread::spawn(move || {
-            let cs = arc_cs_1.clone();
-            cs.process_msg_chan();
-        });
-
-        // then starts this task and wait until complete
-        Runtime::new().unwrap().block_on(async move {
+        let rt = Runtime::new().unwrap();
+        rt.spawn(async move {
             let cs = arc_cs.clone();
             // start consensus state at new round
             cs.clone().start().expect("should start successfully");
@@ -2172,5 +2160,8 @@ mod tests {
             assert_eq!(rs.height, last_rs.height); // assert height
             assert_eq!(rs.round, last_rs.round + 1); // assert new round
         });
+
+        // waits for all spawned tasks in runtime
+        rt.handle();
     }
 }
