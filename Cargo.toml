@@ -25,6 +25,9 @@ members = [
     "packages/primitives/bloom",
     "packages/primitives/io",
     "packages/txpool",
+    "packages/config",
+    "packages/network",
+    "packages/cli"
 ]
 
 [[bin]]
@@ -39,9 +42,11 @@ kai-store = { path = "packages/store"}
 kai-primitives-core = { path = "source/core"}
 kai-primitives = { path = "packages/primitives"}
 # kai-accounts = { path = "packages/accounts" }
-kai_p2p = { path = "packages/p2p" }
 kai-consensus = { path = "packages/consensus" }
 kai_proto = { path = "packages/proto" }
+kai-config = { path = "packages/config" }
+kai-network = { path = "packages/network" }
+kai-cli = { path = "packages/cli" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }
 # kai-utils = { path = "packages/utils" }
