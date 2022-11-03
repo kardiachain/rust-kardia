@@ -25,6 +25,8 @@ pub enum ConsensusReactorError {
 
 #[derive(Error, Debug)]
 pub enum ConsensusStateError {
+    #[error("decide proposal error: `{0}`")]
+    DecideProposalError(String),
     #[error("add vote error: `{0}`")]
     AddVoteError(kai_types::errors::AddVoteError),
     #[error("unknown msg type")]

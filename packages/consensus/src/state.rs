@@ -1093,27 +1093,31 @@ impl ConsensusStateImpl {
             drop(rs_guard);
 
             if self.clone().is_proposer() {
-                self.clone().decide_proposal(rs);
-            } else {
-                self.clone().schedule_timeout(rs.height, rs.round, rs.step);
+                match self.clone().decide_proposal(rs.clone()) {
+                    Err(e) => {
+                        log::trace!("{:?}", e);
+                    }
+                    Ok(_) => {
+                        return;
+                    }
+                };
             }
+            
+            self.clone().schedule_timeout(rs.height, rs.round, rs.step);
         } else {
             log::trace!("lock round state failed")
         }
     }
 
-    fn decide_proposal(self: Arc<Self>, rs: RoundState) {
+    fn decide_proposal(self: Arc<Self>, rs: RoundState) -> Result<(), ConsensusStateError> {
         let block: Option<Block>;
         let block_parts: Option<PartSet>;
 
-        if rs.valid_block.is_some() {
+        if rs.valid_block.is_some() && rs.valid_block_parts.is_some() {
             block = rs.valid_block;
             block_parts = rs.valid_block_parts;
         } else {
             (block, block_parts) = self.clone().create_proposal_block();
-            if block.is_none() {
-                log::trace!("create proposal block failed");
-            }
         }
 
         if let (Some(b), Some(bp)) = (block, block_parts) {
@@ -1150,12 +1154,16 @@ impl ConsensusStateImpl {
                 };
 
                 _ = self.msg_chan_sender.try_send(msg_info);
+                return Ok(());
             } else {
-                log::error!("sign proposal failed");
-                return;
+                return Err(ConsensusStateError::DecideProposalError(
+                    "sign proposal failed".to_owned(),
+                ));
             }
         } else {
-            log::error!("invalid block or block parts")
+            return Err(ConsensusStateError::DecideProposalError(
+                "either block or block parts is none".to_owned(),
+            ));
         }
     }
 
