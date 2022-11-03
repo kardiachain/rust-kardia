@@ -259,11 +259,6 @@ impl ConsensusStateImpl {
     fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
         let msg = msg.clone();
         match msg.as_ref() {
-            ConsensusMessageType::ProposalMessage(_msg) => {
-                log::debug!(
-                    "no upon rules to check for proposal, they are checked in block part message",
-                );
-            }
             ConsensusMessageType::BlockPartMessage(_msg) => {
                 log::debug!(
                     "checking upon rules for proposal block part: block_part={:?}",
@@ -1102,7 +1097,7 @@ impl ConsensusStateImpl {
                     }
                 };
             }
-            
+
             self.clone().schedule_timeout(rs.height, rs.round, rs.step);
         } else {
             log::trace!("lock round state failed")
@@ -1858,6 +1853,12 @@ mod tests {
      * ------------------------
      */
 
+
+    /**
+     *   -----------                     -----------------
+     *   | PROPOSE |  ----(TIMEOUT!)---> | PREVOTE (NIL) |
+     *   -----------                     -----------------
+     */
     #[test]
     fn propose_timeout_send_prevote_for_nil() {
         let mut m_latest_block_state = MockLatestBlockState::new();
@@ -1940,6 +1941,11 @@ mod tests {
         rt.handle();
     }
 
+    /**
+     *   -----------                     -------------------
+     *   | PREVOTE |  ----(TIMEOUT!)---> | PRECOMMIT (NIL) |
+     *   -----------                     -------------------
+     */
     #[test]
     fn prevote_timeout_send_precommit_for_nil() {
         let mut m_latest_block_state = MockLatestBlockState::new();
@@ -2056,6 +2062,11 @@ mod tests {
         rt.handle();
     }
 
+    /**
+     *   -------------                     -----------
+     *   | PRECOMMIT |  ----(TIMEOUT!)---> | PROPOSE |
+     *   -------------                     -----------
+     */
     #[test]
     fn precommit_timeout_start_new_round() {
         let mut m_latest_block_state = MockLatestBlockState::new();
