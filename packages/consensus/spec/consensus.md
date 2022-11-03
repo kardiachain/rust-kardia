@@ -154,17 +154,25 @@ The above consensus algorithm could be explained in more detail:
 - The `upon` rule 9 helps it catching up the latest round of other processes.
 
 ## Consensus reactor
-```go
+```rust
 pub trait ConsensusReactor {
-    fn new() -> Self;
-    fn switch_to_consensus() -> ();
-    fn set_priv_validator() -> ();
-    fn get_priv_validator() -> ();
-    fn get_validators() -> ();
-
-    fn add_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
-    fn remove_peer(peer: Peer) -> Result<(), Box<dyn Error>>;
-    fn receive(ch_id: ChannelId, src: Peer, msg: Message) -> Result<(), Box<dyn Error>>;
+    fn switch_to_consensus(
+        self: Arc<Self>,
+        state: Arc<Box<dyn LatestBlockState>>,
+        skip_wal: bool,
+    ) -> Result<(), Box<ConsensusReactorError>>;
+    fn set_priv_validator(self: Arc<Self>) -> ();
+    fn get_priv_validator(self: Arc<Self>) -> ();
+    fn get_validators(self: Arc<Self>) -> ();
+    fn add_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>>;
+    fn remove_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>>;
+    fn receive(
+        self: Arc<Self>,
+        ch_id: ChannelId,
+        src: Arc<dyn Peer>,
+        msg: PeerMessage,
+    ) -> Result<(), Box<ConsensusReactorError>>;
+    fn get_cs(self: Arc<Self>) -> Arc<Box<dyn ConsensusState>>;
 }
 ```
 Consensus reactor interfaces: 
@@ -174,46 +182,30 @@ Consensus reactor interfaces:
 - ...
 
 ## Consensus state
-TODO: convert model to Rust
-```go
-type ConsensusState struct {
-	service.BaseService
+```rust
+pub trait ConsensusState: Debug + Send + Sync + 'static {
+    fn get_config(&self) -> Arc<ConsensusConfig>;
+    fn get_state(&self) -> Arc<Box<dyn LatestBlockState>>;
+    fn get_block_operations(&self) -> Arc<Box<dyn BlockOperations>>;
+    fn get_block_exec(&self) -> Arc<Box<dyn BlockExecutor>>;
+    fn get_evidence_pool(&self) -> Arc<Box<dyn EvidencePool>>;
+    fn get_rs(&self) -> Option<RoundState>;
 
-	config          *cfg.ConsensusConfig
-	privValidator   types.PrivValidator // for signing votes
-	blockOperations BaseBlockOperations
-	blockExec       *cstate.BlockExecutor
-	evpool          evidencePool // TODO(namdoh): Add mem pool.
-
-	// internal state
-	mtx sync.RWMutex
-	cstypes.RoundState
-	state         cstate.LatestBlockState // State until height-1.
-
-	// State changes may be triggered by: msgs from peers,
-	// msgs from ourself, or by timeouts
-	peerMsgQueue     chan msgInfo
-	internalMsgQueue chan msgInfo
-
-	// we use eventBus to trigger msg broadcasts in the manager,
-	// and to notify external subscribers, eg. through a websocket
-	eventBus *types.EventBus
-
-	// For tests where we want to limit the number of transitions the state makes
-	nSteps int
-
-	// a Write-Ahead Log ensures we can recover from any kind of crash
-	// and helps us avoid signing conflicting votes
-	wal          WAL
-	replayMode   bool // so we don't log signing errors during replay
-	doWALCatchup bool // determines if we even try to do the catchup
-
-	// Synchronous pubsub between consensus state and manager.
-	// State only emits EventNewRoundStep, EventVote and EventProposalHeartbeat
-	evsw kevents.EventSwitch
-
-	// closed when we finish shutting down
-	done chan struct{}
+    fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
+    async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
+    fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
+    fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError>;
+}
+pub struct ConsensusStateImpl {
+    pub config: Arc<ConsensusConfig>,
+    pub rs: Arc<Mutex<RoundState>>,
+    pub msg_chan_sender: Sender<MessageInfo>,
+    pub msg_chan_receiver: Mutex<Receiver<MessageInfo>>,
+    pub state: Arc<Box<dyn LatestBlockState>>,
+    pub priv_validator: Arc<Box<dyn PrivValidator>>,
+    pub block_operations: Arc<Box<dyn BlockOperations>>,
+    pub block_exec: Arc<Box<dyn BlockExecutor>>,
+    pub evidence_pool: Arc<Box<dyn EvidencePool>>,
 }
 ```
 ## Messages flow
