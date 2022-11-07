@@ -5,12 +5,12 @@ use kai_types::{
 
 use std::{collections::{HashMap, HashSet}, fmt::Debug};
 
-pub type RULE_NUMBER = u8;
-pub const RULE_4: RULE_NUMBER = 4;
-pub const RULE_5: RULE_NUMBER = 5;
-pub const RULE_6: RULE_NUMBER = 6;
-pub const RULE_7: RULE_NUMBER = 7;
-pub const RULE_8: RULE_NUMBER = 8;
+pub type RuleNumber = u8;
+pub const RULE_4: RuleNumber = 4;
+pub const RULE_5: RuleNumber = 5;
+pub const RULE_6: RuleNumber = 6;
+pub const RULE_7: RuleNumber = 7;
+pub const RULE_8: RuleNumber = 8;
 
 #[derive(Debug, Clone)]
 pub struct RoundState {
@@ -36,7 +36,7 @@ pub struct RoundState {
 
     /// a map from rule number to boolean.
     /// true if rule has been trigger or else.
-    pub triggered_rules: HashSet<RULE_NUMBER>,
+    pub triggered_rules: HashSet<RuleNumber>,
 
     // pub last_validators: Option<ValidatorSet>,
 }

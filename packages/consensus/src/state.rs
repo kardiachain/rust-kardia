@@ -1354,7 +1354,7 @@ mod tests {
             }
         });
 
-        Runtime::new().unwrap().block_on(async move {
+        tokio_test::block_on(async move {
             let _ = arc_cs_1
                 .clone()
                 .send(MessageInfo {
@@ -1367,8 +1367,8 @@ mod tests {
         rc.join().unwrap();
     }
 
-    #[test]
-    fn process_msg_chan() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn process_msg_chan() {
         let m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -1392,30 +1392,28 @@ mod tests {
         let arc_cs = Arc::new(cs);
         let arc_cs_1 = arc_cs.clone();
 
-        Runtime::new().unwrap().block_on(async move {
-            // start processing messages
-            let msg_thr = tokio::spawn(async move {
-                arc_cs.process_msg_chan();
-            });
-
-            _ = arc_cs_1
-                .send(MessageInfo {
-                    msg: msg,
-                    peer_id: internal_peerid(),
-                })
-                .await;
-
-            // wait for a while for processing message
-            thread::sleep(Duration::from_millis(200));
-
-            // stop the consensus state
-            // closes the channel
-            // msg process will stop
-            _ = arc_cs_1.stop();
-
-            let join_rs = msg_thr.await;
-            assert!(join_rs.is_ok());
+        // start processing messages
+        let msg_thr = tokio::spawn(async move {
+            arc_cs.process_msg_chan();
         });
+
+        let rs = arc_cs_1
+            .send(MessageInfo {
+                msg: msg,
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        // wait for a while for processing message
+        thread::sleep(Duration::from_millis(500));
+
+        // stop the consensus state
+        // closes the channel
+        // msg process will stop
+        _ = arc_cs_1.clone().stop();
+
+        let join_rs = msg_thr.await;
+        assert!(join_rs.is_ok());
     }
 
     use kai_lib::{
@@ -1426,8 +1424,8 @@ mod tests {
         secp256k1::{self, SECP256K1},
     };
 
-    #[test]
-    fn set_proposal() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn set_proposal() {
         let mut m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -1504,44 +1502,42 @@ mod tests {
         rs_guard.validators = Some(val_set);
         drop(rs_guard);
 
-        Runtime::new().unwrap().block_on(async move {
-            // start processing messages
-            let msg_thr = tokio::spawn(async move {
-                arc_cs.process_msg_chan();
-            });
-
-            // send proposal message
-            _ = arc_cs_1
-                .send(MessageInfo {
-                    msg: msg,
-                    peer_id: internal_peerid(),
-                })
-                .await;
-
-            // wait for a while for processing message
-            thread::sleep(Duration::from_millis(200));
-
-            // stop the consensus state
-            // closes the channel
-            // msg process will stop
-            _ = arc_cs_1.stop();
-
-            // make sure this processing message thread is stopped
-            let join_rs = msg_thr.await;
-            assert!(join_rs.is_ok());
-
-            let rs = arc_cs_2.clone().get_rs().unwrap();
-            // assert proposal
-            assert!(
-                rs.proposal.is_some()
-                    && rs.proposal_block.is_none()
-                    && rs.proposal_block_parts.is_some()
-            );
+        // start processing messages
+        let msg_thr = tokio::spawn(async move {
+            arc_cs.process_msg_chan();
         });
+
+        // send proposal message
+        _ = arc_cs_1
+            .send(MessageInfo {
+                msg: msg,
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        // wait for a while for processing message
+        thread::sleep(Duration::from_millis(200));
+
+        // stop the consensus state
+        // closes the channel
+        // msg process will stop
+        _ = arc_cs_1.stop();
+
+        // make sure this processing message thread is stopped
+        let join_rs = msg_thr.await;
+        assert!(join_rs.is_ok());
+
+        let rs = arc_cs_2.clone().get_rs().unwrap();
+        // assert proposal
+        assert!(
+            rs.proposal.is_some()
+                && rs.proposal_block.is_none()
+                && rs.proposal_block_parts.is_some()
+        );
     }
 
-    #[test]
-    fn add_proposal_block_part() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn add_proposal_block_part() {
         let mut m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -1587,93 +1583,91 @@ mod tests {
         }));
         drop(rs_guard);
 
-        Runtime::new().unwrap().block_on(async move {
-            // start processing messages
-            let msg_thr = tokio::spawn(async move {
-                arc_cs.process_msg_chan();
-            });
-
-            // send block part messages
-            let part_0_index = 0; // first
-            let part_1_index = 1; // second
-
-            let m_block_part_0 = BlockPartMessage {
-                height: 1,
-                round: 1,
-                part: Some(Part {
-                    index: part_0_index,
-                    bytes: vec![],
-                    proof: Some(Proof {
-                        total: total_parts as u64,
-                        index: part_0_index as u64,
-                        leaf_hash: vec![],
-                        aunts: vec![vec![]],
-                    }),
-                }),
-            };
-            let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_0));
-            _ = arc_cs_1
-                .send(MessageInfo {
-                    msg: msg,
-                    peer_id: internal_peerid(),
-                })
-                .await;
-
-            let m_block_part_1 = BlockPartMessage {
-                height: 1,
-                round: 1,
-                part: Some(Part {
-                    index: part_1_index,
-                    bytes: vec![],
-                    proof: Some(Proof {
-                        total: total_parts as u64,
-                        index: part_1_index as u64,
-                        leaf_hash: vec![],
-                        aunts: vec![vec![]],
-                    }),
-                }),
-            };
-
-            let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_1));
-            _ = arc_cs_1
-                .send(MessageInfo {
-                    msg: msg,
-                    peer_id: internal_peerid(),
-                })
-                .await;
-
-            // wait for a while for processing message
-            thread::sleep(Duration::from_millis(200));
-
-            // stop the consensus state
-            // closes the channel
-            // msg process will stop
-            _ = arc_cs_1.stop();
-
-            // make sure this processing message thread is stopped
-            let join_rs = msg_thr.await;
-            assert!(join_rs.is_ok());
-
-            let rs = arc_cs_2.clone().get_rs().unwrap();
-            // assert proposal block part
-            let pbp = rs.proposal_block_parts.unwrap();
-            assert_eq!(pbp.count, 2); // received 1 part
-            assert_eq!(pbp.total, total_parts);
-            assert!(pbp.parts.get(part_0_index as usize).is_some());
-            assert!(pbp.parts.get(part_1_index as usize).is_some());
-            assert!(pbp
-                .parts_bit_array
-                .get_index(part_0_index as usize)
-                .is_ok_and(|v| *v == true));
-            assert!(pbp
-                .parts_bit_array
-                .get_index(part_1_index as usize)
-                .is_ok_and(|v| *v == true));
+        // start processing messages
+        let msg_thr = tokio::spawn(async move {
+            arc_cs.process_msg_chan();
         });
+
+        // send block part messages
+        let part_0_index = 0; // first
+        let part_1_index = 1; // second
+
+        let m_block_part_0 = BlockPartMessage {
+            height: 1,
+            round: 1,
+            part: Some(Part {
+                index: part_0_index,
+                bytes: vec![],
+                proof: Some(Proof {
+                    total: total_parts as u64,
+                    index: part_0_index as u64,
+                    leaf_hash: vec![],
+                    aunts: vec![vec![]],
+                }),
+            }),
+        };
+        let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_0));
+        _ = arc_cs_1
+            .send(MessageInfo {
+                msg: msg,
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        let m_block_part_1 = BlockPartMessage {
+            height: 1,
+            round: 1,
+            part: Some(Part {
+                index: part_1_index,
+                bytes: vec![],
+                proof: Some(Proof {
+                    total: total_parts as u64,
+                    index: part_1_index as u64,
+                    leaf_hash: vec![],
+                    aunts: vec![vec![]],
+                }),
+            }),
+        };
+
+        let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_1));
+        _ = arc_cs_1
+            .send(MessageInfo {
+                msg: msg,
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        // wait for a while for processing message
+        thread::sleep(Duration::from_millis(200));
+
+        // stop the consensus state
+        // closes the channel
+        // msg process will stop
+        _ = arc_cs_1.stop();
+
+        // make sure this processing message thread is stopped
+        let join_rs = msg_thr.await;
+        assert!(join_rs.is_ok());
+
+        let rs = arc_cs_2.clone().get_rs().unwrap();
+        // assert proposal block part
+        let pbp = rs.proposal_block_parts.unwrap();
+        assert_eq!(pbp.count, 2); // received 1 part
+        assert_eq!(pbp.total, total_parts);
+        assert!(pbp.parts.get(part_0_index as usize).is_some());
+        assert!(pbp.parts.get(part_1_index as usize).is_some());
+        assert!(pbp
+            .parts_bit_array
+            .get_index(part_0_index as usize)
+            .is_ok_and(|v| *v == true));
+        assert!(pbp
+            .parts_bit_array
+            .get_index(part_1_index as usize)
+            .is_ok_and(|v| *v == true));
     }
 
-    #[test]
-    fn add_vote() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn add_vote() {
         let mut m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -1731,72 +1725,70 @@ mod tests {
         });
         drop(rs_guard);
 
-        Runtime::new().unwrap().block_on(async move {
-            // start processing messages
-            let msg_thr = tokio::spawn(async move {
-                arc_cs.process_msg_chan();
-            });
-
-            let mut vote = Vote {
-                r#type: SignedMsgType::Prevote.into(),
-                height: 1,
-                round: 1,
-                block_id: Some(BlockId::new_zero_block_id()),
-                timestamp: None,
-                validator_address: val_4.clone().address.0.to_vec(),
-                validator_index: val_4_validator_index,
-                signature: vec![],
-            };
-
-            // sign the vote
-            let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
-            let signature = sign(keccak256(vsb), val_4_skey).unwrap();
-            vote.signature = signature.to_vec();
-
-            let vote_msg = VoteMessage {
-                vote: Some(vote.clone()),
-            };
-
-            let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
-            _ = arc_cs_1
-                .send(MessageInfo {
-                    msg: msg,
-                    peer_id: internal_peerid(),
-                })
-                .await;
-
-            // wait for a while for processing message
-            thread::sleep(Duration::from_millis(200));
-
-            // stop the consensus state
-            // closes the channel
-            // msg process will stop
-            _ = arc_cs_1.stop();
-
-            // make sure this processing message thread is stopped
-            let join_rs = msg_thr.await;
-            assert!(join_rs.is_ok());
-
-            let rs = arc_cs_2.clone().get_rs().unwrap();
-
-            assert!(rs.votes.is_some());
-            let heigh_vote_set = rs.votes.unwrap();
-            assert!(heigh_vote_set.prevotes(1).is_some());
-            let prevotes = heigh_vote_set.prevotes(1).unwrap();
-            let votes = prevotes.votes;
-            let votes_by_block = prevotes.votes_by_block;
-            assert!(votes_by_block
-                .get(&vote.clone().block_id.unwrap().key())
-                .is_some());
-            let votes_bit_array = prevotes.votes_bit_array;
-
-            assert!(votes
-                .get(val_4_validator_index as usize)
-                .is_some_and(|v| v.is_some()));
-            assert!(votes_bit_array
-                .get_index(val_4_validator_index as usize)
-                .is_ok_and(|r| *r == true));
+        // start processing messages
+        let msg_thr = tokio::spawn(async move {
+            arc_cs.process_msg_chan();
         });
+
+        let mut vote = Vote {
+            r#type: SignedMsgType::Prevote.into(),
+            height: 1,
+            round: 1,
+            block_id: Some(BlockId::new_zero_block_id()),
+            timestamp: None,
+            validator_address: val_4.clone().address.0.to_vec(),
+            validator_index: val_4_validator_index,
+            signature: vec![],
+        };
+
+        // sign the vote
+        let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
+        let signature = sign(keccak256(vsb), val_4_skey).unwrap();
+        vote.signature = signature.to_vec();
+
+        let vote_msg = VoteMessage {
+            vote: Some(vote.clone()),
+        };
+
+        let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
+        _ = arc_cs_1
+            .send(MessageInfo {
+                msg: msg,
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        // wait for a while for processing message
+        thread::sleep(Duration::from_millis(200));
+
+        // stop the consensus state
+        // closes the channel
+        // msg process will stop
+        _ = arc_cs_1.stop();
+
+        // make sure this processing message thread is stopped
+        let join_rs = msg_thr.await;
+        assert!(join_rs.is_ok());
+
+        let rs = arc_cs_2.clone().get_rs().unwrap();
+
+        assert!(rs.votes.is_some());
+        let heigh_vote_set = rs.votes.unwrap();
+        assert!(heigh_vote_set.prevotes(1).is_some());
+        let prevotes = heigh_vote_set.prevotes(1).unwrap();
+        let votes = prevotes.votes;
+        let votes_by_block = prevotes.votes_by_block;
+        assert!(votes_by_block
+            .get(&vote.clone().block_id.unwrap().key())
+            .is_some());
+        let votes_bit_array = prevotes.votes_bit_array;
+
+        assert!(votes
+            .get(val_4_validator_index as usize)
+            .is_some_and(|v| v.is_some()));
+        assert!(votes_bit_array
+            .get_index(val_4_validator_index as usize)
+            .is_ok_and(|r| *r == true));
     }
 
     #[test]
@@ -1852,7 +1844,6 @@ mod tests {
      * State transitions tests
      * ------------------------
      */
-
 
     /**
      *   -----------                     -----------------
@@ -1914,7 +1905,7 @@ mod tests {
         let timeout_propose = config.timeout_propose;
 
         let rt = Runtime::new().unwrap();
-        rt.spawn(async move {
+        tokio_test::block_on(async move {
             if let Ok(_) = arc_cs_2.clone().start() {
             } else {
                 panic!("should not failed to start");
@@ -1936,9 +1927,6 @@ mod tests {
                 panic!("should get round state")
             }
         });
-
-        // waits for all spawned tasks in runtime
-        rt.handle();
     }
 
     /**
@@ -2042,7 +2030,7 @@ mod tests {
         let timeout_prevote = config.timeout_prevote;
 
         let rt = Runtime::new().unwrap();
-        rt.spawn(async move {
+        tokio_test::block_on(async move {
             let cs = arc_cs.clone();
             // start consensus state at new round
             cs.clone().start().expect("should start successfully");
@@ -2057,9 +2045,6 @@ mod tests {
             let rs = cs.clone().get_rs().expect("should get round state");
             assert_eq!(rs.step, RoundStep::Precommit);
         });
-
-        // waits for all spawned tasks in runtime
-        rt.handle();
     }
 
     /**
@@ -2157,8 +2142,7 @@ mod tests {
         let timeout_prevote = config.timeout_prevote;
         let timeout_precommit = config.timeout_precommit;
 
-        let rt = Runtime::new().unwrap();
-        rt.spawn(async move {
+        tokio_test::block_on(async move {
             let cs = arc_cs.clone();
             // start consensus state at new round
             cs.clone().start().expect("should start successfully");
@@ -2179,8 +2163,5 @@ mod tests {
             assert_eq!(rs.height, last_rs.height); // assert height
             assert_eq!(rs.round, last_rs.round + 1); // assert new round
         });
-
-        // waits for all spawned tasks in runtime
-        rt.handle();
     }
 }
