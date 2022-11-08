@@ -27,4 +27,19 @@ pub struct CommitSig {
     pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 
+impl CommitSig {
+    pub fn new_commit_sig_absent() -> Self {
+        CommitSig {
+            block_id_flag: BlockIdFlag::Absent.into(),
+            validator_address: vec![],
+            timestamp: None,
+            signature: vec![],
+        }
+    }
+
+    pub fn for_block(&self) -> bool {
+        self.block_id_flag == BlockIdFlag::Commit.into()
+    }
+}
+
 impl VoteSetReader for Commit {}

@@ -24,8 +24,17 @@ impl BlockId {
 
     pub fn key(&self) -> String {
         let mut key = self.hash.clone();
-        key.append(&mut self.part_set_header.clone().map_or_else(|| vec![], |psh| psh.hash));
+        key.append(
+            &mut self
+                .part_set_header
+                .clone()
+                .map_or_else(|| vec![], |psh| psh.hash),
+        );
         String::from_utf8(key).unwrap()
+    }
+
+    pub fn is_completed(&self) -> bool {
+        return self.hash.len() > 0 && self.part_set_header.is_some_and(|psh| !psh.is_zero());
     }
 }
 

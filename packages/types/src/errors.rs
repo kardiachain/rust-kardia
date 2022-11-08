@@ -20,6 +20,13 @@ pub enum AddVoteError {
     ConflictingVote(Vote)
 }
 
+
+#[derive(Error, Debug)]
+pub enum MakeCommitError {
+    #[error("not enough majority")]
+    NotEnoughMajority()
+}
+
 #[derive(Error, Debug)]
 pub enum VoteError {
     #[error("invalid signature")]

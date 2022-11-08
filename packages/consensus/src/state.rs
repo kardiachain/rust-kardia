@@ -13,6 +13,7 @@ use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
 use kai_types::{
     block::{Block, BlockId},
     block_operations::BlockOperations,
+    commit::Commit,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
     errors::{AddVoteError, VoteError},
     evidence::EvidencePool,
@@ -1105,67 +1106,108 @@ impl ConsensusStateImpl {
     }
 
     fn decide_proposal(self: Arc<Self>, rs: RoundState) -> Result<(), ConsensusStateError> {
-        let block: Option<Block>;
-        let block_parts: Option<PartSet>;
+        let block: Block;
+        let block_parts: PartSet;
 
         if rs.valid_block.is_some() && rs.valid_block_parts.is_some() {
-            block = rs.valid_block;
-            block_parts = rs.valid_block_parts;
+            block = rs.valid_block.unwrap();
+            block_parts = rs.valid_block_parts.unwrap();
         } else {
-            (block, block_parts) = self.clone().create_proposal_block();
+            match self.clone().create_proposal_block() {
+                Ok(proposal) => {
+                    (block, block_parts) = proposal;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
         }
 
-        if let (Some(b), Some(bp)) = (block, block_parts) {
-            let hash = b.hash().expect("calculate hash of block failed");
+        let hash = block.hash().expect("calculate hash of block failed");
 
-            let block_id = BlockId {
-                hash: hash.to_vec(),
-                part_set_header: Some(bp.header()),
+        let block_id = BlockId {
+            hash: hash.to_vec(),
+            part_set_header: Some(block_parts.header()),
+        };
+
+        // make proposal
+        let mut proposal = Proposal {
+            r#type: SignedMsgType::Proposal.into(),
+            height: rs.height,
+            round: rs.round,
+            pol_round: rs.valid_round,
+            block_id: Some(block_id),
+            timestamp: Some(timestamp::now()),
+            signature: vec![],
+        };
+
+        let priv_validator = self.clone().priv_validator.clone();
+        let chain_id = self.state.clone().get_chain_id();
+
+        if let Ok(_) = priv_validator
+            .clone()
+            .sign_proposal(chain_id, &mut proposal)
+        {
+            let msg_info = MessageInfo {
+                msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+                    proposal: Some(proposal),
+                })),
+                peer_id: internal_peerid(),
             };
 
-            // make proposal
-            let mut proposal = Proposal {
-                r#type: SignedMsgType::Proposal.into(),
-                height: rs.height,
-                round: rs.round,
-                pol_round: rs.valid_round,
-                block_id: Some(block_id),
-                timestamp: Some(timestamp::now()),
-                signature: vec![],
-            };
-
-            let priv_validator = self.clone().priv_validator.clone();
-            let chain_id = self.state.clone().get_chain_id();
-
-            if let Ok(_) = priv_validator
-                .clone()
-                .sign_proposal(chain_id, &mut proposal)
-            {
-                let msg_info = MessageInfo {
-                    msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-                        proposal: Some(proposal),
-                    })),
-                    peer_id: internal_peerid(),
-                };
-
-                _ = self.msg_chan_sender.try_send(msg_info);
-                return Ok(());
-            } else {
-                return Err(ConsensusStateError::DecideProposalError(
-                    "sign proposal failed".to_owned(),
-                ));
-            }
+            _ = self.msg_chan_sender.try_send(msg_info);
+            return Ok(());
         } else {
             return Err(ConsensusStateError::DecideProposalError(
-                "either block or block parts is none".to_owned(),
+                "sign proposal failed".to_owned(),
             ));
         }
     }
 
     // auxiliary functions
 
-    fn create_proposal_block(self: Arc<Self>) -> (Option<Block>, Option<PartSet>) {
-        todo!()
+    fn create_proposal_block(self: Arc<Self>) -> Result<(Block, PartSet), ConsensusStateError> {
+        log::trace!("create_proposal_block");
+
+        if let Some(rs) = self.get_rs() {
+            let mut commit: Option<Commit> = None;
+
+            if rs.height == self.state.get_initial_height() {
+                commit = Some(Commit {
+                    height: 0,
+                    round: 0,
+                    block_id: Some(BlockId::new_zero_block_id()),
+                    signatures: vec![],
+                });
+            } else if rs
+                .last_commit
+                .is_some_and(|lc| lc.has_two_thirds_majority())
+            {
+                match rs.last_commit.unwrap().make_commit() {
+                    Ok(_commit) => {
+                        commit = Some(_commit);
+                    }
+                    Err(e) => {
+                        log::trace!("make commit from last commit failed")
+                    }
+                }
+            } else {
+                return Err(ConsensusStateError::DecideProposalError(
+                    "cannot propose: no commit for the previous block".to_owned(),
+                ));
+            }
+
+            return Ok(self.block_operations.create_proposal_block(
+                rs.height,
+                self.state.clone(),
+                self.priv_validator.get_address().unwrap(),
+                commit,
+            ));
+        } else {
+            return Err(ConsensusStateError::DecideProposalError(
+                "cannot get round state".to_owned(),
+            ));
+        }
     }
 
     fn is_proposer(self: Arc<Self>) -> bool {

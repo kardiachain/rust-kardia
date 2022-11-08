@@ -1,10 +1,12 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
+use ethereum_types::Address;
 use mockall::automock;
 
 use crate::{
     block::{Block, BlockMeta},
     commit::Commit,
+    consensus::state::LatestBlockState,
     part_set::{Part, PartSet},
 };
 
@@ -16,6 +18,13 @@ pub trait BlockOperations: Debug + Sync + Send + 'static {
     fn load_block_part(&self, height: u64, index: usize) -> Option<Part>;
     fn load_block_commit(&self, height: u64) -> Option<Commit>;
     fn load_seen_commit(&self, height: u64) -> Option<Commit>;
+    fn create_proposal_block(
+        &self,
+        height: u64,
+        state: Arc<Box<dyn LatestBlockState>>,
+        proposer_address: Address,
+        commit: Option<Commit>,
+    ) -> (Block, PartSet);
     fn load_commit(&self, height: u64) -> Option<Commit>;
     fn save_block(&self, block: Block, block_parts: PartSet, seen_commit: Commit);
 }
@@ -57,6 +66,16 @@ impl BlockOperations for BlockOperationsImpl {
     }
 
     fn save_block(&self, block: Block, block_parts: PartSet, seen_commit: Commit) {
+        todo!()
+    }
+
+    fn create_proposal_block(
+        &self,
+        height: u64,
+        state: Arc<Box<dyn LatestBlockState>>,
+        proposer_address: Address,
+        commit: Option<Commit>,
+    ) -> (Block,PartSet) {
         todo!()
     }
 }

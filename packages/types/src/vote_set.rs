@@ -3,9 +3,16 @@ use std::{collections::HashMap, fmt::Debug};
 use ethereum_types::Address;
 
 use crate::{
-    bit_array::BitArray, block::BlockId, commit::Commit, consensus::state::ChainId,
-    errors::AddVoteError, evidence::DuplicateVoteEvidence, peer::PeerId, types::SignedMsgType,
-    validator_set::ValidatorSet, vote::Vote,
+    bit_array::BitArray,
+    block::BlockId,
+    commit::{Commit, CommitSig},
+    consensus::state::ChainId,
+    errors::{AddVoteError, MakeCommitError},
+    evidence::DuplicateVoteEvidence,
+    peer::PeerId,
+    types::SignedMsgType,
+    validator_set::ValidatorSet,
+    vote::Vote,
 };
 
 /// Votes for a particular block
@@ -98,13 +105,10 @@ impl VoteSet {
         return self.maj23.clone();
     }
 
-    pub fn make_commit(&self) -> Option<Commit> {
-        todo!()
-    }
-
     pub fn get_vote(&self, validator_index: u32, block_key: String) -> Option<Vote> {
         if let Some(existing_vote) = self.votes.get(validator_index as usize).unwrap() {
-            if existing_vote.clone()
+            if existing_vote
+                .clone()
                 .block_id
                 .is_some_and(|bid| bid.key() == block_key)
             {
@@ -189,6 +193,38 @@ impl VoteSet {
                 _ => panic!("unexpected error"),
             },
         }
+    }
+
+    pub fn has_two_thirds_majority(&self) -> bool {
+        return self.maj23.is_some();
+    }
+
+    pub fn make_commit(&self) -> Result<Commit, MakeCommitError> {
+        if self.maj23.is_none() {
+            return Err(MakeCommitError::NotEnoughMajority());
+        }
+
+        let mut commit_sigs: Vec<CommitSig> = vec![];
+        for vote in self.votes.clone().into_iter() {
+            let mut commit_sig = if vote.clone().is_some() {
+                vote.clone().unwrap().commit_sig()
+            } else {
+                CommitSig::new_commit_sig_absent()
+            };
+
+            if commit_sig.for_block() && !vote.unwrap().block_id.eq(&self.maj23) {
+                commit_sig = CommitSig::new_commit_sig_absent()
+            }
+
+            commit_sigs.push(commit_sig);
+        }
+
+        return Ok(Commit {
+            height: self.height,
+            round: self.round,
+            block_id: self.maj23.clone(),
+            signatures: commit_sigs,
+        });
     }
 
     /// assumes signature is valid.

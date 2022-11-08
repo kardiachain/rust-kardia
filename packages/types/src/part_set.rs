@@ -64,6 +64,12 @@ impl Into<kai_proto::types::PartSetHeader> for PartSetHeader {
     }
 }
 
+impl PartSetHeader {
+    pub fn is_zero(&self) -> bool {
+        return self.total == 0 && self.hash.len() == 0;
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PartSet {
     pub total: u32,

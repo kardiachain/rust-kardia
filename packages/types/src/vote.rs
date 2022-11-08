@@ -4,8 +4,12 @@ use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
 use prost::Message;
 
 use crate::{
-    block::BlockId, canonical_types::create_canonical_vote, consensus::state::ChainId,
-    errors::VoteError, types::SignedMsgType,
+    block::{BlockId, BlockIdFlag},
+    canonical_types::create_canonical_vote,
+    commit::CommitSig,
+    consensus::state::ChainId,
+    errors::VoteError,
+    types::SignedMsgType,
 };
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -94,5 +98,25 @@ impl Vote {
     pub fn vote_sign_bytes(&self, chain_id: ChainId) -> Option<Bytes> {
         create_canonical_vote(chain_id, self.clone())
             .map(|cv| Bytes::copy_from_slice(&cv.encode_length_delimited_to_vec()))
+    }
+
+    pub fn commit_sig(&self) -> CommitSig {
+        let block_id_flag = if self.block_id.is_some_and(|bid| bid.is_completed()) {
+            BlockIdFlag::Commit
+        } else if self.block_id.is_some_and(|bid| bid.is_zero()) {
+            BlockIdFlag::Nil
+        } else {
+            panic!(
+                "Invalid vote {:?} - expected BlockID to be either empty or complete",
+                self
+            );
+        };
+
+        return CommitSig {
+            block_id_flag: block_id_flag.into(),
+            validator_address: self.validator_address.clone(),
+            timestamp: self.timestamp.clone(),
+            signature: self.signature.clone(),
+        };
     }
 }
