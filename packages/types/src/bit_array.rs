@@ -1,9 +1,4 @@
-use bitvec::{
-    bitvec,
-    macros::internal::funty::Fundamental,
-    prelude::{Lsb0, Msb0},
-    vec::BitVec,
-};
+use bitvec::{prelude::Msb0, vec::BitVec};
 
 /// BitArray is a wrapper struct that extends BitVec.
 #[derive(Debug, Clone, PartialEq)]

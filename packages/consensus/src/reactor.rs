@@ -10,6 +10,7 @@ use crate::{
         round_state::RoundState,
     },
 };
+use async_trait::async_trait;
 use kai_proto::consensus::Message as ConsensusMessageProto;
 use kai_types::{
     consensus::state::LatestBlockState,
@@ -18,6 +19,7 @@ use kai_types::{
     types::SignedMsgType,
 };
 use prost::Message;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::{result::Result::Ok, thread};
 
@@ -26,7 +28,8 @@ pub const DATA_CHANNEL: u8 = 0x21;
 pub const VOTE_CHANNEL: u8 = 0x22;
 pub const VOTE_SET_BITS_CHANNEL: u8 = 0x23;
 
-pub trait ConsensusReactor {
+#[async_trait]
+pub trait ConsensusReactor: Debug + Send + Sync + 'static {
     fn switch_to_consensus(
         self: Arc<Self>,
         state: Arc<Box<dyn LatestBlockState>>,
@@ -37,7 +40,7 @@ pub trait ConsensusReactor {
     fn get_validators(self: Arc<Self>) -> ();
     fn add_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>>;
     fn remove_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>>;
-    fn receive(
+    async fn receive(
         self: Arc<Self>,
         ch_id: ChannelId,
         src: Arc<dyn Peer>,
@@ -51,6 +54,7 @@ pub struct ConsensusReactorImpl {
     cs: Arc<Box<dyn ConsensusState>>,
 }
 
+#[async_trait]
 impl ConsensusReactor for ConsensusReactorImpl {
     fn switch_to_consensus(
         self: Arc<Self>,
@@ -104,27 +108,18 @@ impl ConsensusReactor for ConsensusReactorImpl {
     }
 
     fn add_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>> {
-        if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-            // ensure peer round state is fresh
-            ps_guard.set_prs(PeerRoundState::new());
+        self.clone().gossip_data(peer.clone());
+        self.clone().gossip_votes(peer.clone());
+        self.clone().query_maj23(peer.clone());
 
-            self.clone().gossip_data(peer.clone());
-            self.clone().gossip_votes(peer.clone());
-            self.clone().query_maj23(peer.clone());
-
-            Ok(())
-        } else {
-            Err(Box::new(ConsensusReactorError::AddPeerError(String::from(
-                "lock failed: peer state has been poisoned",
-            ))))
-        }
+        Ok(())
     }
 
     fn remove_peer(self: Arc<Self>, peer: Arc<dyn Peer>) -> Result<(), Box<ConsensusReactorError>> {
         todo!()
     }
 
-    fn receive(
+    async fn receive(
         self: Arc<Self>,
         ch_id: ChannelId,
         src: Arc<dyn Peer>,
@@ -132,10 +127,10 @@ impl ConsensusReactor for ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match Self::decode_msg(msg.as_slice()) {
             Ok(decoded_msg) => match ch_id {
-                STATE_CHANNEL => self.handle_state_message(src, decoded_msg),
-                DATA_CHANNEL => self.handle_data_message(src, decoded_msg),
-                VOTE_CHANNEL => self.handle_vote_message(src, decoded_msg),
-                VOTE_SET_BITS_CHANNEL => self.handle_vote_set_bits_message(src, decoded_msg),
+                STATE_CHANNEL => self.handle_state_message(src, decoded_msg).await,
+                DATA_CHANNEL => self.handle_data_message(src, decoded_msg).await,
+                VOTE_CHANNEL => self.handle_vote_message(src, decoded_msg).await,
+                VOTE_SET_BITS_CHANNEL => self.handle_vote_set_bits_message(src, decoded_msg).await,
                 _ => Err(Box::new(ConsensusReactorError::UnknownChannelIdError(
                     ch_id,
                 ))),
@@ -162,7 +157,7 @@ impl ConsensusReactorImpl {
         }
     }
 
-    fn handle_state_message(
+    async fn handle_state_message(
         self: Arc<Self>,
         src: Arc<dyn Peer>,
         msg: Arc<ConsensusMessageType>,
@@ -173,57 +168,152 @@ impl ConsensusReactorImpl {
                     return Err(e);
                 }
 
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.apply_new_round_step_message(_msg.clone());
-                    return Ok(());
-                } else {
-                    return Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )));
-                }
+                let ps = src.get_ps().await;
+                ps.apply_new_round_step_message(_msg.clone()).await;
+                return Ok(());
             }
             ConsensusMessageType::NewValidBlockMessage(_msg) => {
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.apply_new_valid_block_message(_msg.clone());
-                    Ok(())
-                } else {
-                    Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )))
-                }
+                let ps = src.get_ps().await;
+                ps.apply_new_valid_block_message(_msg.clone());
+                Ok(())
             }
             ConsensusMessageType::HasVoteMessage(_msg) => {
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.set_has_vote(
-                        _msg.height,
-                        _msg.round,
-                        _msg.r#type,
-                        _msg.index.try_into().unwrap(),
+                let ps = src.get_ps().await;
+                ps.set_has_vote(
+                    _msg.height,
+                    _msg.round,
+                    _msg.r#type,
+                    _msg.index.try_into().unwrap(),
+                );
+                Ok(())
+            }
+            ConsensusMessageType::VoteSetMaj23Message(_msg) => {
+                let rs = self.get_cs().get_rs().await;
+                let height = rs.height.clone();
+                let votes = rs.votes.clone();
+
+                if height != _msg.height {
+                    return Ok(());
+                }
+
+                // TODO:
+                // Peer claims to have a maj23 for some BlockID at H,R,S,
+                // err := votes.SetPeerMaj23(msg.Round, msg.Type, ps.peer.ID(), msg.BlockID)
+                // if err != nil {
+                // 	conR.Switch.StopPeerForError(src, err)
+                // 	return
+                // }
+
+                let our_votes = match _msg.r#type {
+                    SignedMsgType::Prevote => votes
+                        .and_then(|vts| vts.prevotes(_msg.round))
+                        .and_then(|pv| pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())),
+                    SignedMsgType::Precommit => votes
+                        .and_then(|vts| vts.precommits(_msg.round))
+                        .and_then(|pv| pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())),
+                    _ => {
+                        log::warn!("bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?");
+                        return Err(Box::new(
+                                ConsensusReactorError::UnexpectedMessageTypeError(
+                                    "bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?".to_string()
+                                )
+                            ));
+                    }
+                };
+
+                src.clone().try_send(
+                    DATA_CHANNEL,
+                    VoteSetBitsMessage {
+                        height: _msg.height,
+                        round: _msg.round,
+                        r#type: _msg.r#type,
+                        block_id: _msg.block_id.clone(),
+                        votes: our_votes,
+                    }
+                    .msg_to_proto()
+                    .unwrap()
+                    .encode_to_vec(),
+                );
+
+                Ok(())
+            }
+            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
+        }
+    }
+
+    async fn handle_data_message(
+        self: Arc<Self>,
+        src: Arc<dyn Peer>,
+        msg: Arc<ConsensusMessageType>,
+    ) -> Result<(), Box<ConsensusReactorError>> {
+        match msg.as_ref() {
+            ConsensusMessageType::ProposalMessage(_msg) => {
+                _ = self.cs.send(MessageInfo {
+                    peer_id: src.get_id(),
+                    msg: msg.clone(),
+                });
+                let ps = src.get_ps().await;
+                ps.set_has_proposal(_msg.clone());
+                Ok(())
+            }
+            ConsensusMessageType::ProposalPOLMessage(_msg) => {
+                let ps = src.get_ps().await;
+                ps.apply_proposal_pol_message(_msg.clone());
+                Ok(())
+            }
+            ConsensusMessageType::BlockPartMessage(_msg) => {
+                _ = self.cs.send(MessageInfo {
+                    peer_id: src.get_id(),
+                    msg: msg.clone(),
+                });
+                let ps = src.get_ps().await;
+                ps.set_has_proposal_block_part(_msg.clone());
+                Ok(())
+            }
+            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
+        }
+    }
+
+    async fn handle_vote_message(
+        self: Arc<Self>,
+        src: Arc<dyn Peer>,
+        msg: Arc<ConsensusMessageType>,
+    ) -> Result<(), Box<ConsensusReactorError>> {
+        match msg.as_ref() {
+            ConsensusMessageType::VoteMessage(_msg) => {
+                if let Some(vote) = _msg.vote.clone() {
+                    _ = self.cs.send(MessageInfo {
+                        peer_id: src.get_id().clone(),
+                        msg: msg.clone(),
+                    });
+                    let ps = src.get_ps().await;
+                    ps.set_has_vote(
+                        vote.height,
+                        vote.round,
+                        vote.r#type.into(),
+                        vote.validator_index.try_into().unwrap(),
                     );
                     Ok(())
                 } else {
-                    Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )))
+                    Ok(())
                 }
             }
-            ConsensusMessageType::VoteSetMaj23Message(_msg) => {
-                if let Some(rs) = self.get_cs().get_rs() {
-                    let height = rs.height.clone();
-                    let votes = rs.votes.clone();
+            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
+        }
+    }
 
-                    if height != _msg.height {
-                        return Ok(());
-                    }
+    async fn handle_vote_set_bits_message(
+        self: Arc<Self>,
+        src: Arc<dyn Peer>,
+        msg: Arc<ConsensusMessageType>,
+    ) -> Result<(), Box<ConsensusReactorError>> {
+        match msg.as_ref() {
+            ConsensusMessageType::VoteSetBitsMessage(_msg) => {
+                let rs = self.get_cs().get_rs().await;
+                let height = rs.height;
+                let votes = rs.votes;
 
-                    // TODO:
-                    // Peer claims to have a maj23 for some BlockID at H,R,S,
-                    // err := votes.SetPeerMaj23(msg.Round, msg.Type, ps.peer.ID(), msg.BlockID)
-                    // if err != nil {
-                    // 	conR.Switch.StopPeerForError(src, err)
-                    // 	return
-                    // }
-
+                if height == _msg.height {
                     let our_votes = match _msg.r#type {
                         SignedMsgType::Prevote => votes
                             .and_then(|vts| vts.prevotes(_msg.round))
@@ -238,155 +328,18 @@ impl ConsensusReactorImpl {
                         _ => {
                             log::warn!("bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?");
                             return Err(Box::new(
-                                ConsensusReactorError::UnexpectedMessageTypeError(
-                                    "bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?".to_string()
-                                )
-                            ));
-                        }
-                    };
-
-                    src.clone().try_send(
-                        DATA_CHANNEL,
-                        VoteSetBitsMessage {
-                            height: _msg.height,
-                            round: _msg.round,
-                            r#type: _msg.r#type,
-                            block_id: _msg.block_id.clone(),
-                            votes: our_votes,
-                        }
-                        .msg_to_proto()
-                        .unwrap()
-                        .encode_to_vec(),
-                    );
-                }
-
-                Ok(())
-            }
-            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
-        }
-    }
-
-    fn handle_data_message(
-        self: Arc<Self>,
-        src: Arc<dyn Peer>,
-        msg: Arc<ConsensusMessageType>,
-    ) -> Result<(), Box<ConsensusReactorError>> {
-        match msg.as_ref() {
-            ConsensusMessageType::ProposalMessage(_msg) => {
-                _ = self.cs.send(MessageInfo {
-                    peer_id: src.get_id(),
-                    msg: msg.clone(),
-                });
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.set_has_proposal(_msg.clone());
-                    Ok(())
-                } else {
-                    Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )))
-                }
-            }
-            ConsensusMessageType::ProposalPOLMessage(_msg) => {
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.apply_proposal_pol_message(_msg.clone());
-                    Ok(())
-                } else {
-                    Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )))
-                }
-            }
-            ConsensusMessageType::BlockPartMessage(_msg) => {
-                _ = self.cs.send(MessageInfo {
-                    peer_id: src.get_id(),
-                    msg: msg.clone(),
-                });
-                if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                    ps_guard.set_has_proposal_block_part(_msg.clone());
-                    Ok(())
-                } else {
-                    Err(Box::new(ConsensusReactorError::LockFailed(
-                        "peer state".to_string(),
-                    )))
-                }
-            }
-            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
-        }
-    }
-
-    fn handle_vote_message(
-        self: Arc<Self>,
-        src: Arc<dyn Peer>,
-        msg: Arc<ConsensusMessageType>,
-    ) -> Result<(), Box<ConsensusReactorError>> {
-        match msg.as_ref() {
-            ConsensusMessageType::VoteMessage(_msg) => {
-                if let Some(vote) = _msg.vote.clone() {
-                    _ = self.cs.send(MessageInfo {
-                        peer_id: src.get_id().clone(),
-                        msg: msg.clone(),
-                    });
-                    if let Ok(mut ps_guard) = src.get_ps().clone().lock() {
-                        ps_guard.set_has_vote(
-                            vote.height,
-                            vote.round,
-                            SignedMsgType::from_i32(vote.r#type).unwrap(),
-                            vote.validator_index.try_into().unwrap(),
-                        );
-                        Ok(())
-                    } else {
-                        Err(Box::new(ConsensusReactorError::LockFailed(
-                            "peer state".to_string(),
-                        )))
-                    }
-                } else {
-                    Ok(())
-                }
-            }
-            _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
-        }
-    }
-
-    fn handle_vote_set_bits_message(
-        self: Arc<Self>,
-        src: Arc<dyn Peer>,
-        msg: Arc<ConsensusMessageType>,
-    ) -> Result<(), Box<ConsensusReactorError>> {
-        match msg.as_ref() {
-            ConsensusMessageType::VoteSetBitsMessage(_msg) => {
-                if let Some(rs) = self.get_cs().get_rs() {
-                    let height = rs.height;
-                    let votes = rs.votes;
-
-                    if height == _msg.height {
-                        let our_votes = match _msg.r#type {
-                            SignedMsgType::Prevote => votes
-                                .and_then(|vts| vts.prevotes(_msg.round))
-                                .and_then(|pv| {
-                                    pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
-                                }),
-                            SignedMsgType::Precommit => votes
-                                .and_then(|vts| vts.precommits(_msg.round))
-                                .and_then(|pv| {
-                                    pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
-                                }),
-                            _ => {
-                                log::warn!("bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?");
-                                return Err(Box::new(
                                     ConsensusReactorError::UnexpectedMessageTypeError(
                                         "bad VoteSetBitsMessage field type, forgot to add a check in validate_basic?".to_string()
                                     )
                                 ));
-                            }
-                        };
-                        if let Ok(mut ps_guard) = src.get_ps().lock() {
-                            ps_guard.apply_vote_set_bits_message(_msg.clone(), our_votes);
                         }
-                    } else {
-                        if let Ok(mut ps_guard) = src.get_ps().lock() {
-                            ps_guard.apply_vote_set_bits_message(_msg.clone(), None);
-                        }
-                    }
+                    };
+
+                    let ps = src.get_ps().await;
+                    ps.apply_vote_set_bits_message(_msg.clone(), our_votes);
+                } else {
+                    let ps = src.get_ps().await;
+                    ps.apply_vote_set_bits_message(_msg.clone(), None);
                 }
                 Ok(())
             }
@@ -398,112 +351,105 @@ impl ConsensusReactorImpl {
         log::trace!("start gossip data for peer");
 
         // TODO: need to handle stop this thread when peer is dead, removed
-        thread::spawn(move || {
+        tokio::spawn(async move {
             loop {
                 let cs = self.clone().get_cs();
-                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
-                    // send proposal block parts if any
-                    if rs
-                        .proposal_block_parts
-                        .clone()
-                        .map(|pbp| pbp.header())
-                        .eq(&prs.proposal_block_parts_header)
-                    {
-                        if let Some(index) = rs.proposal_block_parts.clone().and_then(|pbp| {
-                            pbp.parts_bit_array
-                                .sub(prs.proposal_block_parts.clone().unwrap())
-                                .pick_random()
-                        }) {
-                            let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
-                            let msg = BlockPartMessage {
-                                height: rs.height,
-                                round: rs.round,
-                                part: part,
-                            };
+                let rs = cs.get_rs().await;
+                let prs = peer.get_prs().await;
 
-                            log::debug!(
-                                "sending block part: height={} round={}",
-                                prs.height,
-                                prs.round
-                            );
-                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
-                            {
-                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                                    ps_guard.set_has_proposal_block_part(msg);
-                                    drop(ps_guard)
-                                }
-                            }
+                // send proposal block parts if any
+                if rs
+                    .proposal_block_parts
+                    .clone()
+                    .map(|pbp| pbp.header())
+                    .eq(&prs.proposal_block_parts_header)
+                {
+                    if let Some(index) = rs.proposal_block_parts.clone().and_then(|pbp| {
+                        pbp.parts_bit_array
+                            .sub(prs.proposal_block_parts.clone().unwrap())
+                            .pick_random()
+                    }) {
+                        let part = rs.proposal_block_parts.clone().unwrap().get_part(index);
+                        let msg = BlockPartMessage {
+                            height: rs.height,
+                            round: rs.round,
+                            part: part,
+                        };
 
-                            continue;
-                        }
-                    }
-
-                    // if the peer is on a previous height, help catch up.
-                    if prs.height > 0
-                        && prs.height < rs.height
-                        && prs.height >= cs.get_block_operations().base()
-                    {
-                        self.clone().gossip_data_for_catch_up(rs, peer.clone());
-                        continue;
-                    }
-
-                    // if "our and their" height and round don't match, sleep.
-                    if rs.height != prs.height || rs.round != prs.round {
-                        log::trace!(
-                            "peer height|round mismatch, sleeping. peer: id={} height={} round={}",
-                            peer.get_id(),
+                        log::debug!(
+                            "sending block part: height={} round={}",
                             prs.height,
-                            prs.round,
+                            prs.round
                         );
-                        thread::sleep(cs.get_config().peer_gossip_sleep_duration);
-                        continue;
-                    }
-
-                    // send proposal or proposal POL
-                    if rs.proposal.is_some() && !prs.proposal {
-                        // proposal: share the proposal metadata with peer
-                        {
-                            let msg = ProposalMessage {
-                                proposal: rs.proposal.clone(),
-                            };
-                            log::debug!(
-                                "sending proposal: height={} round={}",
-                                prs.height,
-                                prs.round
-                            );
-                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
-                            {
-                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                                    ps_guard.set_has_proposal(msg);
-                                    drop(ps_guard)
-                                }
-                            }
+                        if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
+                            let ps = peer.get_ps().await;
+                            ps.set_has_proposal_block_part(msg);
                         }
 
-                        if rs.proposal.clone().is_some_and(|p| p.pol_round > 0) {
-                            let msg = ProposalPOLMessage {
-                                height: rs.height,
-                                proposal_pol_round: rs.proposal.clone().unwrap().pol_round,
-                                proposal_pol: rs
-                                    .votes
-                                    .clone()
-                                    .and_then(|vts| {
-                                        vts.prevotes(rs.proposal.clone().unwrap().pol_round)
-                                    })
-                                    .and_then(|vts| vts.bit_array()),
-                            };
-                            log::debug!("sending POL: height={} round={}", prs.height, prs.round);
-                            peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec());
-                        }
                         continue;
                     }
+                }
 
-                    // nothing to do, sleep.
+                // if the peer is on a previous height, help catch up.
+                if prs.height > 0
+                    && prs.height < rs.height
+                    && prs.height >= cs.get_block_operations().base()
+                {
+                    self.clone().gossip_data_for_catch_up(rs, peer.clone());
+                    continue;
+                }
+
+                // if "our and their" height and round don't match, sleep.
+                if rs.height != prs.height || rs.round != prs.round {
+                    log::trace!(
+                        "peer height|round mismatch, sleeping. peer: id={} height={} round={}",
+                        peer.get_id(),
+                        prs.height,
+                        prs.round,
+                    );
                     thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                     continue;
-                } else {
-                    log::error!("cannot lock either consensus round state or peer round state");
                 }
+
+                // send proposal or proposal POL
+                if rs.proposal.is_some() && !prs.proposal {
+                    // proposal: share the proposal metadata with peer
+                    {
+                        let msg = ProposalMessage {
+                            proposal: rs.proposal.clone(),
+                        };
+                        log::debug!(
+                            "sending proposal: height={} round={}",
+                            prs.height,
+                            prs.round
+                        );
+                        if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
+                            let ps = peer.get_ps().await;
+                            ps.set_has_proposal(msg);
+                        }
+                    }
+
+                    if rs.proposal.clone().is_some_and(|p| p.pol_round > 0) {
+                        let msg = ProposalPOLMessage {
+                            height: rs.height,
+                            proposal_pol_round: rs.proposal.clone().unwrap().pol_round,
+                            proposal_pol: rs
+                                .votes
+                                .clone()
+                                .and_then(|vts| {
+                                    vts.prevotes(rs.proposal.clone().unwrap().pol_round)
+                                })
+                                .and_then(|vts| vts.bit_array()),
+                        };
+                        log::debug!("sending POL: height={} round={}", prs.height, prs.round);
+                        peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec());
+                    }
+                    continue;
+                }
+
+                // nothing to do, sleep.
+                thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                continue;
             }
         });
     }
@@ -512,14 +458,18 @@ impl ConsensusReactorImpl {
         log::trace!("start gossip votes for peer");
 
         // TODO: need to handle stop this thread when peer is dead, removed
-        thread::spawn(move || loop {
-            let cs = self.clone().get_cs();
-            if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+        tokio::spawn(async move {
+            loop {
+                let cs = self.clone().get_cs();
+                let rs = cs.get_rs().await;
+                let prs = peer.get_prs().await;
+
                 // if height matches, then send LastCommit, Prevotes, Precommits.
                 if rs.height == prs.height {
                     if self
                         .clone()
                         .gossip_votes_for_height(rs.clone(), peer.clone())
+                        .await
                     {
                         continue;
                     }
@@ -551,8 +501,6 @@ impl ConsensusReactorImpl {
 
                 thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                 continue;
-            } else {
-                log::error!("cannot lock either consensus round state or peer round state");
             }
         });
     }
@@ -561,12 +509,14 @@ impl ConsensusReactorImpl {
         log::trace!("start query major 2/3");
 
         // TODO: need to handle stop this thread when peer is dead, removed
-        thread::spawn(move || loop {
-            let cs = self.clone().get_cs();
+        tokio::spawn(async move {
+            loop {
+                let cs = self.clone().get_cs();
 
-            // Send Height/Round/Prevotes
-            {
-                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                // Send Height/Round/Prevotes
+                {
+                    let rs = cs.get_rs().await;
+                    let prs = peer.get_prs().await;
                     if rs.height == prs.height {
                         if let Some(maj23_blockid) = rs
                             .votes
@@ -589,14 +539,12 @@ impl ConsensusReactorImpl {
                             thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
                         }
                     }
-                } else {
-                    log::error!("cannot lock either consensus round state or peer round state");
                 }
-            }
 
-            // Send Height/Round/Precommits
-            {
-                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                // Send Height/Round/Precommits
+                {
+                    let rs = cs.get_rs().await;
+                    let prs = peer.get_prs().await;
                     if rs.height == prs.height {
                         if let Some(maj23_blockid) = rs
                             .votes
@@ -619,14 +567,12 @@ impl ConsensusReactorImpl {
                             thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
                         }
                     }
-                } else {
-                    log::error!("cannot lock either consensus round state or peer round state");
                 }
-            }
 
-            // Send Height/Round/ProposalPOL
-            {
-                if let (Some(rs), Some(prs)) = (cs.get_rs(), peer.get_prs()) {
+                // Send Height/Round/ProposalPOL
+                {
+                    let rs = cs.get_rs().await;
+                    let prs = peer.get_prs().await;
                     if rs.height == prs.height {
                         if let Some(maj23_blockid) = rs
                             .votes
@@ -649,14 +595,12 @@ impl ConsensusReactorImpl {
                             thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
                         }
                     }
-                } else {
-                    log::error!("cannot lock either consensus round state or peer round state");
                 }
-            }
 
-            // Send Height/CatchupCommitRound/CatchupCommit.
-            {
-                if let Some(prs) = peer.get_prs() {
+                // Send Height/CatchupCommitRound/CatchupCommit.
+                {
+                    let prs = peer.get_prs().await;
+
                     if prs.catchup_commit_round != 0
                         && prs.height > 0
                         && prs.height <= cs.clone().get_block_operations().height()
@@ -679,195 +623,171 @@ impl ConsensusReactorImpl {
                             thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
                         }
                     }
-                } else {
-                    log::error!("cannot lock peer round state");
                 }
-            }
 
-            thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+                thread::sleep(cs.get_config().peer_query_maj23_sleep_duration)
+            }
         });
     }
 
-    fn gossip_data_for_catch_up(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) {
-        if let Some(prs) = peer.get_prs() {
-            if let Some(index) = peer
-                .get_prs()
-                .unwrap()
-                .proposal_block_parts
-                .unwrap()
-                .not()
-                .pick_random()
-            {
-                let cs = self.clone().get_cs();
-                let block_ops = cs.get_block_operations();
+    async fn gossip_data_for_catch_up(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) {
+        let prs = peer.get_prs().await;
 
-                // ensure that the peer's PartSetHeader is correct
-                if let Some(block_meta) = block_ops.load_block_meta(prs.height) {
-                    if block_meta
-                        .block_id
-                        .part_set_header
-                        .eq(&prs.proposal_block_parts_header)
-                    {
-                        // load the part
-                        if let Some(part) = block_ops.load_block_part(prs.height, index) {
-                            let msg = BlockPartMessage {
-                                height: prs.height,
-                                round: prs.round,
-                                part: Some(part),
-                            };
-                            log::debug!(
-                                "sending block part for catchup: round={} index={}",
-                                prs.round,
-                                index
-                            );
-                            if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec())
-                            {
-                                if let Ok(mut ps_guard) = peer.get_ps().clone().lock() {
-                                    ps_guard.set_has_proposal_block_part(msg);
-                                    drop(ps_guard)
-                                } else {
-                                    log::debug!("sending block part for catchup failed");
-                                }
-                            }
-                        } else {
-                            log::error!(
+        if let Some(index) = prs.proposal_block_parts.unwrap().not().pick_random() {
+            let cs = self.clone().get_cs();
+            let block_ops = cs.get_block_operations();
+
+            // ensure that the peer's PartSetHeader is correct
+            if let Some(block_meta) = block_ops.load_block_meta(prs.height) {
+                if block_meta
+                    .block_id
+                    .part_set_header
+                    .eq(&prs.proposal_block_parts_header)
+                {
+                    // load the part
+                    if let Some(part) = block_ops.load_block_part(prs.height, index) {
+                        let msg = BlockPartMessage {
+                            height: prs.height,
+                            round: prs.round,
+                            part: Some(part),
+                        };
+                        log::debug!(
+                            "sending block part for catchup: round={} index={}",
+                            prs.round,
+                            index
+                        );
+                        if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
+                            let ps = peer.get_ps().await;
+                            ps.set_has_proposal_block_part(msg);
+                        }
+                    } else {
+                        log::error!(
                                 "could not load part: index={} blockPartsHeader={:?} peerBlockPartsHeader={:?}",
                                 index,
                                 block_meta.block_id.part_set_header,
                                 prs.proposal_block_parts_header
                             );
-                            thread::sleep(cs.get_config().peer_gossip_sleep_duration);
-                            return;
-                        }
-                    } else {
-                        log::info!(
-                            "peer ProposalBlockPartsHeader mismatch, sleeping: blockPartsHeader={:?}, blockMeta.BlockID.PartsHeader={:?}"
-                            ,block_meta.block_id.part_set_header
-                            ,prs.proposal_block_parts_header);
                         thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                         return;
                     }
                 } else {
-                    log::error!(
-                        "failed to load block meta: ourHeight={} blockstoreHeight={}",
-                        rs.height,
-                        block_ops.height()
-                    );
+                    log::info!(
+                            "peer ProposalBlockPartsHeader mismatch, sleeping: blockPartsHeader={:?}, blockMeta.BlockID.PartsHeader={:?}"
+                            ,block_meta.block_id.part_set_header
+                            ,prs.proposal_block_parts_header);
                     thread::sleep(cs.get_config().peer_gossip_sleep_duration);
                     return;
                 }
+            } else {
+                log::error!(
+                    "failed to load block meta: ourHeight={} blockstoreHeight={}",
+                    rs.height,
+                    block_ops.height()
+                );
+                thread::sleep(cs.get_config().peer_gossip_sleep_duration);
+                return;
             }
-        } else {
-            log::error!("cannot get peer round state: peer={}", peer.get_id());
         }
     }
 
-    fn gossip_votes_for_height(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) -> bool {
-        if let Some(prs) = peer.get_prs() {
-            // If there are lastCommits to send...
-            if prs.step == RoundStep::CanonicalNewHeight {
-                if let Some(last_commit) = rs.last_commit {
-                    if peer.pick_send_vote(Box::new(last_commit)) {
-                        log::debug!("Picked rs.LastCommit to send");
-                        return true;
-                    }
+    async fn gossip_votes_for_height(self: Arc<Self>, rs: RoundState, peer: Arc<dyn Peer>) -> bool {
+        let prs = peer.get_prs().await;
+        // If there are lastCommits to send...
+        if prs.step == RoundStep::CanonicalNewHeight {
+            if let Some(last_commit) = rs.last_commit {
+                if peer.pick_send_vote(Box::new(last_commit)) {
+                    log::debug!("Picked rs.LastCommit to send");
+                    return true;
                 }
             }
-
-            // If there are POL prevotes to send...
-            if RoundStep::Unknown < prs.step
-                && prs.step <= RoundStep::CanonicalPropose
-                && prs.round != 0
-                && prs.round <= rs.round
-                && prs.proposal_pol_round != 0
-            {
-                if let Some(pol_prevotes) = rs
-                    .votes
-                    .clone()
-                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
-                {
-                    if peer.pick_send_vote(Box::new(pol_prevotes)) {
-                        log::debug!(
-                            "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
-                            prs.proposal_pol_round
-                        );
-                        return true;
-                    }
-                }
-            }
-
-            // If there are prevotes to send...
-            if prs.step <= RoundStep::CanonicalPrevoteWait && prs.round <= rs.round {
-                if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
-                    if peer.pick_send_vote(Box::new(prevotes)) {
-                        log::debug!(
-                            "picked rs.Prevotes(prs.Round) to send: round={}",
-                            prs.proposal_pol_round
-                        );
-                        return true;
-                    }
-                }
-            }
-
-            // If there are precommits to send...
-            if prs.step <= RoundStep::CanonicalPrecommitWait
-                && prs.round != 0
-                && prs.round <= rs.round
-            {
-                if let Some(precommits) = rs.votes.clone().and_then(|vts| vts.precommits(prs.round))
-                {
-                    if peer.pick_send_vote(Box::new(precommits)) {
-                        log::debug!(
-                            "picked rs.Precommits(prs.Round) to send: round={}",
-                            prs.proposal_pol_round
-                        );
-                        return true;
-                    }
-                }
-            }
-
-            // If there are prevotes to send...Needed because of validBlock mechanism
-            if prs.round != 0 && prs.round <= rs.round {
-                if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
-                    if peer.pick_send_vote(Box::new(prevotes)) {
-                        log::debug!(
-                            "picked rs.Prevotes(prs.Round) to send: round={}",
-                            prs.proposal_pol_round
-                        );
-                        return true;
-                    }
-                }
-            }
-
-            // If there are POLPrevotes to send...
-            if prs.proposal_pol_round != 0 {
-                if let Some(pol_prevotes) = rs
-                    .votes
-                    .clone()
-                    .and_then(|vts| vts.prevotes(prs.proposal_pol_round).clone())
-                {
-                    if peer.pick_send_vote(Box::new(pol_prevotes)) {
-                        log::debug!(
-                            "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
-                            prs.proposal_pol_round
-                        );
-                        return true;
-                    }
-                }
-            }
-        } else {
-            log::error!("cannot lock peer round state: peer={}", peer.get_id());
         }
+
+        // If there are POL prevotes to send...
+        if RoundStep::Unknown < prs.step
+            && prs.step <= RoundStep::CanonicalPropose
+            && prs.round != 0
+            && prs.round <= rs.round
+            && prs.proposal_pol_round != 0
+        {
+            if let Some(pol_prevotes) = rs
+                .votes
+                .clone()
+                .and_then(|vts| vts.prevotes(prs.proposal_pol_round))
+            {
+                if peer.pick_send_vote(Box::new(pol_prevotes)) {
+                    log::debug!(
+                        "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
+                        prs.proposal_pol_round
+                    );
+                    return true;
+                }
+            }
+        }
+
+        // If there are prevotes to send...
+        if prs.step <= RoundStep::CanonicalPrevoteWait && prs.round <= rs.round {
+            if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
+                if peer.pick_send_vote(Box::new(prevotes)) {
+                    log::debug!(
+                        "picked rs.Prevotes(prs.Round) to send: round={}",
+                        prs.proposal_pol_round
+                    );
+                    return true;
+                }
+            }
+        }
+
+        // If there are precommits to send...
+        if prs.step <= RoundStep::CanonicalPrecommitWait && prs.round != 0 && prs.round <= rs.round
+        {
+            if let Some(precommits) = rs.votes.clone().and_then(|vts| vts.precommits(prs.round)) {
+                if peer.pick_send_vote(Box::new(precommits)) {
+                    log::debug!(
+                        "picked rs.Precommits(prs.Round) to send: round={}",
+                        prs.proposal_pol_round
+                    );
+                    return true;
+                }
+            }
+        }
+
+        // If there are prevotes to send...Needed because of validBlock mechanism
+        if prs.round != 0 && prs.round <= rs.round {
+            if let Some(prevotes) = rs.votes.clone().and_then(|vts| vts.prevotes(prs.round)) {
+                if peer.pick_send_vote(Box::new(prevotes)) {
+                    log::debug!(
+                        "picked rs.Prevotes(prs.Round) to send: round={}",
+                        prs.proposal_pol_round
+                    );
+                    return true;
+                }
+            }
+        }
+
+        // If there are POLPrevotes to send...
+        if prs.proposal_pol_round != 0 {
+            if let Some(pol_prevotes) = rs
+                .votes
+                .clone()
+                .and_then(|vts| vts.prevotes(prs.proposal_pol_round).clone())
+            {
+                if peer.pick_send_vote(Box::new(pol_prevotes)) {
+                    log::debug!(
+                        "picked rs.Prevotes(prs.ProposalPOLRound) to send: round={}",
+                        prs.proposal_pol_round
+                    );
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        convert::TryInto,
-        sync::{Arc, Mutex},
-    };
+    use std::{convert::TryInto, sync::Arc};
 
     use crate::{
         reactor::{ConsensusReactor, ConsensusReactorImpl, DATA_CHANNEL},
@@ -880,7 +800,7 @@ mod tests {
                 NewRoundStepMessage, NewValidBlockMessage, ProposalMessage, ProposalPOLMessage,
                 VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
             },
-            peer::{MockPeer, MockPeerState, Peer, PeerRoundState},
+            peer::{MockPeer, MockPeerState, Peer, PeerRoundState, PeerState},
             round_state::RoundState,
         },
     };
@@ -904,33 +824,28 @@ mod tests {
         let mut mock_consensus_state = Box::new(MockConsensusState::new());
         mock_consensus_state
             .expect_get_rs()
-            .returning(|| Some(RoundState::new_default()));
+            .returning(|| RoundState::new_default());
         mock_consensus_state
             .expect_get_config()
             .returning(|| Arc::new(ConsensusConfig::new_default()));
         return mock_consensus_state;
     }
 
-    #[test]
-    fn add_peer() {
+    #[tokio::test]
+    async fn add_peer() {
         let mut mock_cs = Box::new(MockConsensusState::new());
         let mut mock_peer = MockPeer::new();
 
         mock_cs
             .expect_get_rs()
-            .returning(|| Some(RoundState::new_default()));
+            .returning(|| RoundState::new_default());
         mock_cs
             .expect_get_config()
             .returning(|| Arc::new(ConsensusConfig::new_default()));
 
         mock_peer
             .expect_get_prs()
-            .return_const(Some(PeerRoundState::new()));
-        mock_peer.expect_get_ps().times(1).returning(move || {
-            let mut mock_peer_state = MockPeerState::new();
-            mock_peer_state.expect_set_prs().times(1).return_const(());
-            Arc::new(Mutex::new(mock_peer_state))
-        });
+            .return_const(PeerRoundState::new());
 
         let c_mock_peer: Arc<dyn Peer> = Arc::new(mock_peer);
 
@@ -940,8 +855,8 @@ mod tests {
         assert!(rs.is_ok());
     }
 
-    #[test]
-    fn handle_state_message() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn handle_state_message() {
         // messages
         let nrs_msg = NewRoundStepMessage {
             height: 1,
@@ -1018,7 +933,7 @@ mod tests {
             .times(1)
             .return_const(());
 
-        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let am_mock_ps: Arc<Box<dyn PeerState>> = Arc::new(Box::new(mock_ps));
 
         let mut mock_peer = MockPeer::new();
         mock_peer
@@ -1050,29 +965,34 @@ mod tests {
         // act
         let mut rs = reactor
             .clone()
-            .handle_state_message(a_mock_peer.clone(), nrs_cs_msg);
+            .handle_state_message(a_mock_peer.clone(), nrs_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_state_message(a_mock_peer.clone(), nvb_cs_msg);
+            .handle_state_message(a_mock_peer.clone(), nvb_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_state_message(a_mock_peer.clone(), vsm_cs_msg.clone());
+            .handle_state_message(a_mock_peer.clone(), vsm_cs_msg.clone())
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_state_message(a_mock_peer.clone(), hv_cs_msg);
+            .handle_state_message(a_mock_peer.clone(), hv_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_state_message(a_mock_peer.clone(), unknown_cs_msg);
+            .handle_state_message(a_mock_peer.clone(), unknown_cs_msg)
+            .await;
         assert!(rs
             .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
     }
 
-    #[test]
-    fn handle_data_message() {
+    #[tokio::test]
+    async fn handle_data_message() {
         // messages
         let proposal_msg = ProposalMessage { proposal: None };
         let proposal_cs_msg = Arc::new(ConsensusMessageType::ProposalMessage(proposal_msg.clone()));
@@ -1135,7 +1055,7 @@ mod tests {
             })
             .times(1)
             .return_const(());
-        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let am_mock_ps: Arc<Box<dyn PeerState>> = Arc::new(Box::new(mock_ps));
 
         let mut mock_peer = MockPeer::new();
         mock_peer.expect_get_id().return_const("".to_string());
@@ -1149,25 +1069,29 @@ mod tests {
         // act
         let mut rs = reactor
             .clone()
-            .handle_data_message(a_mock_peer.clone(), proposal_cs_msg);
+            .handle_data_message(a_mock_peer.clone(), proposal_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_data_message(a_mock_peer.clone(), proposal_pol_cs_msg);
+            .handle_data_message(a_mock_peer.clone(), proposal_pol_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_data_message(a_mock_peer.clone(), block_part_cs_msg);
+            .handle_data_message(a_mock_peer.clone(), block_part_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_data_message(a_mock_peer.clone(), unknown_cs_msg);
+            .handle_data_message(a_mock_peer.clone(), unknown_cs_msg)
+            .await;
         assert!(rs
             .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
     }
 
-    #[test]
-    fn handle_vote_message() {
+    #[tokio::test]
+    async fn handle_vote_message() {
         // messages
         let vote_msg = VoteMessage {
             vote: Some(kai_types::vote::Vote {
@@ -1220,7 +1144,7 @@ mod tests {
             .times(1)
             .return_const(());
 
-        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let am_mock_ps: Arc<Box<dyn PeerState>> = Arc::new(Box::new(mock_ps));
 
         let mut mock_peer = MockPeer::new();
         mock_peer.expect_get_id().return_const("".to_string());
@@ -1234,17 +1158,19 @@ mod tests {
         // act
         let mut rs = reactor
             .clone()
-            .handle_vote_message(a_mock_peer.clone(), vote_cs_msg);
+            .handle_vote_message(a_mock_peer.clone(), vote_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_vote_message(a_mock_peer.clone(), unknown_cs_msg);
+            .handle_vote_message(a_mock_peer.clone(), unknown_cs_msg)
+            .await;
         assert!(rs
             .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
     }
 
-    #[test]
-    fn handle_vote_set_bits_message() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn handle_vote_set_bits_message() {
         // messages
         let vote_msg = VoteSetBitsMessage {
             height: 1,
@@ -1268,7 +1194,7 @@ mod tests {
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
             .expect_get_rs()
-            .returning(|| Some(RoundState::new_default()));
+            .returning(|| RoundState::new_default());
         mock_cs
             .expect_send()
             .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
@@ -1287,7 +1213,7 @@ mod tests {
             .times(1)
             .return_const(());
 
-        let am_mock_ps = Arc::new(Mutex::new(mock_ps));
+        let am_mock_ps: Arc<Box<dyn PeerState>> = Arc::new(Box::new(mock_ps));
 
         let mut mock_peer = MockPeer::new();
         mock_peer.expect_get_id().return_const("".to_string());
@@ -1301,11 +1227,13 @@ mod tests {
         // act
         let mut rs = reactor
             .clone()
-            .handle_vote_set_bits_message(a_mock_peer.clone(), vote_cs_msg);
+            .handle_vote_set_bits_message(a_mock_peer.clone(), vote_cs_msg)
+            .await;
         assert!(rs.is_ok());
         rs = reactor
             .clone()
-            .handle_vote_set_bits_message(a_mock_peer.clone(), unknown_cs_msg);
+            .handle_vote_set_bits_message(a_mock_peer.clone(), unknown_cs_msg)
+            .await;
         assert!(rs
             .is_err_and(|e| matches!(*e.as_ref(), ConsensusReactorError::UnknownMessageTypeError)));
     }

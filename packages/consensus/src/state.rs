@@ -5,10 +5,8 @@ use crate::types::{
     peer::internal_peerid,
     round_state::{RoundState, RULE_4, RULE_5, RULE_6, RULE_7, RULE_8},
 };
-use bytes::Bytes;
-
 use async_trait::async_trait;
-
+use bytes::Bytes;
 use kai_lib::crypto::{crypto::keccak256, signature::verify_signature};
 use kai_types::{
     block::{Block, BlockId},
@@ -32,12 +30,15 @@ use std::{
     convert::TryInto,
     fmt::Debug,
     ops::{Add, Mul},
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
 };
-use tokio::sync::mpsc::{
-    error::{SendError, TryRecvError},
-    Receiver, Sender,
+use tokio::sync::{
+    mpsc::{
+        error::{SendError, TryRecvError},
+        Receiver, Sender,
+    },
+    Mutex,
 };
 
 const MSG_QUEUE_SIZE: usize = 1000;
@@ -50,12 +51,12 @@ pub trait ConsensusState: Debug + Send + Sync + 'static {
     fn get_block_operations(&self) -> Arc<Box<dyn BlockOperations>>;
     fn get_block_exec(&self) -> Arc<Box<dyn BlockExecutor>>;
     fn get_evidence_pool(&self) -> Arc<Box<dyn EvidencePool>>;
-    fn get_rs(&self) -> Option<RoundState>;
+    async fn get_rs(&self) -> RoundState;
 
     fn update_to_state(&self, state: Arc<Box<dyn LatestBlockState>>);
     async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>>;
-    fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
-    fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError>;
+    async fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>>;
+    async fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError>;
 }
 
 #[derive(Debug)]
@@ -92,14 +93,11 @@ impl ConsensusState for ConsensusStateImpl {
         self.evidence_pool.clone()
     }
 
-    fn get_rs(&self) -> Option<RoundState> {
-        if let Ok(rs_guard) = self.rs.clone().lock() {
-            let rs = rs_guard.clone();
-            drop(rs_guard);
-            Some(rs)
-        } else {
-            None
-        }
+    async fn get_rs(&self) -> RoundState {
+        let rs_guard = self.clone().rs.lock().await;
+        let rs = rs_guard.clone();
+        drop(rs_guard);
+        return rs;
     }
 
     async fn send(&self, msg_info: MessageInfo) -> Result<(), SendError<MessageInfo>> {
@@ -107,33 +105,28 @@ impl ConsensusState for ConsensusStateImpl {
     }
 
     /// should be called from node instance, in a tokio Runtime
-    fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
+    async fn start(self: Arc<Self>) -> Result<(), Box<ConsensusStateError>> {
         // TODO:
 
         // start processing messages
         let cs = self.clone();
         tokio::spawn(async move {
-            cs.process_msg_chan();
+            cs.process_msg_chan().await;
         });
 
         // start new round
-        if let Ok(rs_guard) = self.clone().rs.clone().lock() {
-            let round = rs_guard.round;
-            drop(rs_guard);
-            self.clone().start_new_round(round);
-            Ok(())
-        } else {
-            Err(Box::new(ConsensusStateError::LockFailed(
-                "round state".to_owned(),
-            )))
-        }
+        let cs2 = self.clone();
+        let rs_guard = cs2.rs.lock().await;
+        let round = rs_guard.round;
+        drop(rs_guard);
+        self.clone().start_new_round(round).await;
+        Ok(())
     }
 
-    fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError> {
+    async fn stop(self: Arc<Self>) -> Result<(), ConsensusStateError> {
         // close msg_channel
-        if let Ok(mut msg_chan_receiver) = self.msg_chan_receiver.lock() {
-            msg_chan_receiver.close();
-        }
+        let mut msg_chan_receiver = self.msg_chan_receiver.lock().await;
+        msg_chan_receiver.close();
 
         Ok(())
     }
@@ -176,7 +169,7 @@ impl ConsensusStateImpl {
 
     /// Process incoming messages by polling the receiver.
     /// This process runs until the message channel is closed.
-    fn process_msg_chan(self: Arc<Self>) {
+    async fn process_msg_chan(self: Arc<Self>) {
         loop {
             let cs = self.clone();
 
@@ -186,13 +179,7 @@ impl ConsensusStateImpl {
                 break;
             }
 
-            let lock_rs = cs.msg_chan_receiver.lock();
-            if lock_rs.is_err() {
-                log::error!("try lock receiver poisoned, exit the message processing");
-                break;
-            }
-
-            let mut msg_chan_rx = lock_rs.unwrap();
+            let mut msg_chan_rx = cs.msg_chan_receiver.lock().await;
             let rs = msg_chan_rx.try_recv();
             // unlock msg_chan_rx
             drop(msg_chan_rx);
@@ -203,7 +190,7 @@ impl ConsensusStateImpl {
                     match msg.as_ref() {
                         ConsensusMessageType::ProposalMessage(_msg) => {
                             log::debug!("set proposal: proposal={:?}", _msg.clone());
-                            if let Err(e) = self.clone().set_proposal(_msg.clone()) {
+                            if let Err(e) = self.clone().set_proposal(_msg.clone()).await {
                                 log::error!(
                                     "set proposal failed: peerid={} msg={:?}, err={}",
                                     msg_info.peer_id,
@@ -214,7 +201,8 @@ impl ConsensusStateImpl {
                         }
                         ConsensusMessageType::BlockPartMessage(_msg) => {
                             log::debug!("set block part: blockpart={:?}", _msg.clone());
-                            if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()) {
+                            if let Err(e) = self.clone().add_proposal_block_part(_msg.clone()).await
+                            {
                                 log::error!(
                                     "set block part failed: peerid={} msg={:?}, err={}",
                                     msg_info.peer_id,
@@ -228,6 +216,7 @@ impl ConsensusStateImpl {
                             if let Err(e) = self
                                 .clone()
                                 .add_vote(_msg.clone(), msg_info.peer_id.clone())
+                                .await
                             {
                                 log::error!(
                                     "set vote failed: peerid={} msg={:?}, err={}",
@@ -242,7 +231,7 @@ impl ConsensusStateImpl {
                         }
                     };
 
-                    self.clone().check_upon_rules(msg);
+                    self.clone().check_upon_rules(msg).await;
                 }
                 Err(e) => match e {
                     TryRecvError::Disconnected => {
@@ -257,7 +246,7 @@ impl ConsensusStateImpl {
         }
     }
 
-    fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
+    async fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
         let msg = msg.clone();
         match msg.as_ref() {
             ConsensusMessageType::BlockPartMessage(_msg) => {
@@ -266,245 +255,245 @@ impl ConsensusStateImpl {
                     _msg.clone()
                 );
 
-                if let Ok(mut rs_guard) = self.rs.clone().lock() {
-                    let rs = rs_guard.clone();
+                let cs = self.clone();
+                let mut rs_guard = cs.rs.lock().await;
+                let rs = rs_guard.clone();
 
-                    if rs
-                        .proposal_block_parts
-                        .is_some_and(|pbp| pbp.is_completed())
-                    {
-                        let proposal = rs.proposal.clone().unwrap();
-                        let proposal_block_id = proposal.clone().block_id.clone().unwrap();
-                        let pbp = rs.proposal_block_parts.clone().unwrap();
+                if rs
+                    .proposal_block_parts
+                    .is_some_and(|pbp| pbp.is_completed())
+                {
+                    let proposal = rs.proposal.clone().unwrap();
+                    let proposal_block_id = proposal.clone().block_id.clone().unwrap();
+                    let pbp = rs.proposal_block_parts.clone().unwrap();
 
-                        // TODO: validate fully received proposal block
+                    // TODO: validate fully received proposal block
 
-                        // checking rule #2
-                        if proposal.pol_round == 0 && rs.step == RoundStep::Propose {
-                            if rs.locked_round == 0
-                                || rs
-                                    .locked_block_parts
-                                    .is_some_and(|lb| lb.has_header(pbp.header()))
-                            {
-                                match self.clone().create_signed_vote(
-                                    rs_guard.clone(),
-                                    SignedMsgType::Prevote,
-                                    proposal_block_id.clone(),
-                                ) {
-                                    Ok(signed_vote) => {
-                                        let msg = MessageInfo {
-                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                                VoteMessage {
-                                                    vote: Some(signed_vote),
-                                                },
-                                            )),
-                                            peer_id: internal_peerid(),
-                                        };
-
-                                        self.msg_chan_sender
-                                            .blocking_send(msg)
-                                            .expect("send vote failed"); // should panics here?
-
-                                        log::debug!("signed and sent vote")
-                                    }
-                                    Err(reason) => {
-                                        debug!("create signed vote failed, reason: {:?}", reason);
-                                    }
-                                };
-                            } else {
-                                match self.clone().create_signed_vote(
-                                    rs_guard.clone(),
-                                    SignedMsgType::Prevote,
-                                    BlockId::new_zero_block_id(), // nil block
-                                ) {
-                                    Ok(signed_vote) => {
-                                        let msg = MessageInfo {
-                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                                VoteMessage {
-                                                    vote: Some(signed_vote),
-                                                },
-                                            )),
-                                            peer_id: internal_peerid(),
-                                        };
-
-                                        self.msg_chan_sender
-                                            .blocking_send(msg)
-                                            .expect("send vote failed"); // should panics here?
-
-                                        log::debug!("signed and sent vote")
-                                    }
-                                    Err(reason) => {
-                                        debug!("create signed vote failed, reason: {:?}", reason);
-                                    }
-                                };
-                            }
-                            rs_guard.step = RoundStep::Prevote;
-                            drop(rs_guard);
-                            return;
-                        }
-
-                        // checking rule #3
-                        if proposal.pol_round > 0
-                            && proposal.pol_round < rs.round
-                            && rs.step == RoundStep::Propose
-                            && rs
-                                .clone()
-                                .votes
-                                .expect("vote should not nil")
-                                .prevotes(proposal.pol_round)
-                                .expect("prevotes should not nil")
-                                .two_thirds_majority()
-                                .is_some_and(|bid| bid.eq(&proposal_block_id))
+                    // checking rule #2
+                    if proposal.pol_round == 0 && rs.step == RoundStep::Propose {
+                        if rs.locked_round == 0
+                            || rs
+                                .locked_block_parts
+                                .is_some_and(|lb| lb.has_header(pbp.header()))
                         {
-                            if rs.locked_round <= proposal.pol_round
-                                || rs
-                                    .locked_block_parts
-                                    .is_some_and(|lb| lb.has_header(pbp.header()))
-                            {
-                                match self.clone().create_signed_vote(
-                                    rs_guard.clone(),
-                                    SignedMsgType::Prevote,
-                                    proposal_block_id.clone(),
-                                ) {
-                                    Ok(signed_vote) => {
-                                        let msg = MessageInfo {
-                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                                VoteMessage {
-                                                    vote: Some(signed_vote),
-                                                },
-                                            )),
-                                            peer_id: internal_peerid(),
-                                        };
+                            match self.clone().create_signed_vote(
+                                rs_guard.clone(),
+                                SignedMsgType::Prevote,
+                                proposal_block_id.clone(),
+                            ) {
+                                Ok(signed_vote) => {
+                                    let msg = MessageInfo {
+                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                            VoteMessage {
+                                                vote: Some(signed_vote),
+                                            },
+                                        )),
+                                        peer_id: internal_peerid(),
+                                    };
 
-                                        self.msg_chan_sender
-                                            .blocking_send(msg)
-                                            .expect("send vote failed"); // should panics here?
+                                    self.msg_chan_sender
+                                        .blocking_send(msg)
+                                        .expect("send vote failed"); // should panics here?
 
-                                        log::debug!("signed and sent vote")
-                                    }
-                                    Err(reason) => {
-                                        debug!("create signed vote failed, reason: {:?}", reason);
-                                    }
-                                };
-                            } else {
-                                match self.clone().create_signed_vote(
-                                    rs_guard.clone(),
-                                    SignedMsgType::Prevote,
-                                    BlockId::new_zero_block_id(), // nil block
-                                ) {
-                                    Ok(signed_vote) => {
-                                        let msg = MessageInfo {
-                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                                VoteMessage {
-                                                    vote: Some(signed_vote),
-                                                },
-                                            )),
-                                            peer_id: internal_peerid(),
-                                        };
+                                    log::debug!("signed and sent vote")
+                                }
+                                Err(reason) => {
+                                    debug!("create signed vote failed, reason: {:?}", reason);
+                                }
+                            };
+                        } else {
+                            match self.clone().create_signed_vote(
+                                rs_guard.clone(),
+                                SignedMsgType::Prevote,
+                                BlockId::new_zero_block_id(), // nil block
+                            ) {
+                                Ok(signed_vote) => {
+                                    let msg = MessageInfo {
+                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                            VoteMessage {
+                                                vote: Some(signed_vote),
+                                            },
+                                        )),
+                                        peer_id: internal_peerid(),
+                                    };
 
-                                        self.msg_chan_sender
-                                            .blocking_send(msg)
-                                            .expect("send vote failed"); // should panics here?
+                                    self.msg_chan_sender
+                                        .blocking_send(msg)
+                                        .expect("send vote failed"); // should panics here?
 
-                                        log::debug!("signed and sent vote")
-                                    }
-                                    Err(reason) => {
-                                        debug!("create signed vote failed, reason: {:?}", reason);
-                                    }
-                                };
-                            }
-                            rs_guard.step = RoundStep::Prevote;
-                            drop(rs_guard);
-                            return;
+                                    log::debug!("signed and sent vote")
+                                }
+                                Err(reason) => {
+                                    debug!("create signed vote failed, reason: {:?}", reason);
+                                }
+                            };
                         }
+                        rs_guard.step = RoundStep::Prevote;
+                        drop(rs_guard);
+                        return;
+                    }
 
-                        // checking rule #5
-                        if rs.step >= RoundStep::Prevote
-                            && rs
-                                .clone()
-                                .votes
-                                .expect("vote should not nil")
-                                .prevotes(rs.round)
-                                .expect("prevotes should not nil")
-                                .two_thirds_majority()
-                                .is_some_and(|bid| bid.eq(&proposal_block_id))
-                            && !rs.triggered_rules.contains(&RULE_5)
-                        {
-                            if rs.step == RoundStep::Prevote {
-                                rs_guard.locked_round = proposal.round;
-                                rs_guard.locked_block = rs.proposal_block.clone();
-                                rs_guard.locked_block_parts = rs.proposal_block_parts.clone();
-
-                                match self.clone().create_signed_vote(
-                                    rs_guard.clone(),
-                                    SignedMsgType::Precommit,
-                                    proposal_block_id.clone(),
-                                ) {
-                                    Ok(signed_vote) => {
-                                        let msg = MessageInfo {
-                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                                VoteMessage {
-                                                    vote: Some(signed_vote),
-                                                },
-                                            )),
-                                            peer_id: internal_peerid(),
-                                        };
-
-                                        self.msg_chan_sender
-                                            .blocking_send(msg)
-                                            .expect("send vote failed"); // should panics here?
-
-                                        log::debug!("signed and sent vote")
-                                    }
-                                    Err(reason) => {
-                                        debug!("create signed vote failed, reason: {:?}", reason);
-                                    }
-                                };
-                                rs_guard.step = RoundStep::Precommit;
-                            }
-                            rs_guard.valid_round = proposal.round;
-                            rs_guard.valid_block = rs.proposal_block.clone();
-                            rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
-                            drop(rs_guard);
-                            return;
-                        }
-
-                        // checking rule #8
-                        if rs
+                    // checking rule #3
+                    if proposal.pol_round > 0
+                        && proposal.pol_round < rs.round
+                        && rs.step == RoundStep::Propose
+                        && rs
                             .clone()
                             .votes
                             .expect("vote should not nil")
-                            .precommits(rs.round)
-                            .expect("precommits should not nil")
+                            .prevotes(proposal.pol_round)
+                            .expect("prevotes should not nil")
                             .two_thirds_majority()
                             .is_some_and(|bid| bid.eq(&proposal_block_id))
-                            && self.clone().block_operations.height() < rs.height
+                    {
+                        if rs.locked_round <= proposal.pol_round
+                            || rs
+                                .locked_block_parts
+                                .is_some_and(|lb| lb.has_header(pbp.header()))
                         {
-                            let precommits = rs.votes.unwrap().precommits(rs.round).unwrap();
-                            let seen_commit = precommits
-                                .make_commit()
-                                .expect("error on creating commit from precommits");
+                            match self.clone().create_signed_vote(
+                                rs_guard.clone(),
+                                SignedMsgType::Prevote,
+                                proposal_block_id.clone(),
+                            ) {
+                                Ok(signed_vote) => {
+                                    let msg = MessageInfo {
+                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                            VoteMessage {
+                                                vote: Some(signed_vote),
+                                            },
+                                        )),
+                                        peer_id: internal_peerid(),
+                                    };
 
-                            self.clone().block_operations.save_block(
-                                rs.proposal_block.unwrap(),
-                                rs.proposal_block_parts.unwrap(),
-                                seen_commit,
-                            );
+                                    self.msg_chan_sender
+                                        .blocking_send(msg)
+                                        .expect("send vote failed"); // should panics here?
 
-                            rs_guard.height += 1;
+                                    log::debug!("signed and sent vote")
+                                }
+                                Err(reason) => {
+                                    debug!("create signed vote failed, reason: {:?}", reason);
+                                }
+                            };
+                        } else {
+                            match self.clone().create_signed_vote(
+                                rs_guard.clone(),
+                                SignedMsgType::Prevote,
+                                BlockId::new_zero_block_id(), // nil block
+                            ) {
+                                Ok(signed_vote) => {
+                                    let msg = MessageInfo {
+                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                            VoteMessage {
+                                                vote: Some(signed_vote),
+                                            },
+                                        )),
+                                        peer_id: internal_peerid(),
+                                    };
 
-                            rs_guard.locked_round = 0;
-                            rs_guard.locked_block = None;
-                            rs_guard.locked_block_parts = None;
+                                    self.msg_chan_sender
+                                        .blocking_send(msg)
+                                        .expect("send vote failed"); // should panics here?
 
-                            rs_guard.valid_round = 0;
-                            rs_guard.valid_block = None;
-                            rs_guard.valid_block_parts = None;
-
-                            self.start_new_round(0);
-                            drop(rs_guard);
-                            return;
+                                    log::debug!("signed and sent vote")
+                                }
+                                Err(reason) => {
+                                    debug!("create signed vote failed, reason: {:?}", reason);
+                                }
+                            };
                         }
+                        rs_guard.step = RoundStep::Prevote;
+                        drop(rs_guard);
+                        return;
+                    }
+
+                    // checking rule #5
+                    if rs.step >= RoundStep::Prevote
+                        && rs
+                            .clone()
+                            .votes
+                            .expect("vote should not nil")
+                            .prevotes(rs.round)
+                            .expect("prevotes should not nil")
+                            .two_thirds_majority()
+                            .is_some_and(|bid| bid.eq(&proposal_block_id))
+                        && !rs.triggered_rules.contains(&RULE_5)
+                    {
+                        if rs.step == RoundStep::Prevote {
+                            rs_guard.locked_round = proposal.round;
+                            rs_guard.locked_block = rs.proposal_block.clone();
+                            rs_guard.locked_block_parts = rs.proposal_block_parts.clone();
+
+                            match self.clone().create_signed_vote(
+                                rs_guard.clone(),
+                                SignedMsgType::Precommit,
+                                proposal_block_id.clone(),
+                            ) {
+                                Ok(signed_vote) => {
+                                    let msg = MessageInfo {
+                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                            VoteMessage {
+                                                vote: Some(signed_vote),
+                                            },
+                                        )),
+                                        peer_id: internal_peerid(),
+                                    };
+
+                                    self.msg_chan_sender
+                                        .blocking_send(msg)
+                                        .expect("send vote failed"); // should panics here?
+
+                                    log::debug!("signed and sent vote")
+                                }
+                                Err(reason) => {
+                                    debug!("create signed vote failed, reason: {:?}", reason);
+                                }
+                            };
+                            rs_guard.step = RoundStep::Precommit;
+                        }
+                        rs_guard.valid_round = proposal.round;
+                        rs_guard.valid_block = rs.proposal_block.clone();
+                        rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
+                        drop(rs_guard);
+                        return;
+                    }
+
+                    // checking rule #8
+                    if rs
+                        .clone()
+                        .votes
+                        .expect("vote should not nil")
+                        .precommits(rs.round)
+                        .expect("precommits should not nil")
+                        .two_thirds_majority()
+                        .is_some_and(|bid| bid.eq(&proposal_block_id))
+                        && self.clone().block_operations.height() < rs.height
+                    {
+                        let precommits = rs.votes.unwrap().precommits(rs.round).unwrap();
+                        let seen_commit = precommits
+                            .make_commit()
+                            .expect("error on creating commit from precommits");
+
+                        self.clone().block_operations.save_block(
+                            rs.proposal_block.unwrap(),
+                            rs.proposal_block_parts.unwrap(),
+                            seen_commit,
+                        );
+
+                        rs_guard.height += 1;
+
+                        rs_guard.locked_round = 0;
+                        rs_guard.locked_block = None;
+                        rs_guard.locked_block_parts = None;
+
+                        rs_guard.valid_round = 0;
+                        rs_guard.valid_block = None;
+                        rs_guard.valid_block_parts = None;
+
+                        self.start_new_round(0).await;
+                        drop(rs_guard);
+                        return;
                     }
                 }
             }
@@ -519,101 +508,57 @@ impl ConsensusStateImpl {
                     .into()
                 {
                     SignedMsgType::Prevote => {
-                        if let Ok(mut rs_guard) = self.rs.clone().lock() {
-                            let rs = rs_guard.clone();
+                        let cs = self.clone();
+                        let mut rs_guard = cs.rs.lock().await;
+                        let rs = rs_guard.clone();
 
-                            if rs.step == RoundStep::Prevote {
-                                // checking rule #4, #5, #6
-                                if let Some(maj23_block_id) = rs
+                        if rs.step == RoundStep::Prevote {
+                            // checking rule #4, #5, #6
+                            if let Some(maj23_block_id) = rs
+                                .clone()
+                                .votes
+                                .clone()
+                                .expect("vote should not nil")
+                                .prevotes(rs.round)
+                                .expect("prevotes should not nil")
+                                .two_thirds_majority()
+                            {
+                                // if rule has not bee n triggered
+                                if !rs_guard.triggered_rules.contains(&RULE_4) {
+                                    self.clone().schedule_timeout(
+                                        rs.height,
+                                        rs.round,
+                                        RoundStep::Prevote,
+                                    );
+                                    // mark rule has triggered
+                                    rs_guard.triggered_rules.insert(RULE_4);
+                                }
+
+                                // check rule #5
+                                // TODO: validate proposal, only valid proposal can proceed
+                                if rs
                                     .clone()
-                                    .votes
+                                    .proposal
                                     .clone()
-                                    .expect("vote should not nil")
-                                    .prevotes(rs.round)
-                                    .expect("prevotes should not nil")
-                                    .two_thirds_majority()
+                                    .and_then(|p| p.block_id)
+                                    .is_some_and(|pbid| pbid.eq(&maj23_block_id))
+                                    && self.clone().block_operations.height() == rs.height - 1
+                                    && rs.step >= RoundStep::Prevote
+                                    && !rs_guard.triggered_rules.contains(&RULE_8)
                                 {
-                                    // if rule has not bee n triggered
-                                    if !rs_guard.triggered_rules.contains(&RULE_4) {
-                                        self.clone().schedule_timeout(
-                                            rs.height,
-                                            rs.round,
-                                            RoundStep::Prevote,
-                                        );
-                                        // mark rule has triggered
-                                        rs_guard.triggered_rules.insert(RULE_4);
-                                    }
+                                    let proposal = rs.clone().proposal.unwrap();
+                                    let proposal_block_id = proposal.block_id.unwrap();
 
-                                    // check rule #5
-                                    // TODO: validate proposal, only valid proposal can proceed
-                                    if rs
-                                        .clone()
-                                        .proposal
-                                        .clone()
-                                        .and_then(|p| p.block_id)
-                                        .is_some_and(|pbid| pbid.eq(&maj23_block_id))
-                                        && self.clone().block_operations.height() == rs.height - 1
-                                        && rs.step >= RoundStep::Prevote
-                                        && !rs_guard.triggered_rules.contains(&RULE_8)
-                                    {
-                                        let proposal = rs.clone().proposal.unwrap();
-                                        let proposal_block_id = proposal.block_id.unwrap();
-
-                                        if rs.step == RoundStep::Prevote {
-                                            rs_guard.locked_round = proposal.round;
-                                            rs_guard.locked_block = rs.proposal_block.clone();
-                                            rs_guard.locked_block_parts =
-                                                rs.proposal_block_parts.clone();
-
-                                            match self.clone().create_signed_vote(
-                                                rs_guard.clone(),
-                                                SignedMsgType::Precommit,
-                                                proposal_block_id.clone(),
-                                            ) {
-                                                Ok(signed_vote) => {
-                                                    let msg = MessageInfo {
-                                                        msg: Arc::new(
-                                                            ConsensusMessageType::VoteMessage(
-                                                                VoteMessage {
-                                                                    vote: Some(signed_vote),
-                                                                },
-                                                            ),
-                                                        ),
-                                                        peer_id: internal_peerid(),
-                                                    };
-
-                                                    self.msg_chan_sender
-                                                        .blocking_send(msg)
-                                                        .expect("send vote failed"); // should panics here?
-
-                                                    log::debug!("signed and sent vote")
-                                                }
-                                                Err(reason) => {
-                                                    debug!(
-                                                        "create signed vote failed, reason: {:?}",
-                                                        reason
-                                                    );
-                                                }
-                                            };
-                                            rs_guard.step = RoundStep::Precommit;
-                                        }
-                                        rs_guard.valid_round = proposal.round;
-                                        rs_guard.valid_block = rs.proposal_block.clone();
-                                        rs_guard.valid_block_parts =
+                                    if rs.step == RoundStep::Prevote {
+                                        rs_guard.locked_round = proposal.round;
+                                        rs_guard.locked_block = rs.proposal_block.clone();
+                                        rs_guard.locked_block_parts =
                                             rs.proposal_block_parts.clone();
 
-                                        rs_guard.triggered_rules.insert(RULE_8);
-                                    }
-
-                                    // check rule #6
-                                    if !maj23_block_id.is_zero()
-                                        && rs.step == RoundStep::Prevote
-                                        && !rs_guard.triggered_rules.contains(&RULE_6)
-                                    {
                                         match self.clone().create_signed_vote(
                                             rs_guard.clone(),
                                             SignedMsgType::Precommit,
-                                            BlockId::new_zero_block_id().clone(),
+                                            proposal_block_id.clone(),
                                         ) {
                                             Ok(signed_vote) => {
                                                 let msg = MessageInfo {
@@ -640,79 +585,116 @@ impl ConsensusStateImpl {
                                                 );
                                             }
                                         };
-                                        rs_guard.triggered_rules.insert(RULE_6);
                                         rs_guard.step = RoundStep::Precommit;
                                     }
+                                    rs_guard.valid_round = proposal.round;
+                                    rs_guard.valid_block = rs.proposal_block.clone();
+                                    rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
+
+                                    rs_guard.triggered_rules.insert(RULE_8);
+                                }
+
+                                // check rule #6
+                                if !maj23_block_id.is_zero()
+                                    && rs.step == RoundStep::Prevote
+                                    && !rs_guard.triggered_rules.contains(&RULE_6)
+                                {
+                                    match self.clone().create_signed_vote(
+                                        rs_guard.clone(),
+                                        SignedMsgType::Precommit,
+                                        BlockId::new_zero_block_id().clone(),
+                                    ) {
+                                        Ok(signed_vote) => {
+                                            let msg = MessageInfo {
+                                                msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                    VoteMessage {
+                                                        vote: Some(signed_vote),
+                                                    },
+                                                )),
+                                                peer_id: internal_peerid(),
+                                            };
+
+                                            self.msg_chan_sender
+                                                .blocking_send(msg)
+                                                .expect("send vote failed"); // should panics here?
+
+                                            log::debug!("signed and sent vote")
+                                        }
+                                        Err(reason) => {
+                                            debug!(
+                                                "create signed vote failed, reason: {:?}",
+                                                reason
+                                            );
+                                        }
+                                    };
+                                    rs_guard.triggered_rules.insert(RULE_6);
+                                    rs_guard.step = RoundStep::Precommit;
                                 }
                             }
-                            drop(rs_guard);
-                        } else {
-                            log::trace!("lock round state failed")
                         }
+                        drop(rs_guard);
                     }
                     SignedMsgType::Precommit => {
-                        if let Ok(mut rs_guard) = self.rs.clone().lock() {
-                            let rs = rs_guard.clone();
+                        let cs = self.clone();
+                        let mut rs_guard = cs.rs.lock().await;
+                        let rs = rs_guard.clone();
 
-                            // checking rule #7 and partial rule #8
-                            if let Some(maj23_block_id) = rs
-                                .votes
-                                .clone()
-                                .expect("vote should not nil")
-                                .precommits(rs.round)
-                                .expect("precommits should not nil")
-                                .two_thirds_majority()
-                            {
-                                // if rule #7 has not been triggered
-                                if !rs.triggered_rules.contains(&RULE_7) {
-                                    self.clone().schedule_timeout(
-                                        rs.height,
-                                        rs.round,
-                                        RoundStep::Precommit,
-                                    );
-                                    // mark rule has triggered
-                                    rs_guard.triggered_rules.insert(RULE_7);
-                                }
-
-                                // check rule #8
-                                // TODO: validate proposal, only valid proposal can proceed
-                                if rs
-                                    .proposal
-                                    .and_then(|p| p.block_id)
-                                    .is_some_and(|pbid| pbid.eq(&maj23_block_id))
-                                    && self.clone().block_operations.height() == rs.height - 1
-                                {
-                                    let precommits =
-                                        rs.votes.clone().unwrap().precommits(rs.round).unwrap();
-                                    let seen_commit = precommits
-                                        .make_commit()
-                                        .expect("error on creating commit from precommits");
-
-                                    self.clone().block_operations.save_block(
-                                        rs.proposal_block.unwrap(),
-                                        rs.proposal_block_parts.unwrap(),
-                                        seen_commit,
-                                    );
-
-                                    rs_guard.height += 1;
-
-                                    rs_guard.locked_round = 0;
-                                    rs_guard.locked_block = None;
-                                    rs_guard.locked_block_parts = None;
-
-                                    rs_guard.valid_round = 0;
-                                    rs_guard.valid_block = None;
-                                    rs_guard.valid_block_parts = None;
-
-                                    self.start_new_round(0);
-                                } else {
-                                    log::debug!("skipped checking for rule #8 due to received +2/3 precommits of block other than our proposal block");
-                                };
+                        // checking rule #7 and partial rule #8
+                        if let Some(maj23_block_id) = rs
+                            .votes
+                            .clone()
+                            .expect("vote should not nil")
+                            .precommits(rs.round)
+                            .expect("precommits should not nil")
+                            .two_thirds_majority()
+                        {
+                            // if rule #7 has not been triggered
+                            if !rs.triggered_rules.contains(&RULE_7) {
+                                self.clone().schedule_timeout(
+                                    rs.height,
+                                    rs.round,
+                                    RoundStep::Precommit,
+                                );
+                                // mark rule has triggered
+                                rs_guard.triggered_rules.insert(RULE_7);
                             }
-                            drop(rs_guard);
-                        } else {
-                            log::trace!("lock round state failed")
+
+                            // check rule #8
+                            // TODO: validate proposal, only valid proposal can proceed
+                            if rs
+                                .proposal
+                                .and_then(|p| p.block_id)
+                                .is_some_and(|pbid| pbid.eq(&maj23_block_id))
+                                && self.clone().block_operations.height() == rs.height - 1
+                            {
+                                let precommits =
+                                    rs.votes.clone().unwrap().precommits(rs.round).unwrap();
+                                let seen_commit = precommits
+                                    .make_commit()
+                                    .expect("error on creating commit from precommits");
+
+                                self.clone().block_operations.save_block(
+                                    rs.proposal_block.unwrap(),
+                                    rs.proposal_block_parts.unwrap(),
+                                    seen_commit,
+                                );
+
+                                rs_guard.height += 1;
+
+                                rs_guard.locked_round = 0;
+                                rs_guard.locked_block = None;
+                                rs_guard.locked_block_parts = None;
+
+                                rs_guard.valid_round = 0;
+                                rs_guard.valid_block = None;
+                                rs_guard.valid_block_parts = None;
+
+                                self.start_new_round(0);
+                            } else {
+                                log::debug!("skipped checking for rule #8 due to received +2/3 precommits of block other than our proposal block");
+                            };
                         }
+                        drop(rs_guard);
                     }
                     other => {
                         debug!("no upon rules checking on vote type: {:?}", other)
@@ -723,213 +705,188 @@ impl ConsensusStateImpl {
         };
     }
 
-    fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
-        match self.clone().get_rs() {
-            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
-            Some(rs) => {
-                // check for existing proposal
-                if rs.proposal.is_some() {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "ignored proposal: already have proposal".to_owned(),
-                    ));
-                }
+    async fn set_proposal(&self, msg: ProposalMessage) -> Result<(), ConsensusStateError> {
+        let rs = self.clone().get_rs().await;
 
-                // ignore proposal comes from different height, round
-                if msg.proposal.is_none() {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "invalid proposal, forgot to validate proposal?".to_owned(),
-                    ));
-                }
-                let proposal = msg.proposal.unwrap();
-
-                if proposal.height != rs.height || proposal.round != rs.round {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "ignored invalid proposal: height or round mismatch with round state"
-                            .to_owned(),
-                    ));
-                }
-
-                if proposal.pol_round >= proposal.round {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "ignored proposal: invalid pol_round".to_owned(),
-                    ));
-                }
-
-                if rs.validators.is_none() {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "proposal verification error: cannot get validator set".to_owned(),
-                    ));
-                }
-                let mut validator_set = rs.validators.unwrap();
-
-                let proposer = validator_set.get_proposer();
-                if proposer.is_none() {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "proposal verification error: cannot get proposer".to_owned(),
-                    ));
-                }
-
-                let proposer_address = proposer.unwrap().address;
-
-                let chain_id = self.state.clone().get_chain_id();
-                let psb = proposal.proposal_sign_bytes(chain_id);
-                if psb.is_none() {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "proposal verification error: cannot get proposal sign bytes".to_owned(),
-                    ));
-                }
-                if !verify_signature(
-                    proposer_address,
-                    keccak256(psb.unwrap()),
-                    Bytes::from(proposal.clone().signature),
-                ) {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "proposal verification error: wrong signature from proposer".to_owned(),
-                    ));
-                }
-
-                if let Ok(mut rs_guard) = self.clone().rs.lock() {
-                    // update validators
-                    rs_guard.validators = Some(validator_set);
-                    // set proposal
-                    rs_guard.proposal = Some(proposal.clone());
-                    // set proposal block, it's empty until all block parts received
-                    rs_guard.proposal_block = None;
-                    // create new proposal block parts
-                    rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(
-                        proposal.clone().block_id.unwrap().part_set_header.unwrap(),
-                    ));
-                } else {
-                    return Err(ConsensusStateError::AddProposalError(
-                        "add proposal failed: cannot lock on round state".to_owned(),
-                    ));
-                }
-
-                Ok(())
-            }
+        // check for existing proposal
+        if rs.proposal.is_some() {
+            return Err(ConsensusStateError::AddProposalError(
+                "ignored proposal: already have proposal".to_owned(),
+            ));
         }
+
+        // ignore proposal comes from different height, round
+        if msg.proposal.is_none() {
+            return Err(ConsensusStateError::AddProposalError(
+                "invalid proposal, forgot to validate proposal?".to_owned(),
+            ));
+        }
+        let proposal = msg.proposal.unwrap();
+
+        if proposal.height != rs.height || proposal.round != rs.round {
+            return Err(ConsensusStateError::AddProposalError(
+                "ignored invalid proposal: height or round mismatch with round state".to_owned(),
+            ));
+        }
+
+        if proposal.pol_round >= proposal.round {
+            return Err(ConsensusStateError::AddProposalError(
+                "ignored proposal: invalid pol_round".to_owned(),
+            ));
+        }
+
+        if rs.validators.is_none() {
+            return Err(ConsensusStateError::AddProposalError(
+                "proposal verification error: cannot get validator set".to_owned(),
+            ));
+        }
+        let mut validator_set = rs.validators.unwrap();
+
+        let proposer = validator_set.get_proposer();
+        if proposer.is_none() {
+            return Err(ConsensusStateError::AddProposalError(
+                "proposal verification error: cannot get proposer".to_owned(),
+            ));
+        }
+
+        let proposer_address = proposer.unwrap().address;
+
+        let chain_id = self.state.clone().get_chain_id();
+        let psb = proposal.proposal_sign_bytes(chain_id);
+        if psb.is_none() {
+            return Err(ConsensusStateError::AddProposalError(
+                "proposal verification error: cannot get proposal sign bytes".to_owned(),
+            ));
+        }
+        if !verify_signature(
+            proposer_address,
+            keccak256(psb.unwrap()),
+            Bytes::from(proposal.clone().signature),
+        ) {
+            return Err(ConsensusStateError::AddProposalError(
+                "proposal verification error: wrong signature from proposer".to_owned(),
+            ));
+        }
+
+        let mut rs_guard = self.clone().rs.lock().await;
+        // update validators
+        rs_guard.validators = Some(validator_set);
+        // set proposal
+        rs_guard.proposal = Some(proposal.clone());
+        // set proposal block, it's empty until all block parts received
+        rs_guard.proposal_block = None;
+        // create new proposal block parts
+        rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(
+            proposal.clone().block_id.unwrap().part_set_header.unwrap(),
+        ));
+
+        Ok(())
     }
 
-    fn add_proposal_block_part(&self, msg: BlockPartMessage) -> Result<(), ConsensusStateError> {
-        match self.clone().get_rs() {
-            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
-            Some(rs) => {
-                if rs.height != msg.height {
-                    log::debug!(
-                        "ignored block part from wrong height: height={}, round={}",
-                        msg.height,
-                        msg.round
-                    );
-                    return Ok(());
-                }
-
-                // we're not expecting a block part
-                if rs.proposal_block_parts.is_none() {
-                    log::info!(
-                        "ignored a block part when we're not expecting any: height={} round={} index={}",
-                        msg.height,
-                        msg.round,
-                        msg.part.unwrap().index
-                    );
-                    return Ok(());
-                }
-
-                if let Ok(mut rs_guard) = self.clone().rs.lock() {
-                    let pbp = rs_guard.proposal_block_parts.as_mut().unwrap();
-                    match pbp.add_part(msg.clone().part.unwrap()) {
-                        Ok(_) => {
-                            log::info!("set proposal block part: part={:?}", msg.clone());
-                            return Ok(());
-                        }
-                        Err(e) => return Err(AddBlockPartError(e)),
-                    }
-                } else {
-                    return Err(ConsensusStateError::AddBlockPartError(
-                        "add proposal block part: cannot lock on round state".to_owned(),
-                    ));
-                }
-            }
+    async fn add_proposal_block_part(
+        &self,
+        msg: BlockPartMessage,
+    ) -> Result<(), ConsensusStateError> {
+        let rs = self.clone().get_rs().await;
+        if rs.height != msg.height {
+            log::debug!(
+                "ignored block part from wrong height: height={}, round={}",
+                msg.height,
+                msg.round
+            );
+            return Ok(());
         }
+
+        // we're not expecting a block part
+        if rs.proposal_block_parts.is_none() {
+            log::info!(
+                "ignored a block part when we're not expecting any: height={} round={} index={}",
+                msg.height,
+                msg.round,
+                msg.part.unwrap().index
+            );
+            return Ok(());
+        }
+
+        let mut rs_guard = self.clone().rs.lock().await;
+        let pbp = rs_guard.proposal_block_parts.as_mut().unwrap();
+        match pbp.add_part(msg.clone().part.unwrap()) {
+            Ok(_) => {
+                log::info!("set proposal block part: part={:?}", msg.clone());
+                return Ok(());
+            }
+            Err(e) => return Err(AddBlockPartError(e)),
+        };
     }
 
-    fn add_vote(
+    async fn add_vote(
         self: Arc<Self>,
         msg: VoteMessage,
         peer_id: PeerId,
     ) -> Result<(), ConsensusStateError> {
-        match self.clone().get_rs() {
-            None => Err(ConsensusStateError::LockFailed("round state".to_owned())),
-            Some(rs) => {
-                // this is safe, vote msg has been validated
-                let vote = msg.vote.unwrap();
+        let rs = self.get_rs().await;
+        // this is safe, vote msg has been validated
+        let vote = msg.vote.unwrap();
 
-                // precommit vote of previous height
-                if vote.height + 1 == rs.height && vote.r#type == SignedMsgType::Precommit.into() {
-                    if rs.step > RoundStep::Propose {
-                        log::debug!("ignored late precommit of previous height came after propose step of next height");
-                        return Ok(());
-                    }
+        // precommit vote of previous height
+        if vote.height + 1 == rs.height && vote.r#type == SignedMsgType::Precommit.into() {
+            if rs.step > RoundStep::Propose {
+                log::debug!("ignored late precommit of previous height came after propose step of next height");
+                return Ok(());
+            }
 
-                    match rs.last_commit {
-                        None => {
-                            return Err(ConsensusStateError::AddVoteError(
-                                AddVoteError::InvalidVote(VoteError::NilVote),
-                            ))
-                        }
-                        Some(mut last_commit) => {
-                            if let Ok(mut rs_guard) = self.clone().rs.lock() {
-                                if let Err(e) = last_commit.add_vote(vote.clone()) {
-                                    log::error!("ignored adding vote due to: {}", e);
-                                    return Err(ConsensusStateError::AddVoteError(e));
-                                }
-
-                                // update last commit with added vote
-                                rs_guard.last_commit = Some(last_commit);
-                                drop(rs_guard);
-                                log::info!("addded to last precommits: {:?}", vote.clone());
-                            } else {
-                                return Err(ConsensusStateError::LockFailed(
-                                    "round state".to_owned(),
-                                ));
-                            }
-                            return Ok(());
-                        }
-                    }
+            match rs.last_commit {
+                None => {
+                    return Err(ConsensusStateError::AddVoteError(
+                        AddVoteError::InvalidVote(VoteError::NilVote),
+                    ))
                 }
+                Some(mut last_commit) => {
+                    let cs = self.clone();
+                    let mut rs_guard = cs.rs.lock().await;
+                    if let Err(e) = last_commit.add_vote(vote.clone()) {
+                        log::error!("ignored adding vote due to: {}", e);
+                        return Err(ConsensusStateError::AddVoteError(e));
+                    }
 
-                // height mismatch is ignored.
-                if vote.height != rs.height {
-                    log::debug!(
-                        "ignored vote due to height mismatch: voteHeight={} rsHeight={}",
-                        vote.height,
-                        rs.height
-                    );
+                    // update last commit with added vote
+                    rs_guard.last_commit = Some(last_commit);
+                    drop(rs_guard);
+                    log::info!("addded to last precommits: {:?}", vote.clone());
                     return Ok(());
-                }
-
-                match rs.votes.clone() {
-                    None => {
-                        return Err(ConsensusStateError::AddVoteError(
-                            kai_types::errors::AddVoteError::InvalidVote(VoteError::NilVote),
-                        ))
-                    }
-                    Some(mut votes) => {
-                        if let Err(e) = votes.add_vote(vote, peer_id) {
-                            return Err(ConsensusStateError::AddVoteError(e));
-                        }
-
-                        // update votes to state with added vote
-                        if let Ok(mut rs_guard) = self.clone().rs.lock() {
-                            rs_guard.votes = Some(votes);
-                            drop(rs_guard);
-                            return Ok(());
-                        } else {
-                            return Err(ConsensusStateError::LockFailed("round state".to_owned()));
-                        }
-                    }
                 }
             }
         }
+
+        // height mismatch is ignored.
+        if vote.height != rs.height {
+            log::debug!(
+                "ignored vote due to height mismatch: voteHeight={} rsHeight={}",
+                vote.height,
+                rs.height
+            );
+            return Ok(());
+        }
+
+        match rs.votes.clone() {
+            None => {
+                return Err(ConsensusStateError::AddVoteError(
+                    kai_types::errors::AddVoteError::InvalidVote(VoteError::NilVote),
+                ))
+            }
+            Some(mut votes) => {
+                if let Err(e) = votes.add_vote(vote, peer_id) {
+                    return Err(ConsensusStateError::AddVoteError(e));
+                }
+
+                // update votes to state with added vote
+                let cs = self.clone();
+                let mut rs_guard = cs.rs.lock().await;
+                rs_guard.votes = Some(votes);
+                drop(rs_guard);
+                return Ok(());
+            }
+        };
     }
 
     fn schedule_timeout(self: Arc<Self>, height: u64, round: u32, step: RoundStep) {
@@ -944,7 +901,7 @@ impl ConsensusStateImpl {
                         timeout_propose
                     };
                     thread::sleep(sleep_duration);
-                    self.clone().on_timeout_propose(height, round);
+                    self.clone().on_timeout_propose(height, round).await;
                 });
             }
             RoundStep::Prevote => {
@@ -957,7 +914,7 @@ impl ConsensusStateImpl {
                         timeout_prevote
                     };
                     thread::sleep(sleep_duration);
-                    self.clone().on_timeout_prevote(height, round);
+                    self.clone().on_timeout_prevote(height, round).await;
                 });
             }
             RoundStep::Precommit => {
@@ -971,141 +928,135 @@ impl ConsensusStateImpl {
                         timeout_precommit
                     };
                     thread::sleep(sleep_duration);
-                    self.clone().on_timeout_precommit(height, round);
+                    self.clone().on_timeout_precommit(height, round).await;
                 });
             }
             _ => {}
         }
     }
 
-    fn on_timeout_propose(self: Arc<Self>, height: u64, round: u32) {
-        if let Ok(mut rs_guard) = self.rs.clone().lock() {
-            if height == rs_guard.height
-                && round == rs_guard.round
-                && rs_guard.step == RoundStep::Propose
-            {
-                log::debug!("propose timed out, sending prevote for nil");
+    async fn on_timeout_propose(self: Arc<Self>, height: u64, round: u32) {
+        let cs = self.clone();
+        let mut rs_guard = cs.rs.lock().await;
 
-                match self.clone().create_signed_vote(
-                    rs_guard.clone(),
-                    SignedMsgType::Prevote,
-                    BlockId::new_zero_block_id(), // nil block
-                ) {
-                    Ok(signed_vote) => {
-                        let msg = MessageInfo {
-                            msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                                vote: Some(signed_vote),
-                            })),
-                            peer_id: internal_peerid(),
-                        };
+        if height == rs_guard.height
+            && round == rs_guard.round
+            && rs_guard.step == RoundStep::Propose
+        {
+            log::debug!("propose timed out, sending prevote for nil");
 
-                        match self.msg_chan_sender.blocking_send(msg) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::debug!("failed to send message: {:?}", e)
-                            }
-                        };
+            match self.clone().create_signed_vote(
+                rs_guard.clone(),
+                SignedMsgType::Prevote,
+                BlockId::new_zero_block_id(), // nil block
+            ) {
+                Ok(signed_vote) => {
+                    let msg = MessageInfo {
+                        msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                            vote: Some(signed_vote),
+                        })),
+                        peer_id: internal_peerid(),
+                    };
 
-                        log::debug!("signed and sent vote")
-                    }
-                    Err(reason) => {
-                        debug!("create signed vote failed, reason: {:?}", reason);
-                    }
-                };
-            }
-            rs_guard.step = RoundStep::Prevote;
-            drop(rs_guard);
-        } else {
-            log::trace!("lock round state failed")
+                    match self.msg_chan_sender.send(msg).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::debug!("failed to send message: {:?}", e)
+                        }
+                    };
+
+                    log::debug!("signed and sent vote")
+                }
+                Err(reason) => {
+                    debug!("create signed vote failed, reason: {:?}", reason);
+                }
+            };
+        }
+        rs_guard.step = RoundStep::Prevote;
+        drop(rs_guard);
+    }
+
+    async fn on_timeout_prevote(self: Arc<Self>, height: u64, round: u32) {
+        let cs = self.clone();
+        let mut rs_guard = cs.rs.lock().await;
+        if height == rs_guard.height
+            && round == rs_guard.round
+            && rs_guard.step == RoundStep::Prevote
+        {
+            log::debug!("prevote timed out, sending precommit for nil");
+
+            match self.clone().create_signed_vote(
+                rs_guard.clone(),
+                SignedMsgType::Precommit,
+                BlockId::new_zero_block_id(), // nil block
+            ) {
+                Ok(signed_vote) => {
+                    let msg = MessageInfo {
+                        msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                            vote: Some(signed_vote),
+                        })),
+                        peer_id: internal_peerid(),
+                    };
+
+                    match self.msg_chan_sender.blocking_send(msg) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::debug!("failed to send message: {:?}", e)
+                        }
+                    };
+
+                    log::debug!("signed and sent vote")
+                }
+                Err(reason) => {
+                    debug!("create signed vote failed, reason: {:?}", reason);
+                }
+            };
+        }
+        rs_guard.step = RoundStep::Precommit;
+        drop(rs_guard);
+    }
+
+    async fn on_timeout_precommit(self: Arc<Self>, height: u64, round: u32) {
+        let cs = self.clone();
+        let rs_guard = cs.rs.lock().await;
+        let rs = rs_guard.clone();
+        drop(rs_guard);
+        if height == rs.height && round == rs.round {
+            self.start_new_round(rs.round + 1).await;
         }
     }
 
-    fn on_timeout_prevote(self: Arc<Self>, height: u64, round: u32) {
-        if let Ok(mut rs_guard) = self.rs.clone().lock() {
-            if height == rs_guard.height
-                && round == rs_guard.round
-                && rs_guard.step == RoundStep::Prevote
-            {
-                log::debug!("prevote timed out, sending precommit for nil");
+    async fn start_new_round(self: Arc<Self>, round: u32) {
+        let cs = self.clone();
+        let mut rs_guard = cs.rs.lock().await;
 
-                match self.clone().create_signed_vote(
-                    rs_guard.clone(),
-                    SignedMsgType::Precommit,
-                    BlockId::new_zero_block_id(), // nil block
-                ) {
-                    Ok(signed_vote) => {
-                        let msg = MessageInfo {
-                            msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                                vote: Some(signed_vote),
-                            })),
-                            peer_id: internal_peerid(),
-                        };
+        rs_guard.round = round;
+        rs_guard.step = RoundStep::Propose;
 
-                        match self.msg_chan_sender.blocking_send(msg) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::debug!("failed to send message: {:?}", e)
-                            }
-                        };
+        // clear old proposal
+        rs_guard.proposal = None;
+        rs_guard.proposal_block = None;
+        rs_guard.proposal_block_parts = None;
+        // clear triggered rules
+        rs_guard.triggered_rules.clear();
+        let rs = rs_guard.clone();
+        drop(rs_guard);
 
-                        log::debug!("signed and sent vote")
-                    }
-                    Err(reason) => {
-                        debug!("create signed vote failed, reason: {:?}", reason);
-                    }
-                };
-            }
-            rs_guard.step = RoundStep::Precommit;
-            drop(rs_guard);
-        } else {
-            log::trace!("lock round state failed")
+        if self.clone().is_proposer().await {
+            match self.clone().decide_proposal(rs.clone()).await {
+                Err(e) => {
+                    log::trace!("{:?}", e);
+                }
+                Ok(_) => {
+                    return;
+                }
+            };
         }
+
+        self.clone().schedule_timeout(rs.height, rs.round, rs.step);
     }
 
-    fn on_timeout_precommit(self: Arc<Self>, height: u64, round: u32) {
-        if let Ok(rs_guard) = self.rs.clone().lock() {
-            let rs = rs_guard.clone();
-            drop(rs_guard);
-            if height == rs.height && round == rs.round {
-                self.start_new_round(rs.round + 1);
-            }
-        } else {
-            log::trace!("lock round state failed")
-        }
-    }
-
-    fn start_new_round(self: Arc<Self>, round: u32) {
-        if let Ok(mut rs_guard) = self.rs.clone().lock() {
-            rs_guard.round = round;
-            rs_guard.step = RoundStep::Propose;
-
-            // clear old proposal
-            rs_guard.proposal = None;
-            rs_guard.proposal_block = None;
-            rs_guard.proposal_block_parts = None;
-            // clear triggered rules
-            rs_guard.triggered_rules.clear();
-            let rs = rs_guard.clone();
-            drop(rs_guard);
-
-            if self.clone().is_proposer() {
-                match self.clone().decide_proposal(rs.clone()) {
-                    Err(e) => {
-                        log::trace!("{:?}", e);
-                    }
-                    Ok(_) => {
-                        return;
-                    }
-                };
-            }
-
-            self.clone().schedule_timeout(rs.height, rs.round, rs.step);
-        } else {
-            log::trace!("lock round state failed")
-        }
-    }
-
-    fn decide_proposal(self: Arc<Self>, rs: RoundState) -> Result<(), ConsensusStateError> {
+    async fn decide_proposal(self: Arc<Self>, rs: RoundState) -> Result<(), ConsensusStateError> {
         let block: Block;
         let block_parts: PartSet;
 
@@ -1113,7 +1064,7 @@ impl ConsensusStateImpl {
             block = rs.valid_block.unwrap();
             block_parts = rs.valid_block_parts.unwrap();
         } else {
-            match self.clone().create_proposal_block() {
+            match self.clone().create_proposal_block().await {
                 Ok(proposal) => {
                     (block, block_parts) = proposal;
                 }
@@ -1166,62 +1117,59 @@ impl ConsensusStateImpl {
 
     // auxiliary functions
 
-    fn create_proposal_block(self: Arc<Self>) -> Result<(Block, PartSet), ConsensusStateError> {
+    async fn create_proposal_block(
+        self: Arc<Self>,
+    ) -> Result<(Block, PartSet), ConsensusStateError> {
         log::trace!("create_proposal_block");
 
-        if let Some(rs) = self.get_rs() {
-            let mut commit: Option<Commit> = None;
+        let rs = self.get_rs().await;
+        let mut commit: Option<Commit> = None;
 
-            if rs.height == self.state.get_initial_height() {
-                commit = Some(Commit {
-                    height: 0,
-                    round: 0,
-                    block_id: Some(BlockId::new_zero_block_id()),
-                    signatures: vec![],
-                });
-            } else if rs
-                .last_commit
-                .is_some_and(|lc| lc.has_two_thirds_majority())
-            {
-                match rs.last_commit.unwrap().make_commit() {
-                    Ok(_commit) => {
-                        commit = Some(_commit);
-                    }
-                    Err(e) => {
-                        log::trace!("make commit from last commit failed")
-                    }
+        if rs.height == self.state.get_initial_height() {
+            commit = Some(Commit {
+                height: 0,
+                round: 0,
+                block_id: Some(BlockId::new_zero_block_id()),
+                signatures: vec![],
+            });
+        } else if rs
+            .last_commit
+            .is_some_and(|lc| lc.has_two_thirds_majority())
+        {
+            match rs.last_commit.unwrap().make_commit() {
+                Ok(_commit) => {
+                    commit = Some(_commit);
                 }
-            } else {
-                return Err(ConsensusStateError::DecideProposalError(
-                    "cannot propose: no commit for the previous block".to_owned(),
-                ));
+                Err(e) => {
+                    log::trace!("make commit from last commit failed: {:?}", e)
+                }
             }
+        }
 
-            return Ok(self.block_operations.create_proposal_block(
-                rs.height,
-                self.state.clone(),
-                self.priv_validator.get_address().unwrap(),
-                commit,
-            ));
-        } else {
+        if commit.is_none() {
             return Err(ConsensusStateError::DecideProposalError(
-                "cannot get round state".to_owned(),
+                "cannot propose: no commit for the previous block".to_owned(),
             ));
         }
+
+        return Ok(self.block_operations.create_proposal_block(
+            rs.height,
+            self.state.clone(),
+            self.priv_validator.get_address().unwrap(),
+            commit,
+        ));
     }
 
-    fn is_proposer(self: Arc<Self>) -> bool {
+    async fn is_proposer(self: Arc<Self>) -> bool {
         match self.clone().priv_validator.clone().get_address() {
             Some(priv_validator_addr) => {
-                if let Ok(mut rs_guard) = self.rs.clone().lock() {
-                    let vs = rs_guard.validators.as_mut();
-                    if let Some(proposer) = vs.and_then(|vs| vs.get_proposer()) {
-                        return priv_validator_addr.eq(&proposer.address);
-                    } else {
-                        return false;
-                    }
+                let cs = self.clone();
+                let mut rs_guard = cs.rs.lock().await;
+                let vs = rs_guard.validators.as_mut();
+                if let Some(proposer) = vs.and_then(|vs| vs.get_proposer()) {
+                    return priv_validator_addr.eq(&proposer.address);
                 } else {
-                    false
+                    return false;
                 }
             }
             _ => false,
@@ -1281,42 +1229,23 @@ impl ConsensusStateImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, ops::Add, sync::Arc, thread, time::Duration};
-
-    use bytes::Bytes;
-    use kai_types::{
-        block::BlockId,
-        block_operations::MockBlockOperations,
-        consensus::{
-            executor::MockBlockExecutor,
-            height_vote_set::{HeightVoteSet, RoundVoteSet},
-            state::MockLatestBlockState,
-        },
-        crypto::Proof,
-        evidence::MockEvidencePool,
-        part_set::{Part, PartSet, PartSetHeader},
-        priv_validator::MockPrivValidator,
-        proposal::Proposal,
-        round::RoundStep,
-        types::SignedMsgType,
-        validator_set::{Validator, ValidatorSet},
-        vote::Vote,
-        vote_set::VoteSet,
-    };
-    use tokio::runtime::Runtime;
-
     use crate::{
         state::{ConsensusState, ConsensusStateImpl},
         types::{
             config::ConsensusConfig,
-            messages::{
-                BlockPartMessage, ConsensusMessageType, MessageInfo, ProposalMessage, VoteMessage,
-            },
+            messages::{ConsensusMessageType, MessageInfo, ProposalMessage},
             peer::internal_peerid,
         },
     };
-
     use ethereum_types::Address;
+    use kai_types::{
+        block_operations::MockBlockOperations,
+        consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
+        evidence::MockEvidencePool,
+        priv_validator::MockPrivValidator,
+        validator_set::Validator,
+    };
+    use std::sync::Arc;
 
     /**
      * ------------------------
@@ -1353,8 +1282,8 @@ mod tests {
      * ------------------------
      */
 
-    #[test]
-    fn internal_send() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    async fn internal_send() {
         let m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
         let m_block_operations = MockBlockOperations::new();
@@ -1373,837 +1302,829 @@ mod tests {
         let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
             proposal: None,
         }));
-
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
-
-        let rc = thread::spawn(move || {
-            if let Ok(mut rx_guard) = arc_cs.clone().msg_chan_receiver.lock() {
-                let rev_msg = rx_guard.blocking_recv();
-                assert!(rev_msg.is_some());
-
-                let msg_info = rev_msg.unwrap();
-
-                assert!(
-                    msg_info.clone().peer_id == internal_peerid()
-                        && matches!(
-                            msg_info.clone().msg.clone().as_ref(),
-                            ConsensusMessageType::ProposalMessage(_)
-                        )
-                );
-            } else {
-                panic!("should lock");
-            }
-        });
-
-        tokio_test::block_on(async move {
-            let _ = arc_cs_1
-                .clone()
-                .send(MessageInfo {
-                    msg: msg.clone(),
-                    peer_id: internal_peerid(),
-                })
-                .await;
-        });
-
-        rc.join().unwrap();
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-    async fn process_msg_chan() {
-        let m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        let cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-
-        // here we send invalid proposal
-        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-            proposal: None,
-        }));
-
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
-
-        // start processing messages
-        let msg_thr = tokio::spawn(async move {
-            arc_cs.process_msg_chan();
-        });
-
-        let rs = arc_cs_1
-            .send(MessageInfo {
-                msg: msg,
-                peer_id: internal_peerid(),
-            })
-            .await;
-
-        // wait for a while for processing message
-        thread::sleep(Duration::from_millis(500));
-
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
-        _ = arc_cs_1.clone().stop();
-
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
-    }
-
-    use kai_lib::{
-        crypto::{
-            crypto::{keccak256, pub_to_address},
-            signature::sign,
-        },
-        secp256k1::{self, SECP256K1},
-    };
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-    async fn set_proposal() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        let m_chain_id: String = "".to_string();
-
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const(m_chain_id.clone());
-
-        let cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-
-        // create unsigned proposal
-        let mut m_proposal = Proposal {
-            r#type: SignedMsgType::Proposal.into(),
-            height: 1,
-            round: 1,
-            pol_round: 0,
-            block_id: Some(BlockId {
-                hash: keccak256(Bytes::new()).to_vec(),
-                part_set_header: Some(PartSetHeader {
-                    total: 10,
-                    hash: keccak256(Bytes::new()).to_vec(),
-                }),
-            }),
-            timestamp: None,
-            signature: vec![],
-        };
-
-        // sign the proposal
-        let psb = m_proposal.proposal_sign_bytes(m_chain_id.clone()).unwrap();
-        let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let signer_public_key =
-            secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
-
-        let signature = sign(keccak256(psb), signer_secret_key).unwrap();
-        m_proposal.signature = signature.to_vec();
-
-        // create proposer validator
-        let proposer: Validator = Validator {
-            address: pub_to_address(signer_public_key),
-            voting_power: 4,
-            proposer_priority: 4,
-        };
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3, proposer],
-            proposer: None,
-            total_voting_power: 10,
-        };
-
-        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-            proposal: Some(m_proposal.clone()),
-        }));
-
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
-        let arc_cs_2 = arc_cs.clone();
-
-        // arrange round state
-        let mut rs_guard = arc_cs
-            .rs
-            .lock()
-            .expect("could not lock round state for arrangement");
-        rs_guard.validators = Some(val_set);
-        drop(rs_guard);
-
-        // start processing messages
-        let msg_thr = tokio::spawn(async move {
-            arc_cs.process_msg_chan();
-        });
-
-        // send proposal message
-        _ = arc_cs_1
-            .send(MessageInfo {
-                msg: msg,
-                peer_id: internal_peerid(),
-            })
-            .await;
-
-        // wait for a while for processing message
-        thread::sleep(Duration::from_millis(200));
-
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
-        _ = arc_cs_1.stop();
-
-        // make sure this processing message thread is stopped
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
-
-        let rs = arc_cs_2.clone().get_rs().unwrap();
-        // assert proposal
-        assert!(
-            rs.proposal.is_some()
-                && rs.proposal_block.is_none()
-                && rs.proposal_block_parts.is_some()
-        );
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-    async fn add_proposal_block_part() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        let m_chain_id: String = "".to_string();
-
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const(m_chain_id.clone());
-
-        let cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-
-        let total_parts = 10;
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
-
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
-        let arc_cs_2 = arc_cs.clone();
-
-        // arrange round state
-        let mut rs_guard = arc_cs
-            .rs
-            .lock()
-            .expect("could not lock round state for arrangement");
-        rs_guard.validators = Some(val_set);
-        rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(PartSetHeader {
-            total: total_parts,
-            hash: keccak256(Bytes::new()).to_vec(),
-        }));
-        drop(rs_guard);
-
-        // start processing messages
-        let msg_thr = tokio::spawn(async move {
-            arc_cs.process_msg_chan();
-        });
-
-        // send block part messages
-        let part_0_index = 0; // first
-        let part_1_index = 1; // second
-
-        let m_block_part_0 = BlockPartMessage {
-            height: 1,
-            round: 1,
-            part: Some(Part {
-                index: part_0_index,
-                bytes: vec![],
-                proof: Some(Proof {
-                    total: total_parts as u64,
-                    index: part_0_index as u64,
-                    leaf_hash: vec![],
-                    aunts: vec![vec![]],
-                }),
-            }),
-        };
-        let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_0));
-        _ = arc_cs_1
-            .send(MessageInfo {
-                msg: msg,
-                peer_id: internal_peerid(),
-            })
-            .await;
-
-        let m_block_part_1 = BlockPartMessage {
-            height: 1,
-            round: 1,
-            part: Some(Part {
-                index: part_1_index,
-                bytes: vec![],
-                proof: Some(Proof {
-                    total: total_parts as u64,
-                    index: part_1_index as u64,
-                    leaf_hash: vec![],
-                    aunts: vec![vec![]],
-                }),
-            }),
-        };
-
-        let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_1));
-        _ = arc_cs_1
-            .send(MessageInfo {
-                msg: msg,
-                peer_id: internal_peerid(),
-            })
-            .await;
-
-        // wait for a while for processing message
-        thread::sleep(Duration::from_millis(200));
-
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
-        _ = arc_cs_1.stop();
-
-        // make sure this processing message thread is stopped
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
-
-        let rs = arc_cs_2.clone().get_rs().unwrap();
-        // assert proposal block part
-        let pbp = rs.proposal_block_parts.unwrap();
-        assert_eq!(pbp.count, 2); // received 1 part
-        assert_eq!(pbp.total, total_parts);
-        assert!(pbp.parts.get(part_0_index as usize).is_some());
-        assert!(pbp.parts.get(part_1_index as usize).is_some());
-        assert!(pbp
-            .parts_bit_array
-            .get_index(part_0_index as usize)
-            .is_ok_and(|v| *v == true));
-        assert!(pbp
-            .parts_bit_array
-            .get_index(part_1_index as usize)
-            .is_ok_and(|v| *v == true));
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
-    async fn add_vote() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        let m_chain_id: String = "".to_string();
-
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const(m_chain_id.clone());
-
-        let cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-
-        let val_4_skey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let val_4_pkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val_4_skey);
-        let val_4_addr = pub_to_address(val_4_pkey);
-        let val_4_validator_index = 3;
-        let val_4 = Validator {
-            address: val_4_addr,
-            voting_power: 4,
-            proposer_priority: 4,
-        };
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3, val_4.clone()],
-            proposer: None,
-            total_voting_power: 10,
-        };
-
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
-        let arc_cs_2 = arc_cs.clone();
-
-        // arrange round state
-        let mut rs_guard = arc_cs
-            .rs
-            .lock()
-            .expect("could not lock round state for arrangement");
-        rs_guard.validators = Some(val_set.clone());
-        rs_guard.votes = Some(HeightVoteSet {
-            chain_id: m_chain_id.clone(),
-            height: 1,
-            round: 1,
-            validator_set: Some(val_set),
-            round_vote_sets: HashMap::new(),
-            peer_catchup_rounds: HashMap::new(),
-        });
-        drop(rs_guard);
-
-        // start processing messages
-        let msg_thr = tokio::spawn(async move {
-            arc_cs.process_msg_chan();
-        });
-
-        let mut vote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val_4.clone().address.0.to_vec(),
-            validator_index: val_4_validator_index,
-            signature: vec![],
-        };
-
-        // sign the vote
-        let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
-        let signature = sign(keccak256(vsb), val_4_skey).unwrap();
-        vote.signature = signature.to_vec();
-
-        let vote_msg = VoteMessage {
-            vote: Some(vote.clone()),
-        };
-
-        let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
-        _ = arc_cs_1
-            .send(MessageInfo {
-                msg: msg,
-                peer_id: internal_peerid(),
-            })
-            .await;
-
-        // wait for a while for processing message
-        thread::sleep(Duration::from_millis(200));
-
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
-        _ = arc_cs_1.stop();
-
-        // make sure this processing message thread is stopped
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
-
-        let rs = arc_cs_2.clone().get_rs().unwrap();
-
-        assert!(rs.votes.is_some());
-        let heigh_vote_set = rs.votes.unwrap();
-        assert!(heigh_vote_set.prevotes(1).is_some());
-        let prevotes = heigh_vote_set.prevotes(1).unwrap();
-        let votes = prevotes.votes;
-        let votes_by_block = prevotes.votes_by_block;
-        assert!(votes_by_block
-            .get(&vote.clone().block_id.unwrap().key())
-            .is_some());
-        let votes_bit_array = prevotes.votes_bit_array;
-
-        assert!(votes
-            .get(val_4_validator_index as usize)
-            .is_some_and(|v| v.is_some()));
-        assert!(votes_bit_array
-            .get_index(val_4_validator_index as usize)
-            .is_ok_and(|r| *r == true));
-    }
-
-    #[test]
-    fn is_proposer() {
-        let m_latest_block_state = MockLatestBlockState::new();
-        let mut m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
-
-        let cs = ConsensusStateImpl::new(
-            ConsensusConfig::new_default(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
 
         let acs = Arc::new(cs);
+        let acs_1 = acs.clone();
 
-        // arrange round state
-        if let Ok(mut rs_guard) = acs.clone().rs.clone().lock() {
-            rs_guard.validators = Some(val_set);
-            drop(rs_guard);
-        } else {
-            panic!("could not lock round state for arrangement")
-        }
+        let rc = tokio::spawn(async move {
+            let mut rx_guard = acs.msg_chan_receiver.lock().await;
+            let rev_msg = rx_guard.recv().await;
+            assert!(rev_msg.is_some());
 
-        let is_proposer = acs.clone().is_proposer();
-        assert!(!is_proposer);
+            let msg_info = rev_msg.unwrap();
 
-        if let Ok(rs_guard) = acs.clone().rs.clone().lock() {
-            let validator_set = rs_guard.clone().validators;
             assert!(
-                validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&ADDR_3)))
+                msg_info.clone().peer_id == internal_peerid()
+                    && matches!(
+                        msg_info.clone().msg.clone().as_ref(),
+                        ConsensusMessageType::ProposalMessage(_)
+                    )
             );
-        } else {
-            panic!("could not lock round state for arrangement")
-        }
-    }
-
-    /**
-     * ------------------------
-     * State transitions tests
-     * ------------------------
-     */
-
-    /**
-     *   -----------                     -----------------
-     *   | PROPOSE |  ----(TIMEOUT!)---> | PREVOTE (NIL) |
-     *   -----------                     -----------------
-     */
-    #[test]
-    fn propose_timeout_send_prevote_for_nil() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let mut m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
-
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const("".to_string());
-
-        let mut signature: Vec<u8> = vec![4, 5, 6];
-
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
-        m_priv_validator
-            .expect_sign_vote()
-            .returning(move |_, vote| {
-                vote.signature.append(&mut signature);
-                Ok(())
-            });
-
-        let mut config = ConsensusConfig::new_default();
-        config.timeout_propose = Duration::from_millis(100);
-
-        let cs = ConsensusStateImpl::new(
-            config.clone(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-        let arc_cs = Arc::new(cs);
-        let arc_cs_2 = arc_cs.clone();
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
-
-        // arrange round state
-        let mut rs_guard = arc_cs
-            .rs
-            .lock()
-            .expect("could not lock round state for arrangement");
-        rs_guard.height = 1;
-        rs_guard.round = 1;
-        rs_guard.validators = Some(val_set);
-        drop(rs_guard);
-
-        let timeout_propose = config.timeout_propose;
-
-        let rt = Runtime::new().unwrap();
-        tokio_test::block_on(async move {
-            if let Ok(_) = arc_cs_2.clone().start() {
-            } else {
-                panic!("should not failed to start");
-            }
-
-            // wait for propose timeout happens
-            thread::sleep(timeout_propose);
-
-            // stop the consensus state
-            // closes the channel
-            // msg process will stop
-            _ = arc_cs_2.clone().stop();
-
-            // assertions
-            if let Ok(rs_guard) = arc_cs_2.clone().rs.lock() {
-                let rs = rs_guard.clone();
-                assert_eq!(rs.step, RoundStep::Prevote);
-            } else {
-                panic!("should get round state")
-            }
         });
+
+        let _ = acs_1
+            .clone()
+            .send(MessageInfo {
+                msg: msg.clone(),
+                peer_id: internal_peerid(),
+            })
+            .await;
+
+        rc.await.unwrap();
     }
 
-    /**
-     *   -----------                     -------------------
-     *   | PREVOTE |  ----(TIMEOUT!)---> | PRECOMMIT (NIL) |
-     *   -----------                     -------------------
-     */
-    #[test]
-    fn prevote_timeout_send_precommit_for_nil() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let mut m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    // async fn process_msg_chan() {
+    //     let m_latest_block_state = MockLatestBlockState::new();
+    //     let m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
 
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const("".to_string());
+    //     let cs = ConsensusStateImpl::new(
+    //         ConsensusConfig::new_default(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
 
-        let mut signature: Vec<u8> = vec![4, 5, 6];
+    //     // here we send invalid proposal
+    //     let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+    //         proposal: None,
+    //     }));
 
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
-        m_priv_validator
-            .expect_sign_vote()
-            .returning(move |_, vote| {
-                vote.signature.append(&mut signature);
-                Ok(())
-            });
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_1 = arc_cs.clone();
 
-        let mut config = ConsensusConfig::new_default();
-        config.timeout_propose = Duration::from_millis(100);
-        config.timeout_prevote = Duration::from_millis(100);
+    //     // start processing messages
+    //     let msg_thr = tokio::spawn(async move {
+    //         arc_cs.process_msg_chan();
+    //     });
 
-        let cs = ConsensusStateImpl::new(
-            config.clone(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
+    //     let rs = arc_cs_1
+    //         .send(MessageInfo {
+    //             msg: msg,
+    //             peer_id: internal_peerid(),
+    //         })
+    //         .await;
 
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
+    //     // wait for a while for processing message
+    //     thread::sleep(Duration::from_millis(500));
 
-        // arrange round state
-        if let Ok(mut rs_guard) = arc_cs.clone().rs.lock() {
-            rs_guard.height = 1;
-            rs_guard.round = 1;
-            rs_guard.step = RoundStep::Propose;
-            rs_guard.validators = Some(val_set.clone());
-            let rs = rs_guard.clone();
-            let mut hvs = HeightVoteSet {
-                chain_id: "".to_owned(),
-                height: 1,
-                round: 1,
-                validator_set: Some(val_set.clone()),
-                round_vote_sets: HashMap::new(),
-                peer_catchup_rounds: HashMap::new(),
-            };
-            hvs.round_vote_sets.insert(
-                rs.round,
-                RoundVoteSet {
-                    prevotes: Some({
-                        let mut vs = VoteSet::new(
-                            "".to_owned(),
-                            1,
-                            1,
-                            SignedMsgType::Prevote,
-                            val_set.clone(),
-                        );
-                        vs.maj23 = Some(BlockId::new_zero_block_id());
-                        vs
-                    }),
-                    precommits: Some({
-                        let mut vs = VoteSet::new(
-                            "".to_owned(),
-                            1,
-                            1,
-                            SignedMsgType::Precommit,
-                            val_set.clone(),
-                        );
-                        vs.maj23 = Some(BlockId::new_zero_block_id());
-                        vs
-                    }),
-                },
-            );
+    //     // stop the consensus state
+    //     // closes the channel
+    //     // msg process will stop
+    //     _ = arc_cs_1.clone().stop();
 
-            rs_guard.votes = Some(hvs);
-            drop(rs_guard);
-        } else {
-            panic!("could not lock round state for arrangement")
-        }
+    //     let join_rs = msg_thr.await;
+    //     assert!(join_rs.is_ok());
+    // }
 
-        let timeout_propose = config.timeout_propose;
-        let timeout_prevote = config.timeout_prevote;
+    // use kai_lib::{
+    //     crypto::{
+    //         crypto::{keccak256, pub_to_address},
+    //         signature::sign,
+    //     },
+    //     secp256k1::{self, SECP256K1},
+    // };
 
-        let rt = Runtime::new().unwrap();
-        tokio_test::block_on(async move {
-            let cs = arc_cs.clone();
-            // start consensus state at new round
-            cs.clone().start().expect("should start successfully");
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    // async fn set_proposal() {
+    //     let mut m_latest_block_state = MockLatestBlockState::new();
+    //     let m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
 
-            // wait for propose timeout happens
-            thread::sleep(timeout_propose.add(timeout_propose));
+    //     let m_chain_id: String = "".to_string();
 
-            // wait for prevote timeout happens
-            thread::sleep(timeout_prevote.add(timeout_prevote));
+    //     m_latest_block_state
+    //         .expect_get_chain_id()
+    //         .return_const(m_chain_id.clone());
 
-            // assertions
-            let rs = cs.clone().get_rs().expect("should get round state");
-            assert_eq!(rs.step, RoundStep::Precommit);
-        });
-    }
+    //     let cs = ConsensusStateImpl::new(
+    //         ConsensusConfig::new_default(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
 
-    /**
-     *   -------------                     -----------
-     *   | PRECOMMIT |  ----(TIMEOUT!)---> | PROPOSE |
-     *   -------------                     -----------
-     */
-    #[test]
-    fn precommit_timeout_start_new_round() {
-        let mut m_latest_block_state = MockLatestBlockState::new();
-        let mut m_priv_validator = MockPrivValidator::new();
-        let m_block_operations = MockBlockOperations::new();
-        let m_block_executor = MockBlockExecutor::new();
-        let m_evidence_pool = MockEvidencePool::new();
+    //     // create unsigned proposal
+    //     let mut m_proposal = Proposal {
+    //         r#type: SignedMsgType::Proposal.into(),
+    //         height: 1,
+    //         round: 1,
+    //         pol_round: 0,
+    //         block_id: Some(BlockId {
+    //             hash: keccak256(Bytes::new()).to_vec(),
+    //             part_set_header: Some(PartSetHeader {
+    //                 total: 10,
+    //                 hash: keccak256(Bytes::new()).to_vec(),
+    //             }),
+    //         }),
+    //         timestamp: None,
+    //         signature: vec![],
+    //     };
 
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const("".to_string());
+    //     // sign the proposal
+    //     let psb = m_proposal.proposal_sign_bytes(m_chain_id.clone()).unwrap();
+    //     let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+    //     let signer_public_key =
+    //         secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
 
-        let mut signature: Vec<u8> = vec![4, 5, 6];
+    //     let signature = sign(keccak256(psb), signer_secret_key).unwrap();
+    //     m_proposal.signature = signature.to_vec();
 
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
-        m_priv_validator
-            .expect_sign_vote()
-            .returning(move |_, vote| {
-                vote.signature.append(&mut signature);
-                Ok(())
-            });
+    //     // create proposer validator
+    //     let proposer: Validator = Validator {
+    //         address: pub_to_address(signer_public_key),
+    //         voting_power: 4,
+    //         proposer_priority: 4,
+    //     };
 
-        let mut config = ConsensusConfig::new_default();
-        config.timeout_propose = Duration::from_millis(100);
-        config.timeout_prevote = Duration::from_millis(100);
-        config.timeout_precommit = Duration::from_millis(100);
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3, proposer],
+    //         proposer: None,
+    //         total_voting_power: 10,
+    //     };
 
-        let cs = ConsensusStateImpl::new(
-            config.clone(),
-            Arc::new(Box::new(m_latest_block_state)),
-            Arc::new(Box::new(m_priv_validator)),
-            Arc::new(Box::new(m_block_operations)),
-            Arc::new(Box::new(m_block_executor)),
-            Arc::new(Box::new(m_evidence_pool)),
-        );
-        let arc_cs = Arc::new(cs);
-        let arc_cs_1 = arc_cs.clone();
+    //     let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+    //         proposal: Some(m_proposal.clone()),
+    //     }));
 
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_1 = arc_cs.clone();
+    //     let arc_cs_2 = arc_cs.clone();
 
-        // arrange round state
-        let binding = arc_cs_1.clone();
-        let mut rs_guard = binding.rs.lock().expect("should lock ok");
-        rs_guard.height = 1;
-        rs_guard.round = 1;
-        rs_guard.step = RoundStep::Propose;
-        rs_guard.validators = Some(val_set.clone());
-        let rs = rs_guard.clone();
-        let mut hvs = HeightVoteSet {
-            chain_id: "".to_owned(),
-            height: 1,
-            round: 1,
-            validator_set: Some(val_set.clone()),
-            round_vote_sets: HashMap::new(),
-            peer_catchup_rounds: HashMap::new(),
-        };
-        hvs.round_vote_sets.insert(
-            rs.round,
-            RoundVoteSet {
-                prevotes: Some({
-                    let mut vs =
-                        VoteSet::new("".to_owned(), 1, 1, SignedMsgType::Prevote, val_set.clone());
-                    vs.maj23 = Some(BlockId::new_zero_block_id());
-                    vs
-                }),
-                precommits: Some({
-                    let mut vs = VoteSet::new(
-                        "".to_owned(),
-                        1,
-                        1,
-                        SignedMsgType::Precommit,
-                        val_set.clone(),
-                    );
-                    vs.maj23 = Some(BlockId::new_zero_block_id());
-                    vs
-                }),
-            },
-        );
+    //     // arrange round state
+    //     let mut rs_guard = arc_cs
+    //         .rs
+    //         .lock()
+    //         .expect("could not lock round state for arrangement");
+    //     rs_guard.validators = Some(val_set);
+    //     drop(rs_guard);
 
-        rs_guard.votes = Some(hvs);
-        drop(rs_guard);
+    //     // start processing messages
+    //     let msg_thr = tokio::spawn(async move {
+    //         arc_cs.process_msg_chan();
+    //     });
 
-        let timeout_propose = config.timeout_propose;
-        let timeout_prevote = config.timeout_prevote;
-        let timeout_precommit = config.timeout_precommit;
+    //     // send proposal message
+    //     _ = arc_cs_1
+    //         .send(MessageInfo {
+    //             msg: msg,
+    //             peer_id: internal_peerid(),
+    //         })
+    //         .await;
 
-        tokio_test::block_on(async move {
-            let cs = arc_cs.clone();
-            // start consensus state at new round
-            cs.clone().start().expect("should start successfully");
-            let last_rs = cs.clone().get_rs().expect("should get round state");
+    //     // wait for a while for processing message
+    //     thread::sleep(Duration::from_millis(200));
 
-            // wait for propose timeout happens
-            thread::sleep(timeout_propose.add(timeout_propose));
+    //     // stop the consensus state
+    //     // closes the channel
+    //     // msg process will stop
+    //     _ = arc_cs_1.stop();
 
-            // wait for prevote timeout happens
-            thread::sleep(timeout_prevote.add(timeout_prevote));
+    //     // make sure this processing message thread is stopped
+    //     let join_rs = msg_thr.await;
+    //     assert!(join_rs.is_ok());
 
-            // wait for precommit timeout happens
-            thread::sleep(timeout_precommit.add(timeout_precommit));
+    //     let rs = arc_cs_2.clone().get_rs().unwrap();
+    //     // assert proposal
+    //     assert!(
+    //         rs.proposal.is_some()
+    //             && rs.proposal_block.is_none()
+    //             && rs.proposal_block_parts.is_some()
+    //     );
+    // }
 
-            // assertions
-            let rs = cs.clone().get_rs().expect("should get round state");
-            assert_eq!(rs.step, RoundStep::Propose);
-            assert_eq!(rs.height, last_rs.height); // assert height
-            assert_eq!(rs.round, last_rs.round + 1); // assert new round
-        });
-    }
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    // async fn add_proposal_block_part() {
+    //     let mut m_latest_block_state = MockLatestBlockState::new();
+    //     let m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
+
+    //     let m_chain_id: String = "".to_string();
+
+    //     m_latest_block_state
+    //         .expect_get_chain_id()
+    //         .return_const(m_chain_id.clone());
+
+    //     let cs = ConsensusStateImpl::new(
+    //         ConsensusConfig::new_default(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
+
+    //     let total_parts = 10;
+
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3],
+    //         proposer: None,
+    //         total_voting_power: 6,
+    //     };
+
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_1 = arc_cs.clone();
+    //     let arc_cs_2 = arc_cs.clone();
+
+    //     // arrange round state
+    //     let mut rs_guard = arc_cs
+    //         .rs
+    //         .lock()
+    //         .expect("could not lock round state for arrangement");
+    //     rs_guard.validators = Some(val_set);
+    //     rs_guard.proposal_block_parts = Some(PartSet::new_part_set_from_header(PartSetHeader {
+    //         total: total_parts,
+    //         hash: keccak256(Bytes::new()).to_vec(),
+    //     }));
+    //     drop(rs_guard);
+
+    //     // start processing messages
+    //     let msg_thr = tokio::spawn(async move {
+    //         arc_cs.process_msg_chan();
+    //     });
+
+    //     // send block part messages
+    //     let part_0_index = 0; // first
+    //     let part_1_index = 1; // second
+
+    //     let m_block_part_0 = BlockPartMessage {
+    //         height: 1,
+    //         round: 1,
+    //         part: Some(Part {
+    //             index: part_0_index,
+    //             bytes: vec![],
+    //             proof: Some(Proof {
+    //                 total: total_parts as u64,
+    //                 index: part_0_index as u64,
+    //                 leaf_hash: vec![],
+    //                 aunts: vec![vec![]],
+    //             }),
+    //         }),
+    //     };
+    //     let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_0));
+    //     _ = arc_cs_1
+    //         .send(MessageInfo {
+    //             msg: msg,
+    //             peer_id: internal_peerid(),
+    //         })
+    //         .await;
+
+    //     let m_block_part_1 = BlockPartMessage {
+    //         height: 1,
+    //         round: 1,
+    //         part: Some(Part {
+    //             index: part_1_index,
+    //             bytes: vec![],
+    //             proof: Some(Proof {
+    //                 total: total_parts as u64,
+    //                 index: part_1_index as u64,
+    //                 leaf_hash: vec![],
+    //                 aunts: vec![vec![]],
+    //             }),
+    //         }),
+    //     };
+
+    //     let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part_1));
+    //     _ = arc_cs_1
+    //         .send(MessageInfo {
+    //             msg: msg,
+    //             peer_id: internal_peerid(),
+    //         })
+    //         .await;
+
+    //     // wait for a while for processing message
+    //     thread::sleep(Duration::from_millis(200));
+
+    //     // stop the consensus state
+    //     // closes the channel
+    //     // msg process will stop
+    //     _ = arc_cs_1.stop();
+
+    //     // make sure this processing message thread is stopped
+    //     let join_rs = msg_thr.await;
+    //     assert!(join_rs.is_ok());
+
+    //     let rs = arc_cs_2.clone().get_rs().unwrap();
+    //     // assert proposal block part
+    //     let pbp = rs.proposal_block_parts.unwrap();
+    //     assert_eq!(pbp.count, 2); // received 1 part
+    //     assert_eq!(pbp.total, total_parts);
+    //     assert!(pbp.parts.get(part_0_index as usize).is_some());
+    //     assert!(pbp.parts.get(part_1_index as usize).is_some());
+    //     assert!(pbp
+    //         .parts_bit_array
+    //         .get_index(part_0_index as usize)
+    //         .is_ok_and(|v| *v == true));
+    //     assert!(pbp
+    //         .parts_bit_array
+    //         .get_index(part_1_index as usize)
+    //         .is_ok_and(|v| *v == true));
+    // }
+
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    // async fn add_vote() {
+    //     let mut m_latest_block_state = MockLatestBlockState::new();
+    //     let m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
+
+    //     let m_chain_id: String = "".to_string();
+
+    //     m_latest_block_state
+    //         .expect_get_chain_id()
+    //         .return_const(m_chain_id.clone());
+
+    //     let cs = ConsensusStateImpl::new(
+    //         ConsensusConfig::new_default(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
+
+    //     let val_4_skey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+    //     let val_4_pkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val_4_skey);
+    //     let val_4_addr = pub_to_address(val_4_pkey);
+    //     let val_4_validator_index = 3;
+    //     let val_4 = Validator {
+    //         address: val_4_addr,
+    //         voting_power: 4,
+    //         proposer_priority: 4,
+    //     };
+
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3, val_4.clone()],
+    //         proposer: None,
+    //         total_voting_power: 10,
+    //     };
+
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_1 = arc_cs.clone();
+    //     let arc_cs_2 = arc_cs.clone();
+
+    //     // arrange round state
+    //     let mut rs_guard = arc_cs
+    //         .rs
+    //         .lock()
+    //         .expect("could not lock round state for arrangement");
+    //     rs_guard.validators = Some(val_set.clone());
+    //     rs_guard.votes = Some(HeightVoteSet {
+    //         chain_id: m_chain_id.clone(),
+    //         height: 1,
+    //         round: 1,
+    //         validator_set: Some(val_set),
+    //         round_vote_sets: HashMap::new(),
+    //         peer_catchup_rounds: HashMap::new(),
+    //     });
+    //     drop(rs_guard);
+
+    //     // start processing messages
+    //     let msg_thr = tokio::spawn(async move {
+    //         arc_cs.process_msg_chan();
+    //     });
+
+    //     let mut vote = Vote {
+    //         r#type: SignedMsgType::Prevote.into(),
+    //         height: 1,
+    //         round: 1,
+    //         block_id: Some(BlockId::new_zero_block_id()),
+    //         timestamp: None,
+    //         validator_address: val_4.clone().address.0.to_vec(),
+    //         validator_index: val_4_validator_index,
+    //         signature: vec![],
+    //     };
+
+    //     // sign the vote
+    //     let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
+    //     let signature = sign(keccak256(vsb), val_4_skey).unwrap();
+    //     vote.signature = signature.to_vec();
+
+    //     let vote_msg = VoteMessage {
+    //         vote: Some(vote.clone()),
+    //     };
+
+    //     let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
+    //     _ = arc_cs_1
+    //         .send(MessageInfo {
+    //             msg: msg,
+    //             peer_id: internal_peerid(),
+    //         })
+    //         .await;
+
+    //     // wait for a while for processing message
+    //     thread::sleep(Duration::from_millis(200));
+
+    //     // stop the consensus state
+    //     // closes the channel
+    //     // msg process will stop
+    //     _ = arc_cs_1.stop();
+
+    //     // make sure this processing message thread is stopped
+    //     let join_rs = msg_thr.await;
+    //     assert!(join_rs.is_ok());
+
+    //     let rs = arc_cs_2.clone().get_rs().unwrap();
+
+    //     assert!(rs.votes.is_some());
+    //     let heigh_vote_set = rs.votes.unwrap();
+    //     assert!(heigh_vote_set.prevotes(1).is_some());
+    //     let prevotes = heigh_vote_set.prevotes(1).unwrap();
+    //     let votes = prevotes.votes;
+    //     let votes_by_block = prevotes.votes_by_block;
+    //     assert!(votes_by_block
+    //         .get(&vote.clone().block_id.unwrap().key())
+    //         .is_some());
+    //     let votes_bit_array = prevotes.votes_bit_array;
+
+    //     assert!(votes
+    //         .get(val_4_validator_index as usize)
+    //         .is_some_and(|v| v.is_some()));
+    //     assert!(votes_bit_array
+    //         .get_index(val_4_validator_index as usize)
+    //         .is_ok_and(|r| *r == true));
+    // }
+
+    // #[test]
+    // fn is_proposer() {
+    //     let m_latest_block_state = MockLatestBlockState::new();
+    //     let mut m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
+
+    //     m_priv_validator.expect_get_address().return_const(ADDR_2);
+
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3],
+    //         proposer: None,
+    //         total_voting_power: 6,
+    //     };
+
+    //     let cs = ConsensusStateImpl::new(
+    //         ConsensusConfig::new_default(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
+
+    //     let acs = Arc::new(cs);
+
+    //     // arrange round state
+    //     if let Ok(mut rs_guard) = acs.clone().rs.clone().lock() {
+    //         rs_guard.validators = Some(val_set);
+    //         drop(rs_guard);
+    //     } else {
+    //         panic!("could not lock round state for arrangement")
+    //     }
+
+    //     let is_proposer = acs.clone().is_proposer();
+    //     assert!(!is_proposer);
+
+    //     if let Ok(rs_guard) = acs.clone().rs.clone().lock() {
+    //         let validator_set = rs_guard.clone().validators;
+    //         assert!(
+    //             validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&ADDR_3)))
+    //         );
+    //     } else {
+    //         panic!("could not lock round state for arrangement")
+    //     }
+    // }
+
+    // /**
+    //  * ------------------------
+    //  * State transitions tests
+    //  * ------------------------
+    //  */
+
+    // /**
+    //  *   -----------                     -----------------
+    //  *   | PROPOSE |  ----(TIMEOUT!)---> | PREVOTE (NIL) |
+    //  *   -----------                     -----------------
+    //  */
+    // #[test]
+    // fn propose_timeout_send_prevote_for_nil() {
+    //     let mut m_latest_block_state = MockLatestBlockState::new();
+    //     let mut m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
+
+    //     m_latest_block_state
+    //         .expect_get_chain_id()
+    //         .return_const("".to_string());
+
+    //     let mut signature: Vec<u8> = vec![4, 5, 6];
+
+    //     m_priv_validator.expect_get_address().return_const(ADDR_2);
+    //     m_priv_validator
+    //         .expect_sign_vote()
+    //         .returning(move |_, vote| {
+    //             vote.signature.append(&mut signature);
+    //             Ok(())
+    //         });
+
+    //     let mut config = ConsensusConfig::new_default();
+    //     config.timeout_propose = Duration::from_millis(100);
+
+    //     let cs = ConsensusStateImpl::new(
+    //         config.clone(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_2 = arc_cs.clone();
+
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3],
+    //         proposer: None,
+    //         total_voting_power: 6,
+    //     };
+
+    //     // arrange round state
+    //     let mut rs_guard = arc_cs
+    //         .rs
+    //         .lock()
+    //         .expect("could not lock round state for arrangement");
+    //     rs_guard.height = 1;
+    //     rs_guard.round = 1;
+    //     rs_guard.validators = Some(val_set);
+    //     drop(rs_guard);
+
+    //     let timeout_propose = config.timeout_propose;
+
+    //     let rt = Runtime::new().unwrap();
+    //     tokio_test::block_on(async move {
+    //         if let Ok(_) = arc_cs_2.clone().start() {
+    //         } else {
+    //             panic!("should not failed to start");
+    //         }
+
+    //         // wait for propose timeout happens
+    //         thread::sleep(timeout_propose);
+
+    //         // stop the consensus state
+    //         // closes the channel
+    //         // msg process will stop
+    //         _ = arc_cs_2.clone().stop();
+
+    //         // assertions
+    //         if let Ok(rs_guard) = arc_cs_2.clone().rs.lock() {
+    //             let rs = rs_guard.clone();
+    //             assert_eq!(rs.step, RoundStep::Prevote);
+    //         } else {
+    //             panic!("should get round state")
+    //         }
+    //     });
+    // }
+
+    // /**
+    //  *   -----------                     -------------------
+    //  *   | PREVOTE |  ----(TIMEOUT!)---> | PRECOMMIT (NIL) |
+    //  *   -----------                     -------------------
+    //  */
+    // #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
+    // async fn prevote_timeout_send_precommit_for_nil() {
+    //     let mut m_latest_block_state = MockLatestBlockState::new();
+    //     let mut m_priv_validator = MockPrivValidator::new();
+    //     let m_block_operations = MockBlockOperations::new();
+    //     let m_block_executor = MockBlockExecutor::new();
+    //     let m_evidence_pool = MockEvidencePool::new();
+
+    //     m_latest_block_state
+    //         .expect_get_chain_id()
+    //         .return_const("".to_string());
+
+    //     let mut signature: Vec<u8> = vec![4, 5, 6];
+
+    //     m_priv_validator.expect_get_address().return_const(ADDR_2);
+    //     m_priv_validator
+    //         .expect_sign_vote()
+    //         .returning(move |_, vote| {
+    //             vote.signature.append(&mut signature);
+    //             Ok(())
+    //         });
+
+    //     let mut config = ConsensusConfig::new_default();
+    //     config.timeout_propose = Duration::from_millis(100);
+    //     config.timeout_prevote = Duration::from_millis(100);
+
+    //     let cs = ConsensusStateImpl::new(
+    //         config.clone(),
+    //         Arc::new(Box::new(m_latest_block_state)),
+    //         Arc::new(Box::new(m_priv_validator)),
+    //         Arc::new(Box::new(m_block_operations)),
+    //         Arc::new(Box::new(m_block_executor)),
+    //         Arc::new(Box::new(m_evidence_pool)),
+    //     );
+    //     let arc_cs = Arc::new(cs);
+    //     let arc_cs_1 = arc_cs.clone();
+
+    //     let val_set: ValidatorSet = ValidatorSet {
+    //         validators: vec![VAL_1, VAL_2, VAL_3],
+    //         proposer: None,
+    //         total_voting_power: 6,
+    //     };
+
+    //     // arrange round state
+    //     if let Ok(mut rs_guard) = arc_cs.clone().rs.lock() {
+    //         rs_guard.height = 1;
+    //         rs_guard.round = 1;
+    //         rs_guard.step = RoundStep::Propose;
+    //         rs_guard.validators = Some(val_set.clone());
+    //         let rs = rs_guard.clone();
+    //         let mut hvs = HeightVoteSet {
+    //             chain_id: "".to_owned(),
+    //             height: 1,
+    //             round: 1,
+    //             validator_set: Some(val_set.clone()),
+    //             round_vote_sets: HashMap::new(),
+    //             peer_catchup_rounds: HashMap::new(),
+    //         };
+    //         hvs.round_vote_sets.insert(
+    //             rs.round,
+    //             RoundVoteSet {
+    //                 prevotes: Some({
+    //                     let mut vs = VoteSet::new(
+    //                         "".to_owned(),
+    //                         1,
+    //                         1,
+    //                         SignedMsgType::Prevote,
+    //                         val_set.clone(),
+    //                     );
+    //                     vs.maj23 = Some(BlockId::new_zero_block_id());
+    //                     vs
+    //                 }),
+    //                 precommits: Some({
+    //                     let mut vs = VoteSet::new(
+    //                         "".to_owned(),
+    //                         1,
+    //                         1,
+    //                         SignedMsgType::Precommit,
+    //                         val_set.clone(),
+    //                     );
+    //                     vs.maj23 = Some(BlockId::new_zero_block_id());
+    //                     vs
+    //                 }),
+    //             },
+    //         );
+
+    //         rs_guard.votes = Some(hvs);
+    //         drop(rs_guard);
+    //     } else {
+    //         panic!("could not lock round state for arrangement")
+    //     }
+
+    //     let timeout_propose = config.timeout_propose;
+    //     let timeout_prevote = config.timeout_prevote;
+
+    //     let cs = arc_cs.clone();
+    //     // start consensus state at new round
+    //     cs.clone().start().expect("should start successfully");
+
+    //     // wait for propose timeout happens
+    //     thread::sleep(timeout_propose.add(timeout_propose));
+
+    //     // wait for prevote timeout happens
+    //     thread::sleep(timeout_prevote.add(timeout_prevote));
+
+    //     // assertions
+    //     let rs = cs.clone().get_rs().expect("should get round state");
+    //     assert_eq!(rs.step, RoundStep::Precommit);
+    // }
+
+    // /**
+    //  *   -------------                     -----------
+    //  *   | PRECOMMIT |  ----(TIMEOUT!)---> | PROPOSE |
+    //  *   -------------                     -----------
+    //  */
+    // #[test]
+    // fn precommit_timeout_start_new_round() {
+    // let mut m_latest_block_state = MockLatestBlockState::new();
+    // let mut m_priv_validator = MockPrivValidator::new();
+    // let m_block_operations = MockBlockOperations::new();
+    // let m_block_executor = MockBlockExecutor::new();
+    // let m_evidence_pool = MockEvidencePool::new();
+
+    // m_latest_block_state
+    //     .expect_get_chain_id()
+    //     .return_const("".to_string());
+
+    // let mut signature: Vec<u8> = vec![4, 5, 6];
+
+    // m_priv_validator.expect_get_address().return_const(ADDR_2);
+    // m_priv_validator
+    //     .expect_sign_vote()
+    //     .returning(move |_, vote| {
+    //         vote.signature.append(&mut signature);
+    //         Ok(())
+    //     });
+
+    // let mut config = ConsensusConfig::new_default();
+    // config.timeout_propose = Duration::from_millis(100);
+    // config.timeout_prevote = Duration::from_millis(100);
+    // config.timeout_precommit = Duration::from_millis(100);
+
+    // let cs = ConsensusStateImpl::new(
+    //     config.clone(),
+    //     Arc::new(Box::new(m_latest_block_state)),
+    //     Arc::new(Box::new(m_priv_validator)),
+    //     Arc::new(Box::new(m_block_operations)),
+    //     Arc::new(Box::new(m_block_executor)),
+    //     Arc::new(Box::new(m_evidence_pool)),
+    // );
+    // let arc_cs = Arc::new(cs);
+    // let arc_cs_1 = arc_cs.clone();
+
+    // let val_set: ValidatorSet = ValidatorSet {
+    //     validators: vec![VAL_1, VAL_2, VAL_3],
+    //     proposer: None,
+    //     total_voting_power: 6,
+    // };
+
+    // // arrange round state
+    // let binding = arc_cs_1.clone();
+    // let mut rs_guard = binding.rs.lock().expect("should lock ok");
+    // rs_guard.height = 1;
+    // rs_guard.round = 1;
+    // rs_guard.step = RoundStep::Propose;
+    // rs_guard.validators = Some(val_set.clone());
+    // let rs = rs_guard.clone();
+    // let mut hvs = HeightVoteSet {
+    //     chain_id: "".to_owned(),
+    //     height: 1,
+    //     round: 1,
+    //     validator_set: Some(val_set.clone()),
+    //     round_vote_sets: HashMap::new(),
+    //     peer_catchup_rounds: HashMap::new(),
+    // };
+    // hvs.round_vote_sets.insert(
+    //     rs.round,
+    //     RoundVoteSet {
+    //         prevotes: Some({
+    //             let mut vs =
+    //                 VoteSet::new("".to_owned(), 1, 1, SignedMsgType::Prevote, val_set.clone());
+    //             vs.maj23 = Some(BlockId::new_zero_block_id());
+    //             vs
+    //         }),
+    //         precommits: Some({
+    //             let mut vs = VoteSet::new(
+    //                 "".to_owned(),
+    //                 1,
+    //                 1,
+    //                 SignedMsgType::Precommit,
+    //                 val_set.clone(),
+    //             );
+    //             vs.maj23 = Some(BlockId::new_zero_block_id());
+    //             vs
+    //         }),
+    //     },
+    // );
+
+    // rs_guard.votes = Some(hvs);
+    // drop(rs_guard);
+
+    // let timeout_propose = config.timeout_propose;
+    // let timeout_prevote = config.timeout_prevote;
+    // let timeout_precommit = config.timeout_precommit;
+
+    // tokio_test::block_on(async move {
+    //     let cs = arc_cs.clone();
+    //     // start consensus state at new round
+    //     cs.clone().start().expect("should start successfully");
+    //     let last_rs = cs.clone().get_rs().expect("should get round state");
+
+    //     // wait for propose timeout happens
+    //     thread::sleep(timeout_propose.add(timeout_propose));
+
+    //     // wait for prevote timeout happens
+    //     thread::sleep(timeout_prevote.add(timeout_prevote));
+
+    //     // wait for precommit timeout happens
+    //     thread::sleep(timeout_precommit.add(timeout_precommit));
+
+    //     // assertions
+    //     let rs = cs.clone().get_rs().expect("should get round state");
+    //     assert_eq!(rs.step, RoundStep::Propose);
+    //     assert_eq!(rs.height, last_rs.height); // assert height
+    //     assert_eq!(rs.round, last_rs.round + 1); // assert new round
+    // });
+    // }
 }

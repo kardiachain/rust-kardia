@@ -3,6 +3,7 @@ use super::messages::{
     ProposalPOLMessage, VoteSetBitsMessage,
 };
 use crate::utils::compare_hrs;
+use async_trait::async_trait;
 use core::fmt::Debug;
 use kai_types::misc::ChannelId;
 use kai_types::part_set::PartSetHeader;
@@ -13,19 +14,21 @@ use kai_types::vote_set::VoteSetReader;
 use kai_types::{bit_array::BitArray, vote::is_valid_vote_type};
 use mockall::automock;
 use std::{
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
+use tokio::sync::Mutex;
 
 pub fn internal_peerid() -> PeerId {
     String::from("")
 }
 
 #[automock]
+#[async_trait]
 pub trait Peer: Debug + Send + Sync + 'static {
     fn get_id(&self) -> PeerId;
-    fn get_ps(&self) -> Arc<Mutex<dyn PeerState>>;
-    fn get_prs(&self) -> Option<PeerRoundState>;
+    async fn get_ps(&self) -> Arc<Box<dyn PeerState>>;
+    async fn get_prs(&self) -> PeerRoundState;
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
     fn try_send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
     fn pick_send_vote(&self, votes: Box<dyn VoteSetReader>) -> bool;
@@ -37,26 +40,21 @@ pub struct PeerImpl {
     /**
        peer state
     */
-    pub ps: Arc<Mutex<dyn PeerState>>,
+    pub ps: Arc<Box<dyn PeerState>>,
 }
 
+#[async_trait]
 impl Peer for PeerImpl {
     fn get_id(&self) -> PeerId {
         self.id.clone()
     }
 
-    fn get_ps(&self) -> Arc<Mutex<dyn PeerState>> {
+    async fn get_ps(&self) -> Arc<Box<dyn PeerState>> {
         self.ps.clone()
     }
 
-    fn get_prs(&self) -> Option<PeerRoundState> {
-        if let Ok(ps_guard) = self.get_ps().lock() {
-            let prs = ps_guard.get_prs().clone();
-            drop(ps_guard);
-            Some(prs)
-        } else {
-            None
-        }
+    async fn get_prs(&self) -> PeerRoundState {
+        self.ps.get_prs().await
     }
 
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool {
@@ -76,262 +74,98 @@ impl PeerImpl {
     pub fn new(id: PeerId) -> Arc<dyn Peer> {
         Arc::new(Self {
             id,
-            ps: Arc::new(Mutex::new(PeerStateImpl::new())),
+            ps: Arc::new(Box::new(PeerStateImpl::new())),
         })
     }
 }
 
 #[automock]
+#[async_trait]
 pub trait PeerState: Debug + Sync + Send + 'static {
-    fn set_prs(&mut self, new_prs: PeerRoundState);
-    fn get_prs(&self) -> PeerRoundState;
-    fn set_has_proposal(&mut self, msg: ProposalMessage);
-    fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage);
-    fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage);
-    fn set_has_vote(
-        &mut self,
+    async fn get_prs(&self) -> PeerRoundState;
+    async fn set_has_vote(
+        &self,
         height: u64,
         round: u32,
         signed_msg_type: SignedMsgType,
         index: usize,
     ) -> ();
-    fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage);
-    fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage);
-    fn apply_vote_set_bits_message(&mut self, msg: VoteSetBitsMessage, our_votes: Option<BitArray>);
+    async fn set_has_proposal(&self, msg: ProposalMessage);
+    async fn set_has_proposal_block_part(&self, msg: BlockPartMessage);
+    async fn apply_new_valid_block_message(&self, msg: NewValidBlockMessage);
+    async fn apply_new_round_step_message(&self, msg: NewRoundStepMessage);
+    async fn apply_proposal_pol_message(&self, msg: ProposalPOLMessage);
+    async fn apply_vote_set_bits_message(
+        &self,
+        msg: VoteSetBitsMessage,
+        our_votes: Option<BitArray>,
+    );
 }
 
 #[derive(Debug, Clone)]
 pub struct PeerStateImpl {
-    /**
-    peer round state
-    */
-    pub prs: PeerRoundState,
+    /// peer round state
+    pub prs: Arc<Mutex<PeerRoundState>>,
 }
 
 impl PeerStateImpl {
     pub fn new() -> Self {
         Self {
-            prs: PeerRoundState::new(),
-        }
-    }
-
-    fn get_vote_bit_array(
-        &mut self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-    ) -> Option<BitArray> {
-        if !is_valid_vote_type(signed_msg_type) {
-            return None;
-        }
-
-        if self.prs.height == height {
-            if self.prs.round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.prevotes.clone(),
-                    SignedMsgType::Precommit => self.prs.precommits.clone(),
-                    _ => None,
-                };
-            }
-            if self.prs.catchup_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.catchup_commit.clone(),
-                    _ => None,
-                };
-            }
-            if self.prs.proposal_pol_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prs.proposal_pol.clone(),
-                    _ => None,
-                };
-            }
-        }
-
-        if self.prs.height == height + 1 {
-            if self.prs.last_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.prs.last_commit.clone(),
-                    _ => None,
-                };
-            }
-        }
-
-        return None;
-    }
-
-    fn _set_has_vote(
-        &mut self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-        index: u32,
-    ) {
-        if let Some(ps_votes) = self
-            .get_vote_bit_array(height, round, signed_msg_type)
-            .as_mut()
-        {
-            ps_votes.set_index(index.try_into().unwrap(), true);
+            prs: Arc::new(Mutex::new(PeerRoundState::new())),
         }
     }
 }
 
+#[async_trait]
 impl PeerState for PeerStateImpl {
-    fn set_prs(&mut self, new_prs: PeerRoundState) {
-        self.prs = new_prs;
+    async fn get_prs(&self) -> PeerRoundState {
+        let prs_guard = self.prs.lock().await;
+        prs_guard.clone()
     }
 
-    fn get_prs(&self) -> PeerRoundState {
-        self.prs.clone()
-    }
-
-    fn set_has_proposal(&mut self, msg: ProposalMessage) {
-        let proposal = msg.proposal.unwrap();
-
-        if (self.prs.height != proposal.height) || (self.prs.round != proposal.round) {
-            return;
-        }
-
-        if self.prs.proposal {
-            return;
-        }
-
-        self.prs.proposal = true;
-
-        if self.prs.proposal_block_parts.is_some() {
-            return;
-        }
-
-        self.prs.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
-        self.prs.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
-        self.prs.proposal_pol_round = proposal.pol_round;
-        self.prs.proposal_pol = None; // None until ProposalPOLMessage received.
-    }
-
-    fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage) {
-        if (self.prs.height != msg.height) || (self.prs.round != msg.round) {
-            return;
-        }
-
-        if let Some(pbp) = self.prs.proposal_block_parts.as_mut() {
-            // TODO: implement BitArray.set_index for Proposal Block Parts
-            pbp.set_index(msg.part.unwrap().index.try_into().unwrap(), true);
-        }
-    }
-
-    fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
-        if self.prs.height != msg.height {
-            return;
-        }
-
-        if self.prs.round != msg.round && !msg.is_commit {
-            return;
-        }
-
-        self.prs.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
-        self.prs.proposal_block_parts = msg.block_parts.map(|m| m.into());
-    }
-
-    fn set_has_vote(
-        &mut self,
+    async fn set_has_vote(
+        &self,
         height: u64,
         round: u32,
         signed_msg_type: SignedMsgType,
         index: usize,
     ) {
-        if let Some(ps_votes) = self
-            .get_vote_bit_array(height, round, signed_msg_type)
-            .as_mut()
-        {
-            ps_votes.set_index(index.try_into().unwrap(), true);
-        }
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.set_has_vote(height, round, signed_msg_type, index);
     }
 
-    fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
-        if compare_hrs(
-            msg.height,
-            msg.round,
-            msg.step,
-            self.prs.height,
-            self.prs.round,
-            self.prs.step,
-        ) <= 0
-        {
-            return;
-        }
-
-        // temp values
-        let ps_height = self.prs.height;
-        let ps_round = self.prs.round;
-        let ps_catchup_commit_round = self.prs.catchup_commit_round;
-        let ps_catchup_commit = self.prs.catchup_commit.clone();
-
-        let start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            - msg.seconds_since_start_time;
-        self.prs.height = msg.height;
-        self.prs.round = msg.round;
-        self.prs.step = msg.step;
-        self.prs.start_time = start_time;
-
-        if (ps_height != msg.height) || (ps_round != msg.round) {
-            self.prs.proposal = false;
-            self.prs.proposal_block_parts_header = None;
-            self.prs.proposal_block_parts = None;
-            self.prs.proposal_pol_round = 0;
-            self.prs.proposal_pol = None;
-            self.prs.prevotes = None;
-            self.prs.precommits = None;
-        }
-        if (ps_height == msg.height)
-            && (ps_round != msg.round)
-            && (msg.round == ps_catchup_commit_round)
-        {
-            self.prs.precommits = ps_catchup_commit;
-        }
-        if ps_height != msg.height {
-            // shift precommits to lastcommit.
-            if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
-                self.prs.last_commit_round = msg.last_commit_round;
-                self.prs.last_commit = self.prs.precommits.clone();
-            } else {
-                self.prs.last_commit_round = msg.last_commit_round;
-                self.prs.last_commit = None
-            }
-            self.prs.catchup_commit_round = 0;
-            self.prs.catchup_commit = None;
-        }
+    async fn set_has_proposal(&self, msg: ProposalMessage) {
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.set_has_proposal(msg);
     }
 
-    fn apply_vote_set_bits_message(
-        &mut self,
+    async fn set_has_proposal_block_part(&self, msg: BlockPartMessage) {
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.set_has_proposal_block_part(msg);
+    }
+
+    async fn apply_new_valid_block_message(&self, msg: NewValidBlockMessage) {
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.apply_new_valid_block_message(msg);
+    }
+
+    async fn apply_new_round_step_message(&self, msg: NewRoundStepMessage) {
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.apply_new_round_step_message(msg);
+    }
+
+    async fn apply_proposal_pol_message(&self, msg: ProposalPOLMessage) {
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.apply_proposal_pol_message(msg);
+    }
+
+    async fn apply_vote_set_bits_message(
+        &self,
         msg: VoteSetBitsMessage,
         our_votes: Option<BitArray>,
     ) {
-        todo!()
-        // if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
-        //     if let Some(_our_votes) = our_votes {
-        //         // TODO: implement sub(), or(), update() for BitArray
-        //         // let other_votes = votes.sub(_our_votes);
-        //         // let has_votes = other_votes.or(msg.votes);
-        //         // votes.update(has_votes);
-        //     } else {
-        //         // TODO:
-        //         // votes.Update(msg.votes)
-        //     }
-        // }
-    }
-
-    fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
-        if self.prs.height != msg.height {
-            return;
-        }
-        if self.prs.proposal_pol_round != msg.proposal_pol_round {
-            return;
-        }
-
-        self.prs.proposal_pol = msg.proposal_pol.map(|p| p.into());
+        let mut prs_guard = self.prs.lock().await;
+        prs_guard.apply_vote_set_bits_message(msg, our_votes);
     }
 }
 
@@ -377,59 +211,212 @@ impl PeerRoundState {
             catchup_commit: None,
         }
     }
+
+    pub fn get_mut_vote_bit_array(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+    ) -> Option<&mut BitArray> {
+        if !is_valid_vote_type(signed_msg_type) {
+            return None;
+        }
+
+        if self.height == height {
+            if self.round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prevotes.as_mut(),
+                    SignedMsgType::Precommit => self.precommits.as_mut(),
+                    _ => None,
+                };
+            }
+            if self.catchup_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.catchup_commit.as_mut(),
+                    _ => None,
+                };
+            }
+            if self.proposal_pol_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.proposal_pol.as_mut(),
+                    _ => None,
+                };
+            }
+        }
+
+        if self.height == height + 1 {
+            if self.last_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.last_commit.as_mut(),
+                    _ => None,
+                };
+            }
+        }
+
+        return None;
+    }
+
+    pub fn set_has_vote(
+        &mut self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+        index: usize,
+    ) {
+        if let Some(vote_bit_array) = self.get_mut_vote_bit_array(height, round, signed_msg_type) {
+            vote_bit_array.set_index(index, true);
+        }
+    }
+
+    pub fn set_has_proposal(&mut self, msg: ProposalMessage) {
+        let proposal = msg.proposal.unwrap();
+
+        if (self.height != proposal.height) || (self.round != proposal.round) {
+            return;
+        }
+
+        if self.proposal {
+            return;
+        }
+
+        self.proposal = true;
+
+        if self.proposal_block_parts.is_some() {
+            return;
+        }
+
+        self.proposal_block_parts_header = proposal.block_id.unwrap().part_set_header;
+        self.proposal_block_parts = None; // None until ProposalBlockPartMessage received.
+        self.proposal_pol_round = proposal.pol_round;
+        self.proposal_pol = None; // None until ProposalPOLMessage received.
+    }
+
+    pub fn set_has_proposal_block_part(&mut self, msg: BlockPartMessage) {
+        if (self.height != msg.height) || (self.round != msg.round) {
+            return;
+        }
+
+        if let Some(pbp) = self.proposal_block_parts.as_mut() {
+            // TODO: implement BitArray.set_index for Proposal Block Parts
+            pbp.set_index(msg.part.unwrap().index.try_into().unwrap(), true);
+        }
+    }
+
+    pub fn apply_new_valid_block_message(&mut self, msg: NewValidBlockMessage) {
+        if self.height != msg.height {
+            return;
+        }
+
+        if self.round != msg.round && !msg.is_commit {
+            return;
+        }
+
+        self.proposal_block_parts_header = msg.block_parts_header.map(|m| m.into());
+        self.proposal_block_parts = msg.block_parts.map(|m| m.into());
+    }
+
+    pub fn apply_new_round_step_message(&mut self, msg: NewRoundStepMessage) {
+        if compare_hrs(
+            msg.height,
+            msg.round,
+            msg.step,
+            self.height,
+            self.round,
+            self.step,
+        ) <= 0
+        {
+            return;
+        }
+
+        // temp values
+        let ps_height = self.height;
+        let ps_round = self.round;
+        let ps_catchup_commit_round = self.catchup_commit_round;
+        let ps_catchup_commit = self.catchup_commit.clone();
+
+        let start_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            - msg.seconds_since_start_time;
+        self.height = msg.height;
+        self.round = msg.round;
+        self.step = msg.step;
+        self.start_time = start_time;
+
+        if (ps_height != msg.height) || (ps_round != msg.round) {
+            self.proposal = false;
+            self.proposal_block_parts_header = None;
+            self.proposal_block_parts = None;
+            self.proposal_pol_round = 0;
+            self.proposal_pol = None;
+            self.prevotes = None;
+            self.precommits = None;
+        }
+        if (ps_height == msg.height)
+            && (ps_round != msg.round)
+            && (msg.round == ps_catchup_commit_round)
+        {
+            self.precommits = ps_catchup_commit;
+        }
+        if ps_height != msg.height {
+            // shift precommits to lastcommit.
+            if (ps_height + 1 == msg.height) && (ps_round == msg.last_commit_round) {
+                self.last_commit_round = msg.last_commit_round;
+                self.last_commit = self.precommits.clone();
+            } else {
+                self.last_commit_round = msg.last_commit_round;
+                self.last_commit = None
+            }
+            self.catchup_commit_round = 0;
+            self.catchup_commit = None;
+        }
+    }
+
+    pub fn apply_vote_set_bits_message(
+        &mut self,
+        msg: VoteSetBitsMessage,
+        our_votes: Option<BitArray>,
+    ) {
+        todo!()
+        // if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
+        //     if let Some(_our_votes) = our_votes {
+        //         // TODO: implement sub(), or(), update() for BitArray
+        //         // let other_votes = votes.sub(_our_votes);
+        //         // let has_votes = other_votes.or(msg.votes);
+        //         // votes.update(has_votes);
+        //     } else {
+        //         // TODO:
+        //         // votes.Update(msg.votes)
+        //     }
+        // }
+    }
+
+    pub fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
+        if self.height != msg.height {
+            return;
+        }
+        if self.proposal_pol_round != msg.proposal_pol_round {
+            return;
+        }
+
+        self.proposal_pol = msg.proposal_pol.map(|p| p.into());
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use core::time;
-    use std::{sync::Arc, thread};
-
     use crate::types::peer::PeerImpl;
 
-    use super::PeerRoundState;
-
-    #[test]
-    fn get_round_state_ok() {
+    #[tokio::test]
+    async fn get_round_state_ok() {
         // arrange
         let peer_id = "peer1".to_string();
         let peer = PeerImpl::new(peer_id);
 
         // act
-        if let Ok(ps_guard) = peer.get_ps().clone().lock() {
-            // assert
-            assert_eq!(ps_guard.get_prs().height, 0);
-        }
-    }
-
-    #[test]
-    fn get_round_state_failed() {
-        // arrange
-        let peer_id = "peer1".to_string();
-        let peer = PeerImpl::new(peer_id);
-        let ps_1 = peer.get_ps().clone();
-        let ps_2 = peer.get_ps().clone();
-        let ps_3 = peer.get_ps().clone();
-
-        // this thread locks peer state for 500ms
-        thread::spawn(move || {
-            if let Ok(mut ps_guard) = ps_1.lock() {
-                let mut new_prs = PeerRoundState::new();
-                new_prs.height = 10;
-                ps_guard.set_prs(new_prs);
-                drop(ps_guard);
-            }
-            thread::sleep(time::Duration::from_millis(500));
-        });
-        // this thread try lock failed
-        thread::spawn(move || {
-            let ps_guard = ps_2.try_lock();
-            assert!(ps_guard.is_err());
-        });
-        // this thread wait until thread #1 release the lock and read values
-        thread::spawn(move || {
-            if let Ok(ps_guard) = ps_3.lock() {
-                assert_eq!(ps_guard.get_prs().height, 10);
-            }
-        });
+        let prs = peer.get_prs().await;
+        // assert
+        assert_eq!(prs.height, 0);
     }
 }
