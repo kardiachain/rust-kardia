@@ -6,7 +6,7 @@ use crate::{
             msg_from_proto, BlockPartMessage, ConsensusMessage, ConsensusMessageType, MessageInfo,
             ProposalMessage, ProposalPOLMessage, VoteSetBitsMessage, VoteSetMaj23Message,
         },
-        peer::{Peer, PeerRoundState},
+        peer::Peer,
         round_state::RoundState,
     },
 };
@@ -19,6 +19,7 @@ use kai_types::{
     types::SignedMsgType,
 };
 use prost::Message;
+use tokio::runtime::Runtime;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::{result::Result::Ok, thread};
@@ -59,10 +60,10 @@ impl ConsensusReactor for ConsensusReactorImpl {
     fn switch_to_consensus(
         self: Arc<Self>,
         state: Arc<Box<dyn LatestBlockState>>,
-        skip_wal: bool,
+        _skip_wal: bool,
     ) -> Result<(), Box<ConsensusReactorError>> {
         let cs = self.clone().get_cs().clone();
-        let block_state = cs.get_state();
+        let _block_state = cs.get_state();
 
         if state.get_last_block_height() > 0 {
             // TODO: add a function below
@@ -174,7 +175,7 @@ impl ConsensusReactorImpl {
             }
             ConsensusMessageType::NewValidBlockMessage(_msg) => {
                 let ps = src.get_ps().await;
-                ps.apply_new_valid_block_message(_msg.clone());
+                ps.apply_new_valid_block_message(_msg.clone()).await;
                 Ok(())
             }
             ConsensusMessageType::HasVoteMessage(_msg) => {
@@ -184,7 +185,7 @@ impl ConsensusReactorImpl {
                     _msg.round,
                     _msg.r#type,
                     _msg.index.try_into().unwrap(),
-                );
+                ).await;
                 Ok(())
             }
             ConsensusMessageType::VoteSetMaj23Message(_msg) => {
@@ -253,12 +254,12 @@ impl ConsensusReactorImpl {
                     msg: msg.clone(),
                 });
                 let ps = src.get_ps().await;
-                ps.set_has_proposal(_msg.clone());
+                ps.set_has_proposal(_msg.clone()).await;
                 Ok(())
             }
             ConsensusMessageType::ProposalPOLMessage(_msg) => {
                 let ps = src.get_ps().await;
-                ps.apply_proposal_pol_message(_msg.clone());
+                ps.apply_proposal_pol_message(_msg.clone()).await;
                 Ok(())
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
@@ -267,7 +268,7 @@ impl ConsensusReactorImpl {
                     msg: msg.clone(),
                 });
                 let ps = src.get_ps().await;
-                ps.set_has_proposal_block_part(_msg.clone());
+                ps.set_has_proposal_block_part(_msg.clone()).await;
                 Ok(())
             }
             _ => Err(Box::new(ConsensusReactorError::UnknownMessageTypeError)),
@@ -292,7 +293,7 @@ impl ConsensusReactorImpl {
                         vote.round,
                         vote.r#type.into(),
                         vote.validator_index.try_into().unwrap(),
-                    );
+                    ).await;
                     Ok(())
                 } else {
                     Ok(())
@@ -336,10 +337,10 @@ impl ConsensusReactorImpl {
                     };
 
                     let ps = src.get_ps().await;
-                    ps.apply_vote_set_bits_message(_msg.clone(), our_votes);
+                    ps.apply_vote_set_bits_message(_msg.clone(), our_votes).await;
                 } else {
                     let ps = src.get_ps().await;
-                    ps.apply_vote_set_bits_message(_msg.clone(), None);
+                    ps.apply_vote_set_bits_message(_msg.clone(), None).await;
                 }
                 Ok(())
             }
@@ -383,7 +384,7 @@ impl ConsensusReactorImpl {
                         );
                         if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
                             let ps = peer.get_ps().await;
-                            ps.set_has_proposal_block_part(msg);
+                            ps.set_has_proposal_block_part(msg).await;
                         }
 
                         continue;
@@ -395,7 +396,7 @@ impl ConsensusReactorImpl {
                     && prs.height < rs.height
                     && prs.height >= cs.get_block_operations().base()
                 {
-                    self.clone().gossip_data_for_catch_up(rs, peer.clone());
+                    self.clone().gossip_data_for_catch_up(rs, peer.clone()).await;
                     continue;
                 }
 
@@ -425,7 +426,7 @@ impl ConsensusReactorImpl {
                         );
                         if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
                             let ps = peer.get_ps().await;
-                            ps.set_has_proposal(msg);
+                            ps.set_has_proposal(msg).await;
                         }
                     }
 
@@ -658,7 +659,7 @@ impl ConsensusReactorImpl {
                         );
                         if peer.send(DATA_CHANNEL, msg.msg_to_proto().unwrap().encode_to_vec()) {
                             let ps = peer.get_ps().await;
-                            ps.set_has_proposal_block_part(msg);
+                            ps.set_has_proposal_block_part(msg).await;
                         }
                     } else {
                         log::error!(

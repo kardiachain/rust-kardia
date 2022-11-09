@@ -24,7 +24,7 @@ impl Into<kai_proto::types::BitArray> for BitArray {
 }
 
 impl BitArray {
-    pub fn new_bit_array(bits: usize) -> Self {
+    pub fn new(bits: usize) -> Self {
         Self {
             bv: BitVec::<u64, Msb0>::repeat(false, bits),
         }

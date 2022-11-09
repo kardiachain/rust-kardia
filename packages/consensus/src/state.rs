@@ -689,7 +689,7 @@ impl ConsensusStateImpl {
                                 rs_guard.valid_block = None;
                                 rs_guard.valid_block_parts = None;
 
-                                self.start_new_round(0);
+                                self.start_new_round(0).await;
                             } else {
                                 log::debug!("skipped checking for rule #8 due to received +2/3 precommits of block other than our proposal block");
                             };

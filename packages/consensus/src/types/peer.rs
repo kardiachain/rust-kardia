@@ -212,7 +212,7 @@ impl PeerRoundState {
         }
     }
 
-    pub fn get_mut_vote_bit_array(
+    fn get_mut_vote_bit_array(
         &mut self,
         height: u64,
         round: u32,
@@ -406,7 +406,11 @@ impl PeerRoundState {
 
 #[cfg(test)]
 mod tests {
+    use kai_types::{bit_array::BitArray, types::SignedMsgType};
+
     use crate::types::peer::PeerImpl;
+
+    use super::PeerRoundState;
 
     #[tokio::test]
     async fn get_round_state_ok() {
@@ -418,5 +422,27 @@ mod tests {
         let prs = peer.get_prs().await;
         // assert
         assert_eq!(prs.height, 0);
+    }
+
+    #[tokio::test]
+    async fn set_has_vote() {
+        // arrange
+        let mut prs = PeerRoundState::new();
+        prs.height = 1;
+        prs.round = 1;
+
+        let bit_arr_size: usize = 10;
+        prs.prevotes = Some(BitArray::new(bit_arr_size));
+
+        let new_vote_index = 0;
+        let new_vote_type = SignedMsgType::Prevote;
+
+        // act
+        prs.set_has_vote(1, 1, new_vote_type, new_vote_index);
+
+        // assertions
+        let vote = prs.prevotes;
+        let rs = vote.unwrap().get_index(new_vote_index);
+        assert!(rs.is_ok_and(|v| *v == true));
     }
 }

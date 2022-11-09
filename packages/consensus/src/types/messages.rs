@@ -66,7 +66,6 @@ pub fn msg_from_proto(
             Sum::VoteSetBits(m) => Ok(Arc::new(ConsensusMessageType::VoteSetBitsMessage(
                 VoteSetBitsMessage::from(m),
             ))),
-            _ => Err(Box::new(ConsensusReactorError::DecodeProtoError)),
         }
     } else {
         Err(Box::new(ConsensusReactorError::DecodeProtoError))

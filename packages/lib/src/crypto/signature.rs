@@ -1,10 +1,9 @@
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use ethereum_types::Address;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Error, Message as SecpMessage, PublicKey, SecretKey, SECP256K1,
 };
-use sha3::{Digest, Keccak256};
 
 use super::crypto::pub_to_address;
 
@@ -47,7 +46,7 @@ mod tests {
     #[test]
     fn sign_test() {
         let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        
+
         let msg: [u8; 32] = [0; 32];
         let rs = sign(Bytes::copy_from_slice(&msg), signer_secret_key);
         assert!(rs.is_ok());
@@ -55,6 +54,9 @@ mod tests {
 
         let invalid_msg: [u8; 34] = [0; 34];
         let rs = sign(Bytes::copy_from_slice(&invalid_msg), signer_secret_key);
-        assert!(matches!(rs.err().unwrap(), secp256k1::Error::InvalidMessage));
+        assert!(matches!(
+            rs.err().unwrap(),
+            secp256k1::Error::InvalidMessage
+        ));
     }
 }

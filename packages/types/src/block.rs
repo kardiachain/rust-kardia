@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{commit::Commit, evidence::EvidenceData, misc::Data, part_set::PartSetHeader};
 
 #[derive(Clone, ::prost::Message)]

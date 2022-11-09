@@ -31,7 +31,7 @@ impl BlockVotes {
     pub(super) fn new(peer_maj23: bool, num_validators: usize) -> Self {
         Self {
             peer_maj23,
-            bit_array: BitArray::new_bit_array(num_validators),
+            bit_array: BitArray::new(num_validators),
             votes: vec![None; num_validators],
             sum: 0,
         }
@@ -83,7 +83,7 @@ impl VoteSet {
             round: round,
             r#type: signed_msg_type,
             validator_set: validator_set.clone(),
-            votes_bit_array: BitArray::new_bit_array(validator_set.clone().validators.len()),
+            votes_bit_array: BitArray::new(validator_set.clone().validators.len()),
             votes: vec![None; validator_set.validators.clone().len()],
             sum: 0,
             maj23: None,

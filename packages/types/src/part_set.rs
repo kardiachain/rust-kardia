@@ -1,4 +1,4 @@
-use crate::{bit_array::BitArray, crypto::Proof};
+use crate::bit_array::BitArray;
 
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Part {
@@ -125,7 +125,7 @@ impl PartSet {
             total: header.total,
             hash: header.hash,
             parts: vec![None; header.total as usize],
-            parts_bit_array: BitArray::new_bit_array(header.total as usize),
+            parts_bit_array: BitArray::new(header.total as usize),
             count: 0,
         }
     }
