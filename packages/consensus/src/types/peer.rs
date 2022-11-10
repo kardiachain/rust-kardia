@@ -397,18 +397,16 @@ impl PeerRoundState {
         msg: VoteSetBitsMessage,
         our_votes: Option<BitArray>,
     ) {
-        todo!()
-        // if let Some(votes) = self.get_vote_bit_array(msg.height, msg.round, msg.r#type) {
-        //     if let Some(_our_votes) = our_votes {
-        //         // TODO: implement sub(), or(), update() for BitArray
-        //         // let other_votes = votes.sub(_our_votes);
-        //         // let has_votes = other_votes.or(msg.votes);
-        //         // votes.update(has_votes);
-        //     } else {
-        //         // TODO:
-        //         // votes.Update(msg.votes)
-        //     }
-        // }
+        if let Some(mut peer_votes) = self.get_mut_vote_bit_array(msg.height, msg.round, msg.r#type) {
+            if let Some(_our_votes) = our_votes {
+                // TODO: implement sub(), or(), update() for BitArray
+                // let other_votes = votes.sub(_our_votes);
+                // let has_votes = other_votes.or(msg.votes);
+                // votes.update(has_votes);
+            } else {
+                peer_votes = &mut msg.votes.unwrap().clone();
+            }
+        }
     }
 
     pub fn apply_proposal_pol_message(&mut self, msg: ProposalPOLMessage) {
@@ -425,9 +423,15 @@ impl PeerRoundState {
 
 #[cfg(test)]
 mod tests {
-    use kai_types::{bit_array::BitArray, types::SignedMsgType};
+    use kai_types::{
+        bit_array::BitArray, block::BlockId, part_set::Part, proposal::Proposal,
+        types::SignedMsgType,
+    };
 
-    use crate::types::peer::PeerImpl;
+    use crate::types::{
+        messages::{BlockPartMessage, ProposalMessage},
+        peer::PeerImpl,
+    };
 
     use super::PeerRoundState;
 
@@ -463,5 +467,82 @@ mod tests {
         let vote = prs.prevotes;
         let rs = vote.unwrap().get_index(new_vote_index);
         assert!(rs.is_ok_and(|v| *v == true));
+    }
+
+    #[tokio::test]
+    async fn set_has_proposal() {
+        // arrange
+        let mut prs = PeerRoundState::new();
+        prs.height = 1;
+        prs.round = 1;
+        prs.proposal_block_parts = None;
+
+        let proposal_msg = ProposalMessage {
+            proposal: Some(Proposal {
+                r#type: SignedMsgType::Proposal.into(),
+                height: 1,
+                round: 1,
+                pol_round: 0,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                signature: vec![],
+            }),
+        };
+
+        // act
+        prs.set_has_proposal(proposal_msg.clone());
+
+        // assertions
+        assert_eq!(prs.proposal, true);
+        assert_eq!(
+            prs.proposal_block_parts_header,
+            proposal_msg
+                .clone()
+                .proposal
+                .unwrap()
+                .block_id
+                .unwrap()
+                .part_set_header
+        );
+        assert!(prs.proposal_block_parts.is_none());
+        assert_eq!(
+            prs.proposal_pol_round,
+            proposal_msg.clone().proposal.unwrap().pol_round
+        );
+        assert!(prs.proposal_pol.is_none());
+    }
+
+    #[tokio::test]
+    async fn set_has_proposal_block_part() {
+        // arrange
+        let mut prs = PeerRoundState::new();
+        prs.height = 1;
+        prs.round = 1;
+        let total_parts = 10;
+        prs.proposal_block_parts = Some(BitArray::new(total_parts));
+
+        let part_index = 2;
+
+        let proposal_msg = BlockPartMessage {
+            height: 1,
+            round: 1,
+            part: Some(Part {
+                index: part_index,
+                bytes: vec![],
+                proof: None,
+            }),
+        };
+
+        // act
+        prs.set_has_proposal_block_part(proposal_msg.clone());
+
+        // assertions
+        assert_eq!(
+            prs.proposal_block_parts
+                .unwrap()
+                .get_index(part_index as usize)
+                .unwrap(),
+            true
+        );
     }
 }

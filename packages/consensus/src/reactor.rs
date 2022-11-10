@@ -322,17 +322,15 @@ impl ConsensusReactorImpl {
         match msg.as_ref() {
             ConsensusMessageType::VoteSetBitsMessage(_msg) => {
                 let rs = self.get_cs().get_rs().await;
-                let height = rs.height;
-                let votes = rs.votes;
 
-                if height == _msg.height {
+                if rs.height == _msg.height {
                     let our_votes = match _msg.r#type {
-                        SignedMsgType::Prevote => votes
+                        SignedMsgType::Prevote => rs.votes
                             .and_then(|vts| vts.prevotes(_msg.round))
                             .and_then(|pv| {
                                 pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
                             }),
-                        SignedMsgType::Precommit => votes
+                        SignedMsgType::Precommit => rs.votes
                             .and_then(|vts| vts.precommits(_msg.round))
                             .and_then(|pv| {
                                 pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
@@ -814,7 +812,7 @@ impl ConsensusReactorImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryInto, sync::Arc, thread, time::Duration};
+    use std::{convert::TryInto, sync::Arc};
 
     use crate::{
         reactor::{ConsensusReactor, ConsensusReactorImpl, DATA_CHANNEL},

@@ -1,3 +1,5 @@
+use std::ops::{BitXorAssign, BitXor, BitAnd};
+
 use bitvec::{prelude::Msb0, vec::BitVec};
 
 /// BitArray is a wrapper struct that extends BitVec.
@@ -51,8 +53,28 @@ impl BitArray {
         todo!()
     }
 
-    pub fn sub(self, o: Self) -> Self {
-        todo!()
+    pub fn sub(&self, o: Self) -> Self {
+        if self.bv.len() > o.bv.len() {
+            // ^0100 = 1111 ^ 0100
+            let c = self.bv.bitand(
+                self.bv.bitxor(
+                    BitVec::<u64, Msb0>::repeat(true, self.bv.len())
+                ));
+
+            let i = o.bv.len() - 1;
+            if i >= 0 {
+                let o_not = o.bv.bit
+
+                for i in o.bv.iter() {
+                    c.set()
+                }
+                for let i = 0; i < o.bv.len(); i++ {
+
+                }
+            }
+        }
+
+        return 
     }
 
     pub fn pick_random(self) -> Option<usize> {
