@@ -26,7 +26,10 @@ pub fn internal_peerid() -> PeerId {
 #[automock]
 #[async_trait]
 pub trait Peer: Debug + Send + Sync + 'static {
+    async fn start(self: Arc<Self>);
+    async fn stop(self: Arc<Self>);
     fn get_id(&self) -> PeerId;
+    async fn is_removed(&self) -> bool;
     async fn get_ps(&self) -> Arc<Box<dyn PeerState>>;
     async fn get_prs(&self) -> PeerRoundState;
     fn send(&self, ch_id: ChannelId, _msg: Vec<u8>) -> bool;
@@ -41,10 +44,26 @@ pub struct PeerImpl {
        peer state
     */
     pub ps: Arc<Box<dyn PeerState>>,
+    /// Whether peer removal signal received or not. By removing a peer, all gossiping tasks should stop running.
+    pub is_removed: Mutex<bool>,
 }
 
 #[async_trait]
 impl Peer for PeerImpl {
+    async fn start(self: Arc<Self>) {
+        let mut is_removed = self.is_removed.lock().await;
+        *is_removed = true;
+    }
+
+    async fn stop(self: Arc<Self>) {
+        let mut is_removed = self.is_removed.lock().await;
+        *is_removed = false;
+    }
+
+    async fn is_removed(&self) -> bool {
+        self.is_removed.lock().await.clone()
+    }
+
     fn get_id(&self) -> PeerId {
         self.id.clone()
     }
@@ -75,6 +94,7 @@ impl PeerImpl {
         Arc::new(Self {
             id,
             ps: Arc::new(Box::new(PeerStateImpl::new())),
+            is_removed: Mutex::new(false),
         })
     }
 }
@@ -297,7 +317,6 @@ impl PeerRoundState {
         }
 
         if let Some(pbp) = self.proposal_block_parts.as_mut() {
-            // TODO: implement BitArray.set_index for Proposal Block Parts
             pbp.set_index(msg.part.unwrap().index.try_into().unwrap(), true);
         }
     }
