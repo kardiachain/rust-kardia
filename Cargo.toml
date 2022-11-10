@@ -27,6 +27,7 @@ members = [
     "packages/primitives/externalities",
     "packages/primitives/panic-handler",
     "packages/primitives/runtime-interface",
+    "packages/primitives/merkle",
     "packages/txpool",
     "packages/state",
 ]
