@@ -232,7 +232,7 @@ impl PeerRoundState {
         }
     }
 
-    fn get_mut_vote_bit_array(
+    fn get_mut_votes(
         &mut self,
         height: u64,
         round: u32,
@@ -276,6 +276,50 @@ impl PeerRoundState {
         return None;
     }
 
+    pub fn get_votes(
+        &self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+    ) -> Option<BitArray> {
+        if !is_valid_vote_type(signed_msg_type) {
+            return None;
+        }
+
+        if self.height == height {
+            if self.round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prevotes.clone(),
+                    SignedMsgType::Precommit => self.precommits.clone(),
+                    _ => None,
+                };
+            }
+            if self.catchup_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.catchup_commit.clone(),
+                    _ => None,
+                };
+            }
+            if self.proposal_pol_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.proposal_pol.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        if self.height == height + 1 {
+            if self.last_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.last_commit.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        return None;
+    }
+
     pub fn set_has_vote(
         &mut self,
         height: u64,
@@ -283,7 +327,7 @@ impl PeerRoundState {
         signed_msg_type: SignedMsgType,
         index: usize,
     ) {
-        if let Some(vote_bit_array) = self.get_mut_vote_bit_array(height, round, signed_msg_type) {
+        if let Some(vote_bit_array) = self.get_mut_votes(height, round, signed_msg_type) {
             vote_bit_array.set_index(index, true);
         }
     }
@@ -397,14 +441,22 @@ impl PeerRoundState {
         msg: VoteSetBitsMessage,
         our_votes: Option<BitArray>,
     ) {
-        if let Some(mut peer_votes) = self.get_mut_vote_bit_array(msg.height, msg.round, msg.r#type) {
+        if let Some(peer_votes) = self.get_mut_votes(msg.height, msg.round, msg.r#type) {
             if let Some(_our_votes) = our_votes {
+                let mut x = peer_votes.to_string();
+                x = _our_votes.to_string();
+
                 // TODO: implement sub(), or(), update() for BitArray
-                // let other_votes = votes.sub(_our_votes);
-                // let has_votes = other_votes.or(msg.votes);
-                // votes.update(has_votes);
+                let other_votes = peer_votes.sub(_our_votes);
+                x = other_votes.to_string();
+                x = msg.votes.clone().unwrap().to_string();
+                let has_votes = other_votes.or(msg.votes.unwrap());
+                x = has_votes.to_string();
+
+                peer_votes.update(has_votes.clone());
+                x = peer_votes.to_string();
             } else {
-                peer_votes = &mut msg.votes.unwrap().clone();
+                peer_votes.update(msg.votes.unwrap().clone());
             }
         }
     }
@@ -429,7 +481,7 @@ mod tests {
     };
 
     use crate::types::{
-        messages::{BlockPartMessage, ProposalMessage},
+        messages::{BlockPartMessage, ProposalMessage, VoteSetBitsMessage},
         peer::PeerImpl,
     };
 
@@ -543,6 +595,49 @@ mod tests {
                 .get_index(part_index as usize)
                 .unwrap(),
             true
+        );
+    }
+
+    #[tokio::test]
+    async fn apply_vote_set_bits_message() {
+        // arrange
+        let mut prs = PeerRoundState::new();
+        prs.height = 1;
+        prs.round = 1;
+        prs.prevotes = Some(BitArray::new(5));
+        let peer_votes = prs.get_mut_votes(1, 1, SignedMsgType::Prevote).unwrap();
+
+        // Ours: 10100
+        let mut our_votes = BitArray::new(5);
+        our_votes.set_index(0, true);
+        our_votes.set_index(2, true);
+        
+        // PRS:  01000
+        peer_votes.set_index(1, true);
+        
+        // Msg:  11101
+        let mut msg_ba = BitArray::new(5);
+        msg_ba.set_index(0, true);
+        msg_ba.set_index(1, true);
+        msg_ba.set_index(2, true);
+        msg_ba.set_index(4, true);
+        let vote_set_bits_msg = VoteSetBitsMessage {
+            height: 1,
+            round: 1,
+            r#type: SignedMsgType::Prevote,
+            block_id: None, // doesn't matter
+            votes: Some(msg_ba),
+        };
+
+        // act
+        prs.apply_vote_set_bits_message(vote_set_bits_msg.clone(), Some(our_votes));
+
+        // assertions
+        let peer_votes = prs.get_votes(1, 1, SignedMsgType::Prevote);
+        assert!(peer_votes.is_some());
+        assert_eq!(
+            peer_votes.unwrap().to_string(),
+            String::from("[1, 1, 1, 0, 1]")
         );
     }
 }
