@@ -1,0 +1,19 @@
+[package]
+name = "kai-network"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libp2p = "0.46.1"
+codec = { package = "parity-scale-codec", version = "3.0.0", features = [
+	"derive",
+] }
+smallvec = "1.10.0"
+serde = "1.0.145"
+fnv = "1.0.7"
+log = "0.4.17"
+futures = "0.3.21"
+futures-timer = "3.0.2"
+kai-network-common = {path = "./common"}
