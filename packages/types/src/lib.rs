@@ -1,4 +1,5 @@
 #![feature(is_some_with)]
+#![feature(extend_one)]
 
 pub mod bit_array;
 pub mod block;

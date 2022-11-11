@@ -1,4 +1,4 @@
-use std::ops::{BitXorAssign, BitXor, BitAnd};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
 
 use bitvec::{prelude::Msb0, vec::BitVec};
 
@@ -49,35 +49,79 @@ impl BitArray {
         }
     }
 
-    pub fn not(self) -> Self {
-        todo!()
+    pub fn len(&self) -> usize {
+        self.bv.len()
+    }
+
+    pub fn not(&self) -> Self {
+        Self {
+            bv: self.clone().bv.not(),
+        }
+    }
+
+    pub fn and(&self, rhs: Self) -> Self {
+        Self {
+            bv: self.clone().bv.bitand(rhs.clone().bv),
+        }
+    }
+
+    pub fn or(&self, rhs: Self) -> Self {
+        Self {
+            bv: self.clone().bv.bitor(rhs.clone().bv),
+        }
     }
 
     pub fn sub(&self, o: Self) -> Self {
-        if self.bv.len() > o.bv.len() {
-            // ^0100 = 1111 ^ 0100
-            let c = self.bv.bitand(
-                self.bv.bitxor(
-                    BitVec::<u64, Msb0>::repeat(true, self.bv.len())
-                ));
-
-            let i = o.bv.len() - 1;
-            if i >= 0 {
-                let o_not = o.bv.bit
-
-                for i in o.bv.iter() {
-                    c.set()
-                }
-                for let i = 0; i < o.bv.len(); i++ {
-
-                }
-            }
+        if self.len() > o.len() {
+            let mut o_bv = o.clone().bv;
+            o_bv.resize(self.len(), false);
+            // o_bv.extend_from_bitslice(
+            //     BitVec::<u64, Msb0>::repeat(false, self.len() - o.len()).as_bitslice(),
+            // );
+            return self.and(Self { bv: o_bv }.not());
         }
 
-        return 
+        self.and(o.not())
+    }
+
+    pub fn update(&mut self, src: Self) {
+        if self.len() != src.len() {
+            self.bv.resize(src.len(), false);
+        }
+        self.bv.copy_from_bitslice(&src.bv);
+    }
+
+    pub fn to_string(&self) -> String {
+        self.bv.to_string()
     }
 
     pub fn pick_random(self) -> Option<usize> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BitArray;
+
+    #[test]
+    fn sub() {
+        let mut ba_1 = BitArray::new(4); // 1101
+        ba_1.set_index(0, true);
+        ba_1.set_index(1, true);
+        ba_1.set_index(3, true);
+
+        let mut ba_2 = BitArray::new(3); // 101
+        ba_2.set_index(0, true);
+        ba_2.set_index(2, true);
+
+        assert_eq!(
+            ba_1.clone().sub(ba_2.clone()).to_string(),
+            String::from("[0, 1, 0, 1]")
+        );
+        assert_eq!(
+            ba_2.clone().sub(ba_1.clone()).to_string(),
+            String::from("[0, 0, 1]")
+        );
     }
 }
