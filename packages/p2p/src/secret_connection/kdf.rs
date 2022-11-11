@@ -50,6 +50,8 @@ impl Kdf {
 
 impl Drop for Kdf {
     fn drop(&mut self) {
-        todo!()
+        self.recv_secret.zeroize();
+        self.send_secret.zeroize();
+        self.challenge.zeroize();
     }
 }

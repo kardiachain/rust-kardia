@@ -6,7 +6,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use async_trait::async_trait;
 use eyre::Result;
 use futures_core::Stream;
-use kardia::{node, public_key::PublicKey};
+use kai_core::{node, public_key::PublicKey};
 
 /// Information which resources to bind to and how to identify on the network.
 pub struct BindInfo<A>

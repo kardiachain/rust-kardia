@@ -20,7 +20,7 @@ use merlin::Transcript;
 use rand_core::OsRng;
 use subtle::ConstantTimeEq;
 use kai_proto as proto;
-use std_ext::TryClone;
+use kai_std_ext::TryClone;
 use x25519_dalek::{EphemeralSecret, PublicKey as EphemeralPublic};
 
 pub use self::{
@@ -30,6 +30,7 @@ pub use self::{
     public_key::PublicKey,
 };
 use crate::error::Error;
+use k256::ecdsa::signature::Signer;
 
 #[cfg(feature = "amino")]
 mod amino_types;
@@ -60,7 +61,7 @@ pub struct Handshake<S> {
 
 /// `AwaitingEphKey` means we're waiting for the remote ephemeral pubkey.
 pub struct AwaitingEphKey {
-    local_privkey: ed25519_consensus::SigningKey,
+    local_privkey: k256::ecdsa::SigningKey,
     local_eph_privkey: Option<EphemeralSecret>,
 }
 
@@ -70,7 +71,7 @@ pub struct AwaitingAuthSig {
     kdf: Kdf,
     recv_cipher: ChaCha20Poly1305,
     send_cipher: ChaCha20Poly1305,
-    local_signature: ed25519_consensus::Signature,
+    local_signature: k256::ecdsa::Signature,
 }
 
 #[allow(clippy::use_self)]
@@ -78,7 +79,7 @@ impl Handshake<AwaitingEphKey> {
     /// Initiate a handshake.
     #[must_use]
     pub fn new(
-        local_privkey: ed25519_consensus::SigningKey,
+        local_privkey: k256::ecdsa::SigningKey,
         protocol_version: Version,
     ) -> (Self, EphemeralPublic) {
         // Generate an ephemeral key for perfect forward secrecy.
@@ -150,9 +151,9 @@ impl Handshake<AwaitingEphKey> {
 
         // Sign the challenge bytes for authentication.
         let local_signature = if self.protocol_version.has_transcript() {
-            self.state.local_privkey.sign(&sc_mac)
+            self.state.local_privkey.try_sign(&sc_mac)
         } else {
-            self.state.local_privkey.sign(&kdf.challenge)
+            self.state.local_privkey.try_sign(&kdf.challenge)
         };
 
         Ok(Handshake {
@@ -184,14 +185,14 @@ impl Handshake<AwaitingAuthSig> {
             .ok_or_else(Error::missing_key)?;
 
         let remote_pubkey = match pk_sum {
-            proto::crypto::public_key::Sum::Ecdsa(ref bytes) => {
-                ed25519_consensus::VerificationKey::try_from(&bytes[..])
+            proto::crypto::public_key::Sum::Ed25519(ref bytes) => {
+                k256::ecdsa::VerifyingKey::try_from(&bytes[..])
                     .map_err(|_| Error::signature())
             },
             _ => Err(Error::unsupported_key()),
         }?;
 
-        let remote_sig = ed25519_consensus::Signature::try_from(auth_sig_msg.sig.as_slice())
+        let remote_sig = k256::ecdsa::Signature::try_from(auth_sig_msg.sig.as_slice())
             .map_err(|_| Error::signature())?;
 
         if self.protocol_version.has_transcript() {
@@ -245,7 +246,7 @@ macro_rules! checked_io {
 /// not both simultaneously).
 ///
 /// If, however, the underlying I/O handler class implements
-/// [`std_ext::TryClone`], then you can use
+/// [`tendermint_std_ext::TryClone`], then you can use
 /// [`SecretConnection::split`] to split the `SecretConnection` into its
 /// sending and receiving halves. Each of these halves can then be used in a
 /// separate thread to facilitate full-duplex communication.
@@ -279,7 +280,7 @@ impl<IoHandler: Read + Write + Send + Sync> SecretConnection<IoHandler> {
     /// * if receiving the signature fails
     pub fn new(
         mut io_handler: IoHandler,
-        local_privkey: ed25519_consensus::SigningKey,
+        local_privkey: k256::ecdsa::SigningKey,
         protocol_version: Version,
     ) -> Result<Self, Error> {
         // Start a handshake process.
@@ -312,13 +313,16 @@ impl<IoHandler: Read + Write + Send + Sync> SecretConnection<IoHandler> {
         // Share each other's pubkey & challenge signature.
         // NOTE: the data must be encrypted/decrypted using ciphers.
         let auth_sig_msg = match local_pubkey {
-            PublicKey::Ed25519(ref pk) => {
-                share_auth_signature(&mut sc, pk, &h.state.local_signature)?
+            // PublicKey::Ed25519(ref pk) => {
+            //     share_auth_signature(&mut sc, pk, &h.state.local_signature)?
+            // },
+            PublicKey::Secp256k1(ref pk) => {
+                share_auth_signature(&mut sc, pk, &h.state.local_signature)
             },
         };
 
         // Authenticate remote pubkey.
-        let remote_pubkey = h.got_signature(auth_sig_msg)?;
+        let remote_pubkey = h.got_signature(auth_sig_msg.unwrap())?;
 
         // All good!
         sc.remote_pubkey = Some(remote_pubkey);
@@ -474,8 +478,8 @@ fn share_eph_pubkey<IoHandler: Read + Write + Send + Sync>(
 // this can also fail while writing / sending
 fn share_auth_signature<IoHandler: Read + Write + Send + Sync>(
     sc: &mut SecretConnection<IoHandler>,
-    pubkey: &ed25519_consensus::VerificationKey,
-    local_signature: &ed25519_consensus::Signature,
+    pubkey: &k256::ecdsa::VerifyingKey,
+    local_signature: &k256::ecdsa::Signature,
 ) -> Result<proto::p2p::AuthSigMessage, Error> {
     let buf = sc
         .protocol_version

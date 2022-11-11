@@ -5,33 +5,35 @@ use std::{
     fmt::{self, Display},
 };
 
+use k256::ecdsa;
 use sha2::{digest::Digest, Sha256};
-use kardia::{error::Error, node};
+use kai_core::{error::Error, node};
 
-/// Secret Connection peer public keys (signing, presently Ed25519-only)
+/// Secret Connection peer public keys (signing, presently Secp256k1-only)
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PublicKey {
-    /// Ed25519 Secret Connection Keys
-    Ed25519(ed25519_consensus::VerificationKey),
+    /// Secp256k1 Secret Connection Keys
+    Secp256k1(k256::ecdsa::VerifyingKey)
 }
 
 impl PublicKey {
-    /// From raw Ed25519 public key bytes
+
+    /// From raw Secp259k1 public key bytes
     ///
     /// # Errors
     ///
     /// * if the bytes given are invalid
-    pub fn from_raw_ed25519(bytes: &[u8]) -> Result<Self, Error> {
-        ed25519_consensus::VerificationKey::try_from(bytes)
-            .map(Self::Ed25519)
+    pub fn from_raw_secp256k1(bytes: &[u8]) -> Result<Self, Error> {
+        k256::ecdsa::VerifyingKey::from_sec1_bytes(bytes)
+            .map(Self::Secp256k1)
             .map_err(|_| Error::signature())
     }
 
-    /// Get Ed25519 public key
+    /// Get Secp256k1 public key
     #[must_use]
-    pub const fn ed25519(self) -> Option<ed25519_consensus::VerificationKey> {
+    pub const fn secp256k1(self) -> Option<k256::ecdsa::VerifyingKey> {
         match self {
-            Self::Ed25519(pk) => Some(pk),
+            Self::Secp256k1(pk) => Some(pk),
         }
     }
 
@@ -39,9 +41,8 @@ impl PublicKey {
     #[must_use]
     pub fn peer_id(self) -> node::Id {
         match self {
-            Self::Ed25519(pk) => {
-                // TODO(tarcieri): use `tendermint::node::Id::from`
-                let digest = Sha256::digest(pk.as_bytes());
+            Self::Secp256k1(pk) => {
+                let digest = Sha256::digest(pk.to_bytes().as_slice());
                 let mut bytes = [0_u8; 20];
                 bytes.copy_from_slice(&digest[..20]);
                 node::Id::new(bytes)
@@ -56,14 +57,14 @@ impl Display for PublicKey {
     }
 }
 
-impl From<&ed25519_consensus::SigningKey> for PublicKey {
-    fn from(sk: &ed25519_consensus::SigningKey) -> Self {
-        Self::Ed25519(sk.verification_key())
+impl From<&k256::ecdsa::SigningKey> for PublicKey {
+    fn from(sk: &k256::ecdsa::SigningKey) -> Self {
+        Self::Secp256k1(ecdsa::VerifyingKey::from(sk))
     }
 }
 
-impl From<ed25519_consensus::VerificationKey> for PublicKey {
-    fn from(pk: ed25519_consensus::VerificationKey) -> Self {
-        Self::Ed25519(pk)
+impl From<k256::ecdsa::VerifyingKey> for PublicKey {
+    fn from(pk: k256::ecdsa::VerifyingKey) -> Self {
+        Self::Secp256k1(pk)
     }
 }

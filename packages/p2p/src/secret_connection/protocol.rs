@@ -37,10 +37,7 @@ impl Version {
     /// Are messages encoded using Protocol Buffers?
     #[must_use]
     pub const fn is_protobuf(self) -> bool {
-        match self {
-            Self::V0_34 => true,
-            Self::V0_33 | Self::Legacy => false,
-        }
+        true
     }
 
     /// Encode the initial handshake message (i.e. first one sent by both peers)
@@ -109,13 +106,13 @@ impl Version {
     #[must_use]
     pub fn encode_auth_signature(
         self,
-        pub_key: &ed25519_consensus::VerificationKey,
-        signature: &ed25519_consensus::Signature,
+        pub_key: &k256::ecdsa::VerifyingKey,
+        signature: &k256::ecdsa::Signature,
     ) -> Vec<u8> {
         if self.is_protobuf() {
             // Protobuf `AuthSigMessage`
             let pub_key = proto::crypto::PublicKey {
-                sum: Some(proto::crypto::public_key::Sum::Ecdsa(
+                sum: Some(proto::crypto::public_key::Sum::Ed25519(
                     pub_key.as_ref().to_vec(),
                 )),
             };

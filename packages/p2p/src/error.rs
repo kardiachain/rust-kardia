@@ -3,6 +3,7 @@
 // Related to the `Error` definition below.
 // TODO(soares): Update flex-error accordingly to address this.
 #![allow(clippy::use_self)]
+
 use flex_error::{define_error, DisplayOnly};
 use prost::DecodeError;
 
