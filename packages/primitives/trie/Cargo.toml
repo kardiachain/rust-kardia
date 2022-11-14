@@ -1,0 +1,46 @@
+[package]
+name = "kp-trie"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+kp-core = { path = "../core"}
+ahash = { version = "0.7.6", optional = true }
+kp-std = { version = "0.1.0", default-features = false, path = "../std" }
+trie-db = { version = "0.24.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+thiserror = { version = "1.0.30", optional = true }
+hashbrown = { version = "0.12.3", optional = true }
+nohash-hasher = { version = "0.2.0", optional = true }
+hash-db = { version = "0.15.2", default-features = false }
+parking_lot = { version = "0.12.1", optional = true }
+lru = { version = "0.7.5", optional = true }
+lazy_static = { version = "1.4.0", optional = true }
+tracing = { version = "0.1.29", optional = true }
+trie-root = { version = "0.17.0", default-features = false }
+memory-db = { version = "0.30.0", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+array-bytes = "4.1"
+criterion = "0.3.3"
+trie-bench = "0.32.0"
+trie-standardmap = "0.15.2"
+
+[features]
+default = ["std"]
+std = [
+  "thiserror",
+  "nohash-hasher",
+  "hashbrown",
+  "hash-db/std",
+  "parking_lot",
+  "lru",
+  "lazy_static",
+  "ahash",
+  "tracing",
+  "trie-root/std",
+  "memory-db/std",
+  "scale-info/std",
+]

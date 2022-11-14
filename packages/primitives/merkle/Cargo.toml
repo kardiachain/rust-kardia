@@ -1,0 +1,19 @@
+[package]
+name = "kp-merkle"
+version = "0.1.0"
+license = "Apache-2.0"
+edition = "2021"
+readme = "README.md"
+[dependencies]
+subtle = { version = "2", default-features = false }
+subtle-encoding = { version = "0.5", default-features = false, features = ["bech32-preview", "hex"] }
+sha2 = { version = "0.10.6", default-features = false }
+kp-core = { path = '../core'}
+thiserror = "1.0.37"
+
+[features]
+default = ["std"]
+with-tracing = []
+std = [
+	
+]

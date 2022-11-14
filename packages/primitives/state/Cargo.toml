@@ -1,0 +1,44 @@
+[package]
+name = "kp-state"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+smallvec = "1.8.0"
+kp-std = {  version = "0.1.0", path = "../std"}
+kp-trie = { version = "0.1.0", default-features = false, path = "../trie" }
+kp-core = { version = "0.1.0", default-features = false, path = "../core" }
+log = { version = "0.4.17", optional = true }
+hash-db = { version = "0.15.2", default-features = false }
+thiserror = { version = "1.0.30", optional = true }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+kp-externalities = { version = "0.1.0", default-features = false, path = "../externalities" }
+parking_lot = { version = "0.12.1", optional = true }
+kp-panic-handler = { version = "0.1.0", default-features = false, path = "../panic-handler" }
+rand = { version = "0.8.5", optional = true }
+tracing = { version = "0.1.29", optional = true }
+kp-runtime = { version = "0.1.0", default-features = false, path = "../runtime" }
+
+[dev-dependencies]
+array-bytes = "4.1"
+pretty_assertions = "1.2.1"
+trie-db = "0.24.0"
+
+[features]
+default = ["std"]
+std = [
+    "kp-std/std",
+    "kp-trie/std",
+    "kp-core/std",
+    "hash-db/std",
+    "thiserror",
+    "log",
+    "rand",
+    "codec/std",
+    "parking_lot",
+    "kp-externalities/std",
+    "tracing",
+    "kp-runtime/std"
+]
