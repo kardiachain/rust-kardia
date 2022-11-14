@@ -54,6 +54,7 @@ impl BlockVotes {
     }
 }
 
+/// VoteSet stores vote set 
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoteSet {
     pub chain_id: ChainId,
@@ -65,8 +66,10 @@ pub struct VoteSet {
     pub sum: u64,
     pub r#type: SignedMsgType,
     pub maj23: Option<BlockId>,
+    /// 
     pub votes_by_block: HashMap<String, BlockVotes>, // string(blockHash|blockParts) -> blockVotes
-    pub peer_maj23s: HashMap<PeerId, BlockId>,       // maj23 for each peer
+    /// majority block id of each peer id
+    pub peer_maj23s: HashMap<PeerId, BlockId>,
 }
 
 impl VoteSet {

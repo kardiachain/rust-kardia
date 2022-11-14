@@ -17,14 +17,13 @@ pub enum AddVoteError {
     #[error("vote from unwanted round")]
     VoteFromUnwantedRound,
     #[error("conflicting vote: {0:?}")]
-    ConflictingVote(Vote)
+    ConflictingVote(Vote),
 }
-
 
 #[derive(Error, Debug)]
 pub enum MakeCommitError {
     #[error("not enough majority")]
-    NotEnoughMajority()
+    NotEnoughMajority(),
 }
 
 #[derive(Error, Debug)]
@@ -35,4 +34,22 @@ pub enum VoteError {
     NilVote,
     #[error("failed to create vote sign bytes")]
     CreateVoteSignBytesError,
+}
+
+#[derive(Error, Debug)]
+pub enum DecideProposalError {
+    #[error("no last commit from previous block")]
+    NoLastCommit,
+    #[error("block operations error: {0:#?}")]
+    BlockOperationsError(BlockOperationsError),
+    #[error("calculate block hash failed")]
+    CalculateBlockHashFailed,
+    #[error("sign proposal failed")]
+    SignProposalFailed,
+}
+
+#[derive(Error, Debug, Clone)]
+pub enum BlockOperationsError {
+    #[error("create proposal block error: {0}")]
+    CreateProposalBlockError(String),
 }

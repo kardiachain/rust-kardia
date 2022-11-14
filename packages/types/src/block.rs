@@ -1,4 +1,9 @@
-use crate::{commit::Commit, evidence::EvidenceData, misc::Data, part_set::PartSetHeader};
+use crate::{
+    commit::Commit,
+    evidence::EvidenceData,
+    misc::Data,
+    part_set::{PartSet, PartSetHeader},
+};
 
 #[derive(Clone, ::prost::Message)]
 pub struct BlockId {
@@ -146,5 +151,10 @@ pub struct Block {
 impl Block {
     pub fn hash(&self) -> Option<crate::common::hash::Hash> {
         self.header.clone().and_then(|h| h.hash())
+    }
+
+    pub fn make_part_set(&self, part_size: u32) -> PartSet {
+        let bz = ::prost::Message::encode_to_vec(self);
+        PartSet::new(bz, part_size)
     }
 }

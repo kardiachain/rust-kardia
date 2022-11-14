@@ -7,7 +7,7 @@ use crate::{
     block::{Block, BlockMeta},
     commit::Commit,
     consensus::state::LatestBlockState,
-    part_set::{Part, PartSet},
+    part_set::{Part, PartSet}, errors::BlockOperationsError,
 };
 
 #[automock]
@@ -23,8 +23,8 @@ pub trait BlockOperations: Debug + Sync + Send + 'static {
         height: u64,
         state: Arc<Box<dyn LatestBlockState>>,
         proposer_address: Address,
-        commit: Option<Commit>,
-    ) -> (Block, PartSet);
+        commit: Commit,
+    ) -> Result<(Block, PartSet), BlockOperationsError>;
     fn load_commit(&self, height: u64) -> Option<Commit>;
     fn save_block(&self, block: Block, block_parts: PartSet, seen_commit: Commit);
 }
@@ -74,8 +74,8 @@ impl BlockOperations for BlockOperationsImpl {
         height: u64,
         state: Arc<Box<dyn LatestBlockState>>,
         proposer_address: Address,
-        commit: Option<Commit>,
-    ) -> (Block,PartSet) {
+        commit: Commit,
+    ) -> Result<(Block, PartSet), BlockOperationsError> {
         todo!()
     }
 }

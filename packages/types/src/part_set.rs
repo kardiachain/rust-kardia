@@ -70,6 +70,8 @@ impl PartSetHeader {
     }
 }
 
+pub const BLOCK_PART_SIZE_BYTES: u32 = 65536;
+
 #[derive(Debug, Clone)]
 pub struct PartSet {
     pub total: u32,
@@ -81,6 +83,10 @@ pub struct PartSet {
 }
 
 impl PartSet {
+    pub fn new(data: Vec<u8>, part_size: u32) -> Self {
+        todo!()
+    }
+
     pub fn header(&self) -> PartSetHeader {
         PartSetHeader {
             total: self.total,

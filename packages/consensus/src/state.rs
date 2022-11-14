@@ -13,7 +13,13 @@ use kai_types::{
     block_operations::BlockOperations,
     commit::Commit,
     consensus::{executor::BlockExecutor, state::LatestBlockState},
-    errors::{AddVoteError, VoteError},
+    errors::{
+        AddVoteError,
+        DecideProposalError::{
+            BlockOperationsError, CalculateBlockHashFailed, NoLastCommit, SignProposalFailed,
+        },
+        VoteError,
+    },
     evidence::EvidencePool,
     part_set::PartSet,
     peer::PeerId,
@@ -34,10 +40,7 @@ use std::{
     thread,
 };
 use tokio::sync::{
-    mpsc::{
-        error::{SendError, TryRecvError},
-        Receiver, Sender,
-    },
+    mpsc::{error::SendError, Receiver, Sender},
     Mutex,
 };
 
@@ -180,12 +183,12 @@ impl ConsensusStateImpl {
             }
 
             let mut msg_chan_rx = cs.msg_chan_receiver.lock().await;
-            let rs = msg_chan_rx.try_recv();
+            let rs = msg_chan_rx.recv().await;
             // unlock msg_chan_rx
             drop(msg_chan_rx);
 
             match rs {
-                Ok(msg_info) => {
+                Some(msg_info) => {
                     let msg = msg_info.msg.clone();
                     match msg.as_ref() {
                         ConsensusMessageType::ProposalMessage(_msg) => {
@@ -233,15 +236,10 @@ impl ConsensusStateImpl {
 
                     self.clone().check_upon_rules(msg).await;
                 }
-                Err(e) => match e {
-                    TryRecvError::Disconnected => {
-                        // break loop when channel is closed
-                        break;
-                    }
-                    TryRecvError::Empty => {
-                        // no messages, continue the loop
-                    }
-                },
+                None => {
+                    // msg channel has been closed, exit loop
+                    break;
+                }
             }
         }
     }
@@ -1074,10 +1072,15 @@ impl ConsensusStateImpl {
             }
         }
 
-        let hash = block.hash().expect("calculate hash of block failed");
+        let hash = block.hash();
+        if hash.is_none() {
+            return Err(ConsensusStateError::DecideProposalError(
+                CalculateBlockHashFailed,
+            ));
+        }
 
         let block_id = BlockId {
-            hash: hash.to_vec(),
+            hash: hash.unwrap().to_vec(),
             part_set_header: Some(block_parts.header()),
         };
 
@@ -1109,9 +1112,7 @@ impl ConsensusStateImpl {
             _ = self.msg_chan_sender.try_send(msg_info);
             return Ok(());
         } else {
-            return Err(ConsensusStateError::DecideProposalError(
-                "sign proposal failed".to_owned(),
-            ));
+            return Err(ConsensusStateError::DecideProposalError(SignProposalFailed));
         }
     }
 
@@ -1147,17 +1148,22 @@ impl ConsensusStateImpl {
         }
 
         if commit.is_none() {
-            return Err(ConsensusStateError::DecideProposalError(
-                "cannot propose: no commit for the previous block".to_owned(),
-            ));
+            return Err(ConsensusStateError::DecideProposalError(NoLastCommit));
         }
 
-        return Ok(self.block_operations.create_proposal_block(
+        match self.block_operations.create_proposal_block(
             rs.height,
             self.state.clone(),
             self.priv_validator.get_address().unwrap(),
-            commit,
-        ));
+            commit.unwrap(),
+        ) {
+            Ok(proposal) => return Ok(proposal),
+            Err(e) => {
+                return Err(ConsensusStateError::DecideProposalError(
+                    BlockOperationsError(e),
+                ))
+            }
+        }
     }
 
     async fn is_proposer(self: Arc<Self>) -> bool {
@@ -1239,9 +1245,11 @@ mod tests {
     };
     use ethereum_types::Address;
     use kai_types::{
+        block::Block,
         block_operations::MockBlockOperations,
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
+        part_set::{PartSet, BLOCK_PART_SIZE_BYTES},
         priv_validator::MockPrivValidator,
         validator_set::Validator,
     };
@@ -1810,7 +1818,6 @@ mod tests {
     //  * State transitions tests
     //  * ------------------------
     //  */
-
     // /**
     //  *   -----------                     -----------------
     //  *   | PROPOSE |  ----(TIMEOUT!)---> | PREVOTE (NIL) |

@@ -232,6 +232,50 @@ impl PeerRoundState {
         }
     }
 
+    fn get_votes(
+        &self,
+        height: u64,
+        round: u32,
+        signed_msg_type: SignedMsgType,
+    ) -> Option<BitArray> {
+        if !is_valid_vote_type(signed_msg_type) {
+            return None;
+        }
+
+        if self.height == height {
+            if self.round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.prevotes.clone(),
+                    SignedMsgType::Precommit => self.precommits.clone(),
+                    _ => None,
+                };
+            }
+            if self.catchup_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.catchup_commit.clone(),
+                    _ => None,
+                };
+            }
+            if self.proposal_pol_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Prevote => self.proposal_pol.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        if self.height == height + 1 {
+            if self.last_commit_round == round {
+                return match signed_msg_type {
+                    SignedMsgType::Precommit => self.last_commit.clone(),
+                    _ => None,
+                };
+            }
+        }
+
+        return None;
+    }
+
     fn get_mut_votes(
         &mut self,
         height: u64,
@@ -268,50 +312,6 @@ impl PeerRoundState {
             if self.last_commit_round == round {
                 return match signed_msg_type {
                     SignedMsgType::Precommit => self.last_commit.as_mut(),
-                    _ => None,
-                };
-            }
-        }
-
-        return None;
-    }
-
-    pub fn get_votes(
-        &self,
-        height: u64,
-        round: u32,
-        signed_msg_type: SignedMsgType,
-    ) -> Option<BitArray> {
-        if !is_valid_vote_type(signed_msg_type) {
-            return None;
-        }
-
-        if self.height == height {
-            if self.round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.prevotes.clone(),
-                    SignedMsgType::Precommit => self.precommits.clone(),
-                    _ => None,
-                };
-            }
-            if self.catchup_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.catchup_commit.clone(),
-                    _ => None,
-                };
-            }
-            if self.proposal_pol_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Prevote => self.proposal_pol.clone(),
-                    _ => None,
-                };
-            }
-        }
-
-        if self.height == height + 1 {
-            if self.last_commit_round == round {
-                return match signed_msg_type {
-                    SignedMsgType::Precommit => self.last_commit.clone(),
                     _ => None,
                 };
             }
@@ -611,10 +611,10 @@ mod tests {
         let mut our_votes = BitArray::new(5);
         our_votes.set_index(0, true);
         our_votes.set_index(2, true);
-        
+
         // PRS:  01000
         peer_votes.set_index(1, true);
-        
+
         // Msg:  11101
         let mut msg_ba = BitArray::new(5);
         msg_ba.set_index(0, true);

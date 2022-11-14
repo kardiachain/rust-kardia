@@ -1,4 +1,4 @@
-use kai_types::misc::ChannelId;
+use kai_types::{errors::DecideProposalError, misc::ChannelId};
 use thiserror::Error;
 
 use super::messages::VoteMessage;
@@ -25,8 +25,8 @@ pub enum ConsensusReactorError {
 
 #[derive(Error, Debug)]
 pub enum ConsensusStateError {
-    #[error("decide proposal error: `{0}`")]
-    DecideProposalError(String),
+    #[error("decide proposal error: `{0:#?}`")]
+    DecideProposalError(DecideProposalError),
     #[error("add vote error: `{0}`")]
     AddVoteError(kai_types::errors::AddVoteError),
     #[error("unknown msg type")]
