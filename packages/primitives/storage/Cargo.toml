@@ -1,0 +1,17 @@
+[package]
+name = "kp-storage"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
+impl-serde = { version = "0.4.0", optional = true }
+ref-cast = "1.0.0"
+serde = { version = "1.0.136", features = ["derive"], optional = true }
+kp-debug-derive = { version = "0.1.0", default-features = false, path = "../debug-derive" }
+kp-std = { version = "0.1.0", default-features = false, path = "../std" }
+
+[features]
+default = [ "std" ]
+std = [ "codec/std", "impl-serde", "serde", "kp-debug-derive/std", "kp-std/std" ]
