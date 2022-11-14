@@ -1454,6 +1454,7 @@ dependencies = [
  "ethereum-types",
  "kai-lib",
  "kai-proto",
+ "kp-merkle",
  "mockall",
  "num",
  "num-derive",
@@ -1593,7 +1594,10 @@ dependencies = [
 name = "kp-merkle"
 version = "0.1.0"
 dependencies = [
+ "kai-proto",
  "kp-core",
+ "prost 0.11.2",
+ "prost-types 0.11.2",
  "sha2 0.10.6",
  "subtle",
  "subtle-encoding",

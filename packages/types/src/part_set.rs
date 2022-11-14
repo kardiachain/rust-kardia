@@ -1,4 +1,7 @@
 use crate::bit_array::BitArray;
+use ethereum_types::H256;
+use kp_merkle::proof::{proof_from_byte_vectors, Proof};
+use std::cmp;
 
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Part {
@@ -7,7 +10,7 @@ pub struct Part {
     #[prost(bytes = "vec", tag = "2")]
     pub bytes: ::prost::alloc::vec::Vec<u8>,
     #[prost(message, optional, tag = "3")]
-    pub proof: ::core::option::Option<super::crypto::Proof>,
+    pub proof: ::core::option::Option<Proof>,
 }
 
 impl From<kai_proto::types::Part> for Part {
@@ -84,7 +87,38 @@ pub struct PartSet {
 
 impl PartSet {
     pub fn new(data: Vec<u8>, part_size: u32) -> Self {
-        todo!()
+        // divide data into 4kb parts.
+        let total = (data.len() as u32 + part_size - 1) / part_size;
+        let mut parts: Vec<Option<Part>> = Vec::new();
+        let mut parts_bytes: Vec<Vec<u8>> = Vec::new();
+        let mut parts_bit_array: BitArray = BitArray::new(total as usize);
+        for i in 0..(total as usize) {
+            let part = Part {
+                index: i as u32,
+                bytes: data[i * (part_size as usize)
+                    ..cmp::min(data.len(), (i + 1) * (part_size as usize))]
+                    .to_vec(),
+                proof: None, // will be updated below
+            };
+            parts.push(Some(part.clone()));
+            parts_bytes.push(part.bytes.clone());
+            parts_bit_array.set_index(i, true);
+        }
+        // Compute merkle proofs
+        let (root, proofs) = proof_from_byte_vectors(parts_bytes);
+        for i in 0..(total as usize) {
+            if let Some(part) = parts.get_mut(i) {
+                let part = part.as_mut();
+                part.unwrap().proof = proofs.get(i).cloned();
+            }
+        }
+        return PartSet {
+            total: total,
+            hash: root.as_bytes().to_vec(),
+            parts: parts,
+            parts_bit_array,
+            count: total,
+        };
     }
 
     pub fn header(&self) -> PartSetHeader {
@@ -107,14 +141,16 @@ impl PartSet {
             return Err("unexpected index".to_owned());
         }
 
+        if part.clone().proof.is_none() {
+            return Err("proof is none".to_owned());
+        }
+
         // check hash proof
-        if !part
-            .clone()
-            .proof
-            .expect("part invalid: proof does not existed")
-            .verify(self.hash.clone())
-        {
-            return Err("invalid proof".to_owned());
+        if let Err(e) = part.clone().proof.unwrap().verify(
+            H256::from_slice(self.hash.clone().as_slice()),
+            part.bytes.as_slice(),
+        ) {
+            return Err(format!("invalid proof: {:?}", e));
         }
 
         // add part
