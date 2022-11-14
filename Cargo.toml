@@ -9,6 +9,7 @@ authors = ["KardiaChain Contributors"]
 members = [
     "source/chainspec",
     "packages/core",
+    "packages/consensus",
     "packages/store",
     "packages/primitives/core",
     "packages/primitives/std",
@@ -29,6 +30,7 @@ members = [
     "packages/primitives/runtime-interface",
     "packages/primitives/merkle",
     "packages/txpool",
+    "packages/types",
     "packages/state",
 ]
 
