@@ -1249,7 +1249,7 @@ mod tests {
         block_operations::MockBlockOperations,
         consensus::{executor::MockBlockExecutor, state::MockLatestBlockState},
         evidence::MockEvidencePool,
-        part_set::{PartSet, BLOCK_PART_SIZE_BYTES},
+        part_set::BLOCK_PART_SIZE_BYTES,
         priv_validator::MockPrivValidator,
         validator_set::Validator,
     };
@@ -2134,4 +2134,56 @@ mod tests {
     //     assert_eq!(rs.round, last_rs.round + 1); // assert new round
     // });
     // }
+
+    #[tokio::test]
+    async fn create_proposal_block() {
+        let mut m_latest_block_state = MockLatestBlockState::new();
+        let mut m_priv_validator = MockPrivValidator::new();
+        let mut m_block_operations = MockBlockOperations::new();
+        let m_block_executor = MockBlockExecutor::new();
+        let m_evidence_pool = MockEvidencePool::new();
+
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const("".to_string());
+        m_latest_block_state
+            .expect_get_initial_height()
+            .return_const(1u64);
+
+        m_priv_validator
+            .expect_get_address()
+            .return_const(Some(ADDR_2));
+
+        let block = Block {
+            header: None,
+            data: None,
+            evidence: None,
+            last_commit: None,
+        };
+
+        let block_parts = block.make_part_set(BLOCK_PART_SIZE_BYTES);
+
+        m_block_operations
+            .expect_create_proposal_block()
+            .return_const(Ok((block.clone(), block_parts.clone())));
+
+        let cs = ConsensusStateImpl::new(
+            ConsensusConfig::new_default(),
+            Arc::new(Box::new(m_latest_block_state)),
+            Arc::new(Box::new(m_priv_validator)),
+            Arc::new(Box::new(m_block_operations)),
+            Arc::new(Box::new(m_block_executor)),
+            Arc::new(Box::new(m_evidence_pool)),
+        );
+        let arc_cs = Arc::new(cs);
+
+        // arrange round state
+        let binding = arc_cs.clone();
+        let mut rs_guard = binding.rs.lock().await;
+        rs_guard.height = 1;
+        drop(rs_guard);
+
+        let rs = arc_cs.create_proposal_block().await;
+        assert!(rs.is_ok());
+    }
 }
