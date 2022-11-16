@@ -1,3 +1,4 @@
+use super::base_service::BaseService;
 use super::messages::{
     BlockPartMessage, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
     ProposalPOLMessage, VoteSetBitsMessage,
@@ -39,29 +40,27 @@ pub trait Peer: Debug + Send + Sync + 'static {
 
 #[derive(Debug)]
 pub struct PeerImpl {
+    base_service: BaseService,
+
     pub id: PeerId,
     /**
        peer state
     */
     pub ps: Arc<Box<dyn PeerState>>,
-    /// Whether peer removal signal received or not. By removing a peer, all gossiping tasks should stop running.
-    pub is_removed: Mutex<bool>,
 }
 
 #[async_trait]
 impl Peer for PeerImpl {
     async fn start(self: Arc<Self>) {
-        let mut is_removed = self.is_removed.lock().await;
-        *is_removed = true;
+        self.base_service.start().await;
     }
 
     async fn stop(self: Arc<Self>) {
-        let mut is_removed = self.is_removed.lock().await;
-        *is_removed = false;
+        self.base_service.stop().await;
     }
 
     async fn is_removed(&self) -> bool {
-        self.is_removed.lock().await.clone()
+        !self.base_service.is_running().await
     }
 
     fn get_id(&self) -> PeerId {
@@ -94,7 +93,7 @@ impl PeerImpl {
         Arc::new(Self {
             id,
             ps: Arc::new(Box::new(PeerStateImpl::new())),
-            is_removed: Mutex::new(false),
+            base_service: BaseService::new(),
         })
     }
 }

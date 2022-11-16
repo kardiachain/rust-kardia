@@ -19,7 +19,7 @@ use kai_types::{
     types::SignedMsgType,
 };
 use prost::Message;
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::{result::Result::Ok, thread};
 
@@ -325,12 +325,14 @@ impl ConsensusReactorImpl {
 
                 if rs.height == _msg.height {
                     let our_votes = match _msg.r#type {
-                        SignedMsgType::Prevote => rs.votes
+                        SignedMsgType::Prevote => rs
+                            .votes
                             .and_then(|vts| vts.prevotes(_msg.round))
                             .and_then(|pv| {
                                 pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
                             }),
-                        SignedMsgType::Precommit => rs.votes
+                        SignedMsgType::Precommit => rs
+                            .votes
                             .and_then(|vts| vts.precommits(_msg.round))
                             .and_then(|pv| {
                                 pv.bit_array_by_block_id(_msg.block_id.clone().unwrap())
