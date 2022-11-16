@@ -7,6 +7,7 @@ edition = "2021"
 "kai-proto" = { path = "../proto" }
 "kai-types" = { path = "../types" }
 "kai-lib" = { path = "../lib" }
+"kp-merkle" = { path = "../primitives/merkle" }
 "prost" = "0.11.0"
 "thiserror" = "1.0.32"
 "anyhow" = "1.0"

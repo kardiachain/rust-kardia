@@ -443,18 +443,10 @@ impl PeerRoundState {
     ) {
         if let Some(peer_votes) = self.get_mut_votes(msg.height, msg.round, msg.r#type) {
             if let Some(_our_votes) = our_votes {
-                let mut x = peer_votes.to_string();
-                x = _our_votes.to_string();
-
-                // TODO: implement sub(), or(), update() for BitArray
                 let other_votes = peer_votes.sub(_our_votes);
-                x = other_votes.to_string();
-                x = msg.votes.clone().unwrap().to_string();
                 let has_votes = other_votes.or(msg.votes.unwrap());
-                x = has_votes.to_string();
 
                 peer_votes.update(has_votes.clone());
-                x = peer_votes.to_string();
             } else {
                 peer_votes.update(msg.votes.unwrap().clone());
             }
