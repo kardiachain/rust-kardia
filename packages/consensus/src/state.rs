@@ -134,10 +134,8 @@ impl ConsensusState for ConsensusStateImpl {
         // stop base service
         self.base_service.stop().await;
 
-        // close msg_channel
-        let mut msg_chan_receiver = self.msg_chan_receiver.lock().await;
-        msg_chan_receiver.close();
-        drop(msg_chan_receiver);
+        // send signal to stop processing messages
+        _ = self.send(MessageInfo::TerminationMessage).await;
 
         Ok(())
     }
@@ -173,102 +171,97 @@ impl ConsensusStateImpl {
     }
 
     /// Process incoming messages by polling the receiver.
-    /// This process runs until the message channel is closed.
+    /// This process runs until it receive a termination message.
     async fn process_msg_chan(self: Arc<Self>) {
-        loop {
-            let cs = self.clone();
+        let cs = self.clone();
+        let mut msg_chan_receiver = cs.msg_chan_receiver.lock().await;
 
-            // stop processing if channel is closed
-            if cs.msg_chan_sender.is_closed() {
-                log::info!("message channel is closed, stop processing messages");
+        match msg_chan_receiver.recv().await {
+            Some(msg_info) => {
+                match msg_info {
+                    MessageInfo::IncomingMessage { msg, peer_id } => {
+                        match msg.as_ref() {
+                            ConsensusMessageType::ProposalMessage(inner_msg) => {
+                                log::debug!("set proposal: proposal={:?}", inner_msg.clone());
+                                match self.clone().set_proposal(inner_msg.clone()).await {
+                                    Ok(_) => {
+                                        let cs2 = cs.clone();
+                                        tokio::spawn(async move {
+                                            cs2.check_upon_rules(msg).await;
+                                        });
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "set proposal failed: peerid={} msg={:?}, err={}",
+                                            peer_id,
+                                            inner_msg.clone(),
+                                            e
+                                        );
+                                    }
+                                };
+                            }
+                            ConsensusMessageType::BlockPartMessage(inner_msg) => {
+                                log::debug!("set block part: blockpart={:?}", inner_msg.clone());
+                                match self
+                                    .clone()
+                                    .add_proposal_block_part(inner_msg.clone())
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        let cs2 = cs.clone();
+                                        tokio::spawn(async move {
+                                            cs2.check_upon_rules(msg).await;
+                                        });
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "set block part failed: peerid={} msg={:?}, err={}",
+                                            peer_id,
+                                            inner_msg.clone(),
+                                            e
+                                        );
+                                    }
+                                };
+                            }
+                            ConsensusMessageType::VoteMessage(inner_msg) => {
+                                log::debug!("set vote: vote={:?}", inner_msg.clone());
+                                match self
+                                    .clone()
+                                    .add_vote(inner_msg.clone(), peer_id.clone())
+                                    .await
+                                {
+                                    Ok(_) => {
+                                        let cs2 = cs.clone();
+                                        tokio::spawn(async move {
+                                            cs2.check_upon_rules(msg).await;
+                                        });
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "set vote failed: peerid={} msg={:?}, err={}",
+                                            peer_id,
+                                            inner_msg.clone(),
+                                            e
+                                        );
+                                    }
+                                };
+                            }
+                            _ => {
+                                log::error!("unknown msg type: type={:?}", msg);
+                            }
+                        };
+                    }
+                    MessageInfo::TerminationMessage => {
+                        msg_chan_receiver.close();
+                        return;
+                    }
+                };
+            }
+            None => {
+                // msg channel has been closed, exit
                 return;
             }
-
-            let mut msg_chan_rx = cs.msg_chan_receiver.lock().await;
-            let rs = msg_chan_rx.recv().await;
-            // unlock msg_chan_rx
-            drop(msg_chan_rx);
-
-            match rs {
-                Some(msg_info) => {
-                    let msg = msg_info.msg.clone();
-                    match msg.as_ref() {
-                        ConsensusMessageType::ProposalMessage(inner_msg) => {
-                            log::debug!("set proposal: proposal={:?}", inner_msg.clone());
-                            match self.clone().set_proposal(inner_msg.clone()).await {
-                                Ok(_) => {
-                                    let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "set proposal failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        inner_msg.clone(),
-                                        e
-                                    );
-                                }
-                            };
-                        }
-                        ConsensusMessageType::BlockPartMessage(inner_msg) => {
-                            log::debug!("set block part: blockpart={:?}", inner_msg.clone());
-                            match self
-                                .clone()
-                                .add_proposal_block_part(inner_msg.clone())
-                                .await
-                            {
-                                Ok(_) => {
-                                    let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "set block part failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        inner_msg.clone(),
-                                        e
-                                    );
-                                }
-                            };
-                        }
-                        ConsensusMessageType::VoteMessage(inner_msg) => {
-                            log::debug!("set vote: vote={:?}", inner_msg.clone());
-                            match self
-                                .clone()
-                                .add_vote(inner_msg.clone(), msg_info.peer_id.clone())
-                                .await
-                            {
-                                Ok(_) => {
-                                    let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
-                                }
-                                Err(e) => {
-                                    log::error!(
-                                        "set vote failed: peerid={} msg={:?}, err={}",
-                                        msg_info.peer_id,
-                                        inner_msg.clone(),
-                                        e
-                                    );
-                                }
-                            };
-                        }
-                        _ => {
-                            log::error!("unknown msg type: type={:?}", msg);
-                        }
-                    };
-                }
-                None => {
-                    // msg channel has been closed, exit loop
-                    return;
-                }
-            };
-        }
+        };
     }
 
     async fn check_upon_rules(self: Arc<Self>, msg: Arc<ConsensusMessageType>) {
@@ -307,7 +300,7 @@ impl ConsensusStateImpl {
                                 proposal_block_id.clone(),
                             ) {
                                 Ok(signed_vote) => {
-                                    let msg = MessageInfo {
+                                    let msg = MessageInfo::IncomingMessage {
                                         msg: Arc::new(ConsensusMessageType::VoteMessage(
                                             VoteMessage {
                                                 vote: Some(signed_vote),
@@ -316,7 +309,7 @@ impl ConsensusStateImpl {
                                         peer_id: internal_peerid(),
                                     };
 
-                                    _ = self.msg_chan_sender.send(msg).await;
+                                    _ = self.send(msg).await;
 
                                     log::debug!("signed and sent vote")
                                 }
@@ -331,7 +324,7 @@ impl ConsensusStateImpl {
                                 BlockId::new_zero_block_id(), // nil block
                             ) {
                                 Ok(signed_vote) => {
-                                    let msg = MessageInfo {
+                                    let msg = MessageInfo::IncomingMessage {
                                         msg: Arc::new(ConsensusMessageType::VoteMessage(
                                             VoteMessage {
                                                 vote: Some(signed_vote),
@@ -378,7 +371,7 @@ impl ConsensusStateImpl {
                                 proposal_block_id.clone(),
                             ) {
                                 Ok(signed_vote) => {
-                                    let msg = MessageInfo {
+                                    let msg = MessageInfo::IncomingMessage {
                                         msg: Arc::new(ConsensusMessageType::VoteMessage(
                                             VoteMessage {
                                                 vote: Some(signed_vote),
@@ -402,7 +395,7 @@ impl ConsensusStateImpl {
                                 BlockId::new_zero_block_id(), // nil block
                             ) {
                                 Ok(signed_vote) => {
-                                    let msg = MessageInfo {
+                                    let msg = MessageInfo::IncomingMessage {
                                         msg: Arc::new(ConsensusMessageType::VoteMessage(
                                             VoteMessage {
                                                 vote: Some(signed_vote),
@@ -448,7 +441,7 @@ impl ConsensusStateImpl {
                                 proposal_block_id.clone(),
                             ) {
                                 Ok(signed_vote) => {
-                                    let msg = MessageInfo {
+                                    let msg = MessageInfo::IncomingMessage {
                                         msg: Arc::new(ConsensusMessageType::VoteMessage(
                                             VoteMessage {
                                                 vote: Some(signed_vote),
@@ -576,7 +569,7 @@ impl ConsensusStateImpl {
                                             proposal_block_id.clone(),
                                         ) {
                                             Ok(signed_vote) => {
-                                                let msg = MessageInfo {
+                                                let msg = MessageInfo::IncomingMessage {
                                                     msg: Arc::new(
                                                         ConsensusMessageType::VoteMessage(
                                                             VoteMessage {
@@ -618,7 +611,7 @@ impl ConsensusStateImpl {
                                         BlockId::new_zero_block_id().clone(),
                                     ) {
                                         Ok(signed_vote) => {
-                                            let msg = MessageInfo {
+                                            let msg = MessageInfo::IncomingMessage {
                                                 msg: Arc::new(ConsensusMessageType::VoteMessage(
                                                     VoteMessage {
                                                         vote: Some(signed_vote),
@@ -963,7 +956,7 @@ impl ConsensusStateImpl {
                 BlockId::new_zero_block_id(), // nil block
             ) {
                 Ok(signed_vote) => {
-                    let msg = MessageInfo {
+                    let msg = MessageInfo::IncomingMessage {
                         msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
                             vote: Some(signed_vote),
                         })),
@@ -1003,7 +996,7 @@ impl ConsensusStateImpl {
                 BlockId::new_zero_block_id(), // nil block
             ) {
                 Ok(signed_vote) => {
-                    let msg = MessageInfo {
+                    let msg = MessageInfo::IncomingMessage {
                         msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
                             vote: Some(signed_vote),
                         })),
@@ -1116,7 +1109,7 @@ impl ConsensusStateImpl {
             .clone()
             .sign_proposal(chain_id, &mut proposal)
         {
-            let msg_info = MessageInfo {
+            let msg_info = MessageInfo::IncomingMessage {
                 msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
                     proposal: Some(proposal),
                 })),
@@ -1324,7 +1317,7 @@ mod tests {
      * ------------------------
      */
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
     async fn send() {
         let m_latest_block_state = MockLatestBlockState::new();
         let m_priv_validator = MockPrivValidator::new();
@@ -1355,18 +1348,25 @@ mod tests {
 
             let msg_info = rev_msg.unwrap();
 
-            assert!(
-                msg_info.clone().peer_id == internal_peerid()
-                    && matches!(
-                        msg_info.clone().msg.clone().as_ref(),
-                        ConsensusMessageType::ProposalMessage(_)
-                    )
-            );
+            match msg_info {
+                MessageInfo::IncomingMessage { msg, peer_id } => {
+                    assert!(
+                        peer_id == internal_peerid()
+                            && matches!(
+                                msg.clone().as_ref(),
+                                ConsensusMessageType::ProposalMessage(_)
+                            )
+                    );
+                }
+                MessageInfo::TerminationMessage => {
+                    panic!("test should not reach here")
+                }
+            };
         });
 
         let _ = acs_1
             .clone()
-            .send(MessageInfo {
+            .send(MessageInfo::IncomingMessage {
                 msg: msg.clone(),
                 peer_id: internal_peerid(),
             })
@@ -1402,26 +1402,21 @@ mod tests {
 
         // start processing messages
         let msg_thr = tokio::spawn(async move {
-            _ = arc_cs.process_msg_chan();
+            _ = arc_cs.process_msg_chan().await;
         });
 
         _ = arc_cs_1
-            .send(MessageInfo {
+            .send(MessageInfo::IncomingMessage {
                 msg: msg,
                 peer_id: internal_peerid(),
             })
             .await;
 
-        // wait for a while for processing message
-        thread::sleep(Duration::from_millis(500));
-
         // stop the consensus state
-        // closes the channel
         // msg process will stop
-        _ = arc_cs_1.clone().stop();
+        _ = arc_cs_1.clone().stop().await;
 
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
+        _ = msg_thr.await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 3)]
@@ -1506,7 +1501,7 @@ mod tests {
 
         // send proposal message
         let _rs = arc_cs_1
-            .send(MessageInfo {
+            .send(MessageInfo::IncomingMessage {
                 msg: msg,
                 peer_id: internal_peerid(),
             })
@@ -1518,10 +1513,10 @@ mod tests {
         // stop the consensus state
         // closes the channel
         // msg process will stop
-        _ = arc_cs_1.stop();
+        _ = arc_cs_1.stop().await;
 
         // force to stop processing msg
-        _ = msg_thr.abort();
+        _ = msg_thr.await;
 
         let rs = arc_cs_2.clone().get_rs().await;
         // assert proposal
@@ -1637,7 +1632,7 @@ mod tests {
 
             let msg = Arc::new(ConsensusMessageType::BlockPartMessage(m_block_part));
             _ = arc_cs_1
-                .send(MessageInfo {
+                .send(MessageInfo::IncomingMessage {
                     msg: msg,
                     peer_id: internal_peerid(),
                 })
@@ -1650,10 +1645,10 @@ mod tests {
         // stop the consensus state
         // closes the channel
         // msg process will stop
-        _ = arc_cs_1.stop();
+        _ = arc_cs_1.stop().await;
 
         // wait for msg processing thread is stopped
-        _ = msg_thr.abort();
+        _ = msg_thr.await;
 
         let rs = arc_cs_2.clone().get_rs().await;
         // assert proposal block part
@@ -1721,7 +1716,7 @@ mod tests {
 
         // start processing messages
         let msg_thr = tokio::spawn(async move {
-            _ = arc_cs.process_msg_chan();
+            _ = arc_cs.process_msg_chan().await;
         });
 
         let mut vote = Vote {
@@ -1746,7 +1741,7 @@ mod tests {
 
         let msg = Arc::new(ConsensusMessageType::VoteMessage(vote_msg));
         _ = arc_cs_1
-            .send(MessageInfo {
+            .send(MessageInfo::IncomingMessage {
                 msg: msg,
                 peer_id: internal_peerid(),
             })
@@ -1758,11 +1753,10 @@ mod tests {
         // stop the consensus state
         // closes the channel
         // msg process will stop
-        _ = arc_cs_1.stop();
+        _ = arc_cs_1.stop().await;
 
         // make sure this processing message thread is stopped
-        let join_rs = msg_thr.await;
-        assert!(join_rs.is_ok());
+        _ = msg_thr.await;
 
         let rs = arc_cs_2.clone().get_rs().await;
 

@@ -259,7 +259,7 @@ impl ConsensusReactorImpl {
     ) -> Result<(), Box<ConsensusReactorError>> {
         match msg.as_ref() {
             ConsensusMessageType::ProposalMessage(_msg) => {
-                _ = self.cs.send(MessageInfo {
+                _ = self.cs.send(MessageInfo::IncomingMessage {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -273,7 +273,7 @@ impl ConsensusReactorImpl {
                 Ok(())
             }
             ConsensusMessageType::BlockPartMessage(_msg) => {
-                _ = self.cs.send(MessageInfo {
+                _ = self.cs.send(MessageInfo::IncomingMessage {
                     peer_id: src.get_id(),
                     msg: msg.clone(),
                 });
@@ -293,7 +293,7 @@ impl ConsensusReactorImpl {
         match msg.as_ref() {
             ConsensusMessageType::VoteMessage(_msg) => {
                 if let Some(vote) = _msg.vote.clone() {
-                    _ = self.cs.send(MessageInfo {
+                    _ = self.cs.send(MessageInfo::IncomingMessage {
                         peer_id: src.get_id().clone(),
                         msg: msg.clone(),
                     });
@@ -824,10 +824,10 @@ mod tests {
             errors::ConsensusReactorError,
             messages::{
                 msg_from_proto, BlockPartMessage, ConsensusMessageType, HasVoteMessage,
-                NewRoundStepMessage, NewValidBlockMessage, ProposalMessage, ProposalPOLMessage,
-                VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
+                MessageInfo, NewRoundStepMessage, NewValidBlockMessage, ProposalMessage,
+                ProposalPOLMessage, VoteMessage, VoteSetBitsMessage, VoteSetMaj23Message,
             },
-            peer::{MockPeer, MockPeerState, Peer, PeerRoundState, PeerState},
+            peer::{self, MockPeer, MockPeerState, Peer, PeerRoundState, PeerState},
             round_state::RoundState,
         },
     };
@@ -1121,7 +1121,10 @@ mod tests {
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
             .expect_send()
-            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .withf(move |msg_info| match msg_info.clone() {
+                MessageInfo::IncomingMessage { msg: _, peer_id } => mock_peer_id.clone() == peer_id,
+                MessageInfo::TerminationMessage => false,
+            })
             .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();
@@ -1213,7 +1216,10 @@ mod tests {
         let mut mock_cs = Box::new(MockConsensusState::new());
         mock_cs
             .expect_send()
-            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .withf(move |msg_info| match msg_info.clone() {
+                MessageInfo::IncomingMessage { msg: _, peer_id } => mock_peer_id.clone() == peer_id,
+                MessageInfo::TerminationMessage => false,
+            })
             .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();
@@ -1290,7 +1296,10 @@ mod tests {
             .returning(|| RoundState::new_default());
         mock_cs
             .expect_send()
-            .withf(move |msg_info| mock_peer_id.clone() == msg_info.peer_id)
+            .withf(move |msg_info| match msg_info.clone() {
+                MessageInfo::IncomingMessage { msg: _, peer_id } => mock_peer_id.clone() == peer_id,
+                MessageInfo::TerminationMessage => false,
+            })
             .returning(|_| Ok(()));
 
         let mut mock_ps = MockPeerState::new();

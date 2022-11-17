@@ -17,6 +17,7 @@ pub trait ConsensusMessage: Debug + Send + Sync + 'static {
 
 #[derive(Debug, Clone)]
 pub enum ConsensusMessageType {
+    StopProcessingMessage(),
     NewRoundStepMessage(NewRoundStepMessage),
     NewValidBlockMessage(NewValidBlockMessage),
     ProposalMessage(ProposalMessage),
@@ -29,9 +30,12 @@ pub enum ConsensusMessageType {
 }
 
 #[derive(Debug, Clone)]
-pub struct MessageInfo {
-    pub msg: Arc<ConsensusMessageType>,
-    pub peer_id: PeerId,
+pub enum MessageInfo {
+    IncomingMessage{
+        msg: Arc<ConsensusMessageType>,
+        peer_id: PeerId,
+    },
+    TerminationMessage
 }
 
 pub fn msg_from_proto(
