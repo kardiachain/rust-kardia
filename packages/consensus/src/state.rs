@@ -1263,7 +1263,7 @@ mod tests {
         consensus::{
             executor::MockBlockExecutor,
             height_vote_set::{HeightVoteSet, RoundVoteSet},
-            state::MockLatestBlockState,
+            state::{ChainId, MockLatestBlockState},
         },
         evidence::MockEvidencePool,
         misc::Data,
@@ -1276,43 +1276,109 @@ mod tests {
         validator_set::{Validator, ValidatorSet},
         vote::Vote,
     };
-    use std::{
-        collections::HashMap,
-        ops::Add,
-        sync::Arc,
-        thread,
-        time::{Duration, SystemTime},
-    };
-    use tokio::time::{self, sleep, Instant};
+    use std::{collections::HashMap, ops::Add, sync::Arc, time::Duration};
+    use tokio::time::sleep;
 
-    /**
-     * ------------------------
-     * Constants
-     * ------------------------
-     */
+    #[derive(Clone)]
+    struct ValidatorWithKeys {
+        peer_id: PeerId,
+        privkey: SecretKey,
+        pubkey: PublicKey,
+        val: Validator,
+    }
 
-    pub const ADDR_1: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-    pub const ADDR_2: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
-    pub const ADDR_3: Address =
-        ethereum_types::H160([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3]);
+    impl ValidatorWithKeys {
+        fn new(peer_id: &str, voting_power: u64, proposer_priority: u64) -> Self {
+            let privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
+            let pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &privkey);
+            let addr = pub_to_address(pubkey);
+            let val: Validator = Validator {
+                address: addr,
+                voting_power,
+                proposer_priority,
+            };
 
-    pub const VAL_1: Validator = Validator {
-        address: ADDR_1,
-        voting_power: 1,
-        proposer_priority: 1,
-    };
-    pub const VAL_2: Validator = Validator {
-        address: ADDR_2,
-        voting_power: 2,
-        proposer_priority: 2,
-    };
-    pub const VAL_3: Validator = Validator {
-        address: ADDR_3,
-        voting_power: 3,
-        proposer_priority: 3,
-    };
+            Self {
+                peer_id: peer_id.to_string(),
+                privkey,
+                pubkey,
+                val,
+            }
+        }
+
+        fn sign_proposal(&self, chain_id: ChainId, p: &mut Proposal) -> Proposal {
+            let signature = sign(
+                keccak256(p.proposal_sign_bytes(chain_id.clone()).unwrap()),
+                self.privkey,
+            )
+            .unwrap();
+            p.signature = signature.to_vec();
+            p.clone()
+        }
+
+        fn sign_vote(&self, chain_id: ChainId, v: &mut Vote) -> Vote {
+            let signature = sign(
+                keccak256(v.vote_sign_bytes(chain_id.clone()).unwrap()),
+                self.privkey,
+            )
+            .unwrap();
+            v.signature = signature.to_vec();
+            v.clone()
+        }
+    }
+
+    #[derive(Clone)]
+    struct ValidatorTestUtils {
+        proposer_index: Option<usize>,
+        validators: Vec<ValidatorWithKeys>,
+        validator_set: ValidatorSet,
+    }
+
+    impl ValidatorTestUtils {
+        /// new with given Vec<(PeerId,voting_power,proposer_priority)> and Option<proposer_index>
+        fn new(vals: Vec<(&str, u64, u64)>, proposer_index: Option<usize>) -> Self {
+            if proposer_index.is_some_and(|i| *i >= vals.len()) {
+                panic!("proposer index is out of bound of validators list");
+            }
+
+            let validators: Vec<ValidatorWithKeys> = vals
+                .iter()
+                .map(|m| ValidatorWithKeys::new(m.0, m.1, m.2))
+                .collect();
+
+            let proposer: Option<Validator> = if proposer_index.is_some() {
+                validators
+                    .get(proposer_index.unwrap())
+                    .map(|v| v.val.clone())
+            } else {
+                None
+            };
+
+            let validator_set = ValidatorSet {
+                validators: validators.iter().map(|v| v.val.clone()).collect(),
+                proposer: proposer,
+                total_voting_power: validators.iter().fold(0, |t, v| t + v.val.voting_power),
+            };
+
+            Self {
+                proposer_index,
+                validators,
+                validator_set,
+            }
+        }
+
+        fn get_validator(&self, index: usize) -> Option<ValidatorWithKeys> {
+            self.validators.get(index).cloned()
+        }
+
+        fn proposer(&self) -> Option<ValidatorWithKeys> {
+            if let Some(i) = self.proposer_index {
+                self.validators.get(i).cloned()
+            } else {
+                None
+            }
+        }
+    }
 
     /**
      * ------------------------
@@ -1395,11 +1461,6 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        // here we send invalid proposal
-        let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
-            proposal: None,
-        }));
-
         let arc_cs = Arc::new(cs);
         let arc_cs_1 = arc_cs.clone();
 
@@ -1410,7 +1471,9 @@ mod tests {
 
         _ = arc_cs_1
             .send(MessageInfo::IncomingMessage {
-                msg: msg,
+                msg: Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
+                    proposal: None,
+                })),
                 peer_id: internal_peerid(),
             })
             .await;
@@ -1445,44 +1508,28 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        // create unsigned proposal
-        let mut m_proposal = Proposal {
-            r#type: SignedMsgType::Proposal.into(),
-            height: 1,
-            round: 1,
-            pol_round: 0,
-            block_id: Some(BlockId {
-                hash: keccak256(Bytes::new()).to_vec(),
-                part_set_header: Some(PartSetHeader {
-                    total: 10,
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 1)], Some(0));
+        let proposer = val_utils.proposer().unwrap();
+
+        let m_proposal = proposer.sign_proposal(
+            m_chain_id.clone(),
+            &mut Proposal {
+                r#type: SignedMsgType::Proposal.into(),
+                height: 1,
+                round: 1,
+                pol_round: 0,
+                block_id: Some(BlockId {
                     hash: keccak256(Bytes::new()).to_vec(),
+                    part_set_header: Some(PartSetHeader {
+                        total: 10,
+                        hash: keccak256(Bytes::new()).to_vec(),
+                    }),
                 }),
-            }),
-            timestamp: None,
-            signature: vec![],
-        };
-
-        // sign the proposal
-        let psb = m_proposal.proposal_sign_bytes(m_chain_id.clone()).unwrap();
-        let signer_secret_key = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let signer_public_key =
-            secp256k1::PublicKey::from_secret_key(SECP256K1, &signer_secret_key);
-
-        let signature = sign(keccak256(psb), signer_secret_key).unwrap();
-        m_proposal.signature = signature.to_vec();
-
-        // create proposer validator
-        let proposer: Validator = Validator {
-            address: pub_to_address(signer_public_key),
-            voting_power: 4,
-            proposer_priority: 4,
-        };
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3, proposer],
-            proposer: None,
-            total_voting_power: 10,
-        };
+                timestamp: None,
+                signature: vec![],
+            },
+        );
 
         let msg = Arc::new(ConsensusMessageType::ProposalMessage(ProposalMessage {
             proposal: Some(m_proposal.clone()),
@@ -1494,7 +1541,7 @@ mod tests {
 
         // arrange round state
         let mut rs_guard = arc_cs.rs.lock().await;
-        rs_guard.validators = Some(val_set);
+        rs_guard.validators = Some(val_utils.validator_set.clone());
         drop(rs_guard);
 
         // start processing messages
@@ -1513,12 +1560,7 @@ mod tests {
         // wait a moment for processing proposal message
         sleep(Duration::from_millis(200)).await;
 
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
         _ = arc_cs_1.stop().await;
-
-        // force to stop processing msg
         _ = msg_thr.await;
 
         let rs = arc_cs_2.clone().get_rs().await;
@@ -1542,7 +1584,9 @@ mod tests {
             .expect_get_chain_id()
             .return_const(m_chain_id.clone());
 
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        m_priv_validator
+            .expect_get_address()
+            .return_const(Some(Address::default()));
         m_priv_validator.expect_sign_vote().return_const(Ok(()));
 
         let cs = ConsensusStateImpl::new(
@@ -1554,11 +1598,8 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 1)], Some(0));
 
         // prepare the block
         let block = Block {
@@ -1600,7 +1641,7 @@ mod tests {
 
         // arrange round state
         let mut rs_guard = arc_cs.rs.lock().await;
-        rs_guard.validators = Some(val_set);
+        rs_guard.validators = Some(val_utils.validator_set.clone());
         rs_guard.proposal = Some(Proposal {
             r#type: SignedMsgType::Proposal.into(),
             height: 1,
@@ -1669,7 +1710,7 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        let m_chain_id: String = "".to_string();
+        let m_chain_id: ChainId = ChainId::default();
 
         m_latest_block_state
             .expect_get_chain_id()
@@ -1684,21 +1725,11 @@ mod tests {
             Arc::new(Box::new(m_evidence_pool)),
         );
 
-        let val_4_skey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let val_4_pkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val_4_skey);
-        let val_4_addr = pub_to_address(val_4_pkey);
-        let val_4_validator_index = 3;
-        let val_4 = Validator {
-            address: val_4_addr,
-            voting_power: 4,
-            proposer_priority: 4,
-        };
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3, val_4.clone()],
-            proposer: None,
-            total_voting_power: 10,
-        };
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 1)], Some(0));
+        let val_set: ValidatorSet = val_utils.validator_set.clone();
+        let val_2 = val_utils.get_validator(2).unwrap();
+        let val_2_index: usize = 2;
 
         let arc_cs = Arc::new(cs);
         let arc_cs_1 = arc_cs.clone();
@@ -1722,21 +1753,19 @@ mod tests {
             _ = arc_cs.process_msg_chan().await;
         });
 
-        let mut vote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val_4.clone().address.0.to_vec(),
-            validator_index: val_4_validator_index,
-            signature: vec![],
-        };
-
-        // sign the vote
-        let vsb = vote.vote_sign_bytes(m_chain_id.clone()).unwrap();
-        let signature = sign(keccak256(vsb), val_4_skey).unwrap();
-        vote.signature = signature.to_vec();
+        let vote = val_2.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_2.val.address.clone().as_bytes().to_vec(),
+                validator_index: 2,
+                signature: vec![],
+            },
+        );
 
         let vote_msg = VoteMessage {
             vote: Some(vote.clone()),
@@ -1753,32 +1782,23 @@ mod tests {
         // wait for a while for processing message
         sleep(Duration::from_millis(200)).await;
 
-        // stop the consensus state
-        // closes the channel
-        // msg process will stop
         _ = arc_cs_1.stop().await;
-
-        // make sure this processing message thread is stopped
         _ = msg_thr.await;
 
         let rs = arc_cs_2.clone().get_rs().await;
-
         assert!(rs.votes.is_some());
         let heigh_vote_set = rs.votes.unwrap();
         assert!(heigh_vote_set.prevotes(1).is_some());
         let prevotes = heigh_vote_set.prevotes(1).unwrap();
-        let votes = prevotes.votes;
         let votes_by_block = prevotes.votes_by_block;
         assert!(votes_by_block
             .get(&vote.clone().block_id.unwrap().key())
             .is_some());
         let votes_bit_array = prevotes.votes_bit_array;
-
-        assert!(votes
-            .get(val_4_validator_index as usize)
-            .is_some_and(|v| v.is_some()));
+        let votes = prevotes.votes;
+        assert!(votes.get(val_2_index).is_some_and(|v| v.is_some()));
         assert!(votes_bit_array
-            .get_index(val_4_validator_index as usize)
+            .get_index(val_2_index)
             .is_ok_and(|r| *r == true));
     }
 
@@ -1790,13 +1810,14 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 3)], Some(2));
+        let val_set: ValidatorSet = val_utils.validator_set.clone();
+        let proposer = val_utils.proposer().unwrap();
 
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
+        m_priv_validator
+            .expect_get_address()
+            .return_const(proposer.val.address);
 
         let cs = ConsensusStateImpl::new(
             ConsensusConfig::new_default(),
@@ -1815,11 +1836,13 @@ mod tests {
         drop(rs_guard);
 
         let is_proposer = acs.clone().is_proposer().await;
-        assert!(!is_proposer);
+        assert!(is_proposer);
 
         let rs_guard = acs.rs.lock().await;
         let validator_set = rs_guard.clone().validators;
-        assert!(validator_set.is_some_and(|vs| vs.proposer.is_some_and(|p| p.address.eq(&ADDR_3))));
+        assert!(validator_set.is_some_and(|vs| vs
+            .proposer
+            .is_some_and(|p| p.address.eq(&proposer.val.address))));
     }
 
     #[tokio::test]
@@ -1839,7 +1862,7 @@ mod tests {
 
         m_priv_validator
             .expect_get_address()
-            .return_const(Some(ADDR_2));
+            .return_const(Some(Address::default()));
 
         let block = Block {
             header: None,
@@ -1892,13 +1915,23 @@ mod tests {
         let m_block_executor = MockBlockExecutor::new();
         let m_evidence_pool = MockEvidencePool::new();
 
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 3)], Some(2));
+        let val_set: ValidatorSet = val_utils.validator_set.clone();
+        let priv_val = val_utils.get_validator(0).unwrap();
+
         m_latest_block_state
             .expect_get_chain_id()
             .return_const("".to_string());
+        m_latest_block_state
+            .expect_get_initial_height()
+            .return_const(1u64);
 
         let mut signature: Vec<u8> = vec![4, 5, 6];
 
-        m_priv_validator.expect_get_address().return_const(ADDR_2);
+        m_priv_validator
+            .expect_get_address()
+            .return_const(priv_val.val.address);
         m_priv_validator
             .expect_sign_vote()
             .returning(move |_, vote| {
@@ -1906,8 +1939,7 @@ mod tests {
                 Ok(())
             });
 
-        let mut config = ConsensusConfig::new_default();
-        config.timeout_propose = Duration::from_millis(100);
+        let config = ConsensusConfig::new_default();
 
         let cs = ConsensusStateImpl::new(
             config.clone(),
@@ -1919,12 +1951,6 @@ mod tests {
         );
         let arc_cs = Arc::new(cs);
         let arc_cs_2 = arc_cs.clone();
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![VAL_1, VAL_2, VAL_3],
-            proposer: None,
-            total_voting_power: 6,
-        };
 
         // arrange round state
         let mut rs_guard = arc_cs.rs.lock().await;
@@ -1951,41 +1977,6 @@ mod tests {
         assert_eq!(rs.step, RoundStep::Prevote);
     }
 
-    struct ValidatorTestUtils {
-        peer_id: PeerId,
-        privkey: SecretKey,
-        pubkey: PublicKey,
-        val: Validator,
-    }
-
-    impl ValidatorTestUtils {
-        fn new(peer_id: &str, voting_power: u64, proposer_priority: u64) -> Self {
-            let privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-            let pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &privkey);
-            let addr = pub_to_address(pubkey);
-            let val: Validator = Validator {
-                address: addr,
-                voting_power,
-                proposer_priority,
-            };
-
-            Self {
-                peer_id: peer_id.to_string(),
-                privkey,
-                pubkey,
-                val,
-            }
-        }
-
-        fn new_validator_set(vals: Vec<Validator>, proposer: Option<Validator>) -> ValidatorSet {
-            ValidatorSet {
-                validators: vals.clone(),
-                proposer: proposer,
-                total_voting_power: vals.iter().fold(0, |t, v| t + v.voting_power),
-            }
-        }
-    }
-
     /**
      *   -----------                     -------------------
      *   | PREVOTE |  ----(TIMEOUT!)---> | PRECOMMIT (NIL) |
@@ -2002,12 +1993,12 @@ mod tests {
         let m_chain_id: String = "".to_string();
         let m_chain_id_v: String = m_chain_id.clone();
 
-        m_latest_block_state
-            .expect_get_chain_id()
-            .return_const(m_chain_id.clone());
-        m_latest_block_state
-            .expect_get_initial_height()
-            .return_const(1u64);
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 3)], Some(0));
+        let val_set: ValidatorSet = val_utils.validator_set.clone();
+        let priv_val = val_utils.get_validator(0).unwrap();
+        let val_1 = val_utils.get_validator(1).unwrap();
+        let val_2 = val_utils.get_validator(2).unwrap();
 
         let block = Block {
             header: None,
@@ -2015,26 +2006,24 @@ mod tests {
             evidence: None,
             last_commit: None,
         };
-
         let block_parts = block.make_part_set(BLOCK_PART_SIZE_BYTES);
 
+        m_latest_block_state
+            .expect_get_chain_id()
+            .return_const(m_chain_id.clone());
+        m_latest_block_state
+            .expect_get_initial_height()
+            .return_const(1u64);
         m_block_operations
             .expect_create_proposal_block()
             .return_const(Ok((block.clone(), block_parts.clone())));
-
-        let priv_val = ValidatorTestUtils::new("priv_val", 1, 1);
-        let val_1 = ValidatorTestUtils::new("val_1", 1, 1);
-        let val_2 = ValidatorTestUtils::new("val_2", 1, 1);
-
         m_priv_validator
             .expect_get_address()
             .return_const(priv_val.val.address.clone());
         m_priv_validator
             .expect_sign_vote()
-            .returning(move |_, mut vote| {
-                let vsb = vote.vote_sign_bytes(m_chain_id_v.clone()).unwrap();
-                let sig = sign(keccak256(vsb), priv_val.privkey).unwrap();
-                vote.signature = sig.to_vec();
+            .returning(move |_, vote| {
+                priv_val.sign_vote(m_chain_id_v.clone(), vote);
                 Ok(())
             });
 
@@ -2053,44 +2042,33 @@ mod tests {
         );
         let arc_cs = Arc::new(cs);
 
-        let val_set: ValidatorSet = ValidatorTestUtils::new_validator_set(
-            vec![priv_val.val.clone(), val_1.val.clone(), val_2.val.clone()],
-            Some(priv_val.val.clone()),
-        );
-
         // prepare prevotes from other validators
-        let mut val1_prevote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val_1.val.address.as_bytes().to_vec(),
-            validator_index: 1,
-            signature: vec![], // set nil for now, will be signed below
-        };
-        val1_prevote.signature = sign(
-            keccak256(val1_prevote.vote_sign_bytes(m_chain_id.clone()).unwrap()),
-            val_1.privkey,
-        )
-        .unwrap()
-        .to_vec();
-        let mut val2_prevote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val_2.val.address.as_bytes().to_vec(),
-            validator_index: 2,
-            signature: vec![], // set nil for now, will be signed below
-        };
-        val2_prevote.signature = sign(
-            keccak256(val2_prevote.vote_sign_bytes(m_chain_id.clone()).unwrap()),
-            val_2.privkey,
-        )
-        .unwrap()
-        .to_vec();
+        let val1_prevote = val_1.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_1.val.address.as_bytes().to_vec(),
+                validator_index: 1,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
+        let val2_prevote = val_2.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_2.val.address.as_bytes().to_vec(),
+                validator_index: 2,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
 
         // arrange round state
         let mut rs_guard = arc_cs.rs.lock().await;
@@ -2125,7 +2103,6 @@ mod tests {
         let arc_cs_2 = arc_cs.clone();
 
         // start consensus state at new round
-        let now = Instant::now();
         _ = arc_cs_2.clone().start().await;
 
         // waits for propose timeout
@@ -2135,17 +2112,17 @@ mod tests {
         _ = arc_cs_1
             .send(MessageInfo::IncomingMessage {
                 msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                    vote: Some(val1_prevote),
+                    vote: Some(val1_prevote.to_owned()),
                 })),
-                peer_id: val_1.peer_id,
+                peer_id: val_1.peer_id.clone(),
             })
             .await;
         _ = arc_cs_1
             .send(MessageInfo::IncomingMessage {
                 msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
-                    vote: Some(val2_prevote),
+                    vote: Some(val2_prevote.to_owned()),
                 })),
-                peer_id: val_2.peer_id,
+                peer_id: val_2.peer_id.clone(),
             })
             .await;
 
