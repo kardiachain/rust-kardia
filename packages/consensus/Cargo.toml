@@ -18,8 +18,9 @@ edition = "2021"
 "ethereum-types" = { version = "0.14", features = ["codec"] }
 
 "log" = "0.4.17"
-"env_logger" = "0.9.0"
 "mockall" = "0.11.2"
 
 [dev-dependencies]
+"env_logger" = "0.9.0"
 "tokio-test" = "0.4.2"
+"test-log" = "0.2.11"

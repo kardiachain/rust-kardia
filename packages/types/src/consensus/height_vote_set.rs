@@ -19,6 +19,20 @@ pub struct HeightVoteSet {
 }
 
 impl HeightVoteSet {
+    pub fn new(chain_id: ChainId, height: u64, val_set: ValidatorSet) -> Self {
+        let mut hvs = Self {
+            chain_id,
+            height,
+            round: 1,
+            validator_set: Some(val_set),
+            round_vote_sets: HashMap::new(),
+            peer_catchup_rounds: HashMap::new(),
+        };
+        hvs.add_round(1);
+
+        hvs
+    }
+
     pub fn prevotes(&self, round: u32) -> Option<VoteSet> {
         self.get_vote_set(round, SignedMsgType::Prevote)
     }
