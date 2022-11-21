@@ -17,7 +17,6 @@ pub trait ConsensusMessage: Debug + Send + Sync + 'static {
 
 #[derive(Debug, Clone)]
 pub enum ConsensusMessageType {
-    StopProcessingMessage(),
     NewRoundStepMessage(NewRoundStepMessage),
     NewValidBlockMessage(NewValidBlockMessage),
     ProposalMessage(ProposalMessage),

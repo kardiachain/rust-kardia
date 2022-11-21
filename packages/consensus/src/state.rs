@@ -33,13 +33,7 @@ use kai_types::{
 };
 use log::debug;
 use mockall::automock;
-use std::{
-    convert::TryInto,
-    fmt::Debug,
-    ops::{Add, Mul},
-    sync::Arc,
-    thread,
-};
+use std::{convert::TryInto, fmt::Debug, ops::Mul, sync::Arc};
 use tokio::{
     sync::{
         mpsc::{error::SendError, Receiver, Sender},
@@ -122,6 +116,7 @@ impl ConsensusState for ConsensusStateImpl {
         let cs = self.clone();
         tokio::spawn(async move {
             cs.process_msg_chan().await;
+            log::debug!("process_msg_chan exited successfully.");
         });
 
         // start new round
@@ -139,6 +134,10 @@ impl ConsensusState for ConsensusStateImpl {
 
         // send signal to stop processing messages
         _ = self.send(MessageInfo::TerminationMessage).await;
+
+        // waits until process_msg_chan finishes
+        let rx = self.msg_chan_receiver.lock().await;
+        drop(rx);
 
         Ok(())
     }
@@ -184,13 +183,20 @@ impl ConsensusStateImpl {
                 MessageInfo::IncomingMessage { msg, peer_id } => {
                     match msg.as_ref() {
                         ConsensusMessageType::ProposalMessage(inner_msg) => {
-                            log::debug!("set proposal: proposal={:?}", inner_msg.clone());
+                            log::debug!(
+                                "set proposal: peer_id={:?} proposal={:?}",
+                                peer_id.clone(),
+                                inner_msg.clone()
+                            );
                             match self.clone().set_proposal(inner_msg.clone()).await {
                                 Ok(_) => {
                                     let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
+                                    cs2.check_upon_rules(msg.clone()).await;
+                                    log::debug!(
+                                        "finished check upon rules: peer_id: {:?} msg={:?}",
+                                        peer_id.clone(),
+                                        msg.clone()
+                                    );
                                 }
                                 Err(e) => {
                                     log::error!(
@@ -203,7 +209,11 @@ impl ConsensusStateImpl {
                             };
                         }
                         ConsensusMessageType::BlockPartMessage(inner_msg) => {
-                            log::debug!("set block part: blockpart={:?}", inner_msg.clone());
+                            log::debug!(
+                                "set proposal block part: peer_id={:?} block_part={:?}",
+                                peer_id.clone(),
+                                inner_msg.clone()
+                            );
                             match self
                                 .clone()
                                 .add_proposal_block_part(inner_msg.clone())
@@ -211,9 +221,12 @@ impl ConsensusStateImpl {
                             {
                                 Ok(_) => {
                                     let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
+                                    cs2.check_upon_rules(msg.clone()).await;
+                                    log::debug!(
+                                        "finished check upon rules: peer_id: {:?} msg={:?}",
+                                        peer_id.clone(),
+                                        msg.clone()
+                                    );
                                 }
                                 Err(e) => {
                                     log::error!(
@@ -226,8 +239,11 @@ impl ConsensusStateImpl {
                             };
                         }
                         ConsensusMessageType::VoteMessage(inner_msg) => {
-                            log::debug!("set vote: vote={:?}", inner_msg.clone());
-
+                            log::debug!(
+                                "add vote: peer_id={:?} vote={:?}",
+                                peer_id.clone(),
+                                inner_msg.clone()
+                            );
                             match self
                                 .clone()
                                 .add_vote(inner_msg.clone(), peer_id.clone())
@@ -235,13 +251,16 @@ impl ConsensusStateImpl {
                             {
                                 Ok(_) => {
                                     let cs2 = cs.clone();
-                                    tokio::spawn(async move {
-                                        cs2.check_upon_rules(msg).await;
-                                    });
+                                    cs2.check_upon_rules(msg.clone()).await;
+                                    log::debug!(
+                                        "finished check upon rules: peer_id: {:?} msg={:?}",
+                                        peer_id.clone(),
+                                        msg.clone()
+                                    );
                                 }
                                 Err(e) => {
                                     log::error!(
-                                        "set vote failed: peerid={} msg={:?}, err={}",
+                                        "add vote failed: peerid={} msg={:?}, err={}",
                                         peer_id,
                                         inner_msg.clone(),
                                         e
@@ -255,6 +274,7 @@ impl ConsensusStateImpl {
                     };
                 }
                 MessageInfo::TerminationMessage => {
+                    log::debug!("termination message received, close message receiver");
                     msg_chan_receiver.close();
                     return;
                 }
@@ -1285,10 +1305,11 @@ mod tests {
         privkey: SecretKey,
         pubkey: PublicKey,
         val: Validator,
+        val_index: usize,
     }
 
     impl ValidatorWithKeys {
-        fn new(peer_id: &str, voting_power: u64, proposer_priority: u64) -> Self {
+        fn new(val_index: usize, peer_id: &str, voting_power: u64, proposer_priority: u64) -> Self {
             let privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
             let pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &privkey);
             let addr = pub_to_address(pubkey);
@@ -1303,6 +1324,7 @@ mod tests {
                 privkey,
                 pubkey,
                 val,
+                val_index,
             }
         }
 
@@ -1343,7 +1365,8 @@ mod tests {
 
             let validators: Vec<ValidatorWithKeys> = vals
                 .iter()
-                .map(|m| ValidatorWithKeys::new(m.0, m.1, m.2))
+                .enumerate()
+                .map(|(i, m)| ValidatorWithKeys::new(i, m.0, m.1, m.2))
                 .collect();
 
             let proposer: Option<Validator> = if proposer_index.is_some() {
@@ -2155,7 +2178,6 @@ mod tests {
 
         let m_chain_id: String = "".to_string();
         let m_chain_id_v: String = m_chain_id.clone();
-
         m_latest_block_state
             .expect_get_chain_id()
             .return_const(m_chain_id.clone());
@@ -2169,84 +2191,80 @@ mod tests {
             evidence: None,
             last_commit: None,
         };
-
         let block_parts = block.make_part_set(BLOCK_PART_SIZE_BYTES);
-
         m_block_operations
             .expect_create_proposal_block()
             .return_const(Ok((block.clone(), block_parts.clone())));
 
-        let priv_val_privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let priv_val_pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &priv_val_privkey);
-        let priv_val_addr = pub_to_address(priv_val_pubkey);
-        let priv_val: Validator = Validator {
-            address: priv_val_addr,
-            voting_power: 1,
-            proposer_priority: 1,
-        };
-
-        let val1_privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let val1_pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val1_privkey);
-        let val1_addr = pub_to_address(val1_pubkey);
-        let val1: Validator = Validator {
-            address: val1_addr,
-            voting_power: 1,
-            proposer_priority: 1,
-        };
-
-        let val2_privkey = secp256k1::SecretKey::new(&mut secp256k1::rand::thread_rng());
-        let val2_pubkey = secp256k1::PublicKey::from_secret_key(SECP256K1, &val2_privkey);
-        let val2_addr = pub_to_address(val2_pubkey);
-        let val2: Validator = Validator {
-            address: val2_addr,
-            voting_power: 1,
-            proposer_priority: 1,
-        };
+        let val_utils =
+            ValidatorTestUtils::new(vec![("", 1, 1), ("val_1", 1, 1), ("val_2", 1, 3)], Some(0));
+        let val_set: ValidatorSet = val_utils.validator_set.clone();
+        let priv_val = val_utils.get_validator(0).unwrap();
+        let val_1 = val_utils.get_validator(1).unwrap();
+        let val_2 = val_utils.get_validator(2).unwrap();
 
         m_priv_validator
             .expect_get_address()
-            .return_const(priv_val_addr.clone());
+            .return_const(priv_val.val.address.clone());
         m_priv_validator
             .expect_sign_vote()
-            .returning(move |_, mut vote| {
-                let vsb = vote.vote_sign_bytes(m_chain_id_v.clone()).unwrap();
-                let sig = sign(keccak256(vsb), priv_val_privkey).unwrap();
-                vote.signature = sig.to_vec();
+            .returning(move |_, vote| {
+                _ = priv_val.sign_vote(m_chain_id_v.clone(), vote);
                 Ok(())
             });
 
-        let mut val1_prevote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val1_addr.as_bytes().to_vec(),
-            validator_index: 1,
-            signature: vec![], // set nil for now, will be signed below
-        };
-        val1_prevote.signature = sign(
-            keccak256(val1_prevote.vote_sign_bytes(m_chain_id.clone()).unwrap()),
-            val1_privkey,
-        )
-        .unwrap()
-        .to_vec();
-        let mut val2_prevote = Vote {
-            r#type: SignedMsgType::Prevote.into(),
-            height: 1,
-            round: 1,
-            block_id: Some(BlockId::new_zero_block_id()),
-            timestamp: None,
-            validator_address: val2_addr.as_bytes().to_vec(),
-            validator_index: 2,
-            signature: vec![], // set nil for now, will be signed below
-        };
-        val2_prevote.signature = sign(
-            keccak256(val2_prevote.vote_sign_bytes(m_chain_id.clone()).unwrap()),
-            val1_privkey,
-        )
-        .unwrap()
-        .to_vec();
+        let val1_prevote = val_1.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_1.val.address.as_bytes().to_vec(),
+                validator_index: val_1.val_index as u32,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
+        let val1_precommit = val_1.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Precommit.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_1.val.address.as_bytes().to_vec(),
+                validator_index: val_1.val_index as u32,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
+        let val2_prevote = val_2.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Prevote.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_2.val.address.as_bytes().to_vec(),
+                validator_index: val_2.val_index as u32,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
+        let val2_precommit = val_2.sign_vote(
+            m_chain_id.clone(),
+            &mut Vote {
+                r#type: SignedMsgType::Precommit.into(),
+                height: 1,
+                round: 1,
+                block_id: Some(BlockId::new_zero_block_id()),
+                timestamp: None,
+                validator_address: val_2.val.address.as_bytes().to_vec(),
+                validator_index: val_2.val_index as u32,
+                signature: vec![], // set nil for now, will be signed
+            },
+        );
 
         let mut config = ConsensusConfig::new_default();
         config.timeout_propose = Duration::from_millis(100);
@@ -2263,12 +2281,6 @@ mod tests {
         );
         let arc_cs = Arc::new(cs);
         let arc_cs_1 = arc_cs.clone();
-
-        let val_set: ValidatorSet = ValidatorSet {
-            validators: vec![priv_val, val1, val2],
-            proposer: None,
-            total_voting_power: 3,
-        };
 
         // arrange round state
         let binding = arc_cs_1.clone();
@@ -2307,12 +2319,13 @@ mod tests {
         let last_rs = cs.clone().get_rs().await;
 
         // two validators send their prevotes on nil block
+        sleep(timeout_propose).await;
         _ = cs
             .send(MessageInfo::IncomingMessage {
                 msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
                     vote: Some(val1_prevote),
                 })),
-                peer_id: val1_addr.to_string(),
+                peer_id: val_1.peer_id.clone(),
             })
             .await;
         _ = cs
@@ -2320,18 +2333,30 @@ mod tests {
                 msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
                     vote: Some(val2_prevote),
                 })),
-                peer_id: val2_addr.to_string(),
+                peer_id: val_2.peer_id.clone(),
             })
             .await;
 
-        // wait for timeouts happens
-        sleep(
-            timeout_propose
-                .add(timeout_prevote)
-                .add(timeout_precommit)
-                .add(timeout_precommit / 5),
-        )
-        .await;
+        sleep(timeout_prevote).await;
+        _ = cs
+            .send(MessageInfo::IncomingMessage {
+                msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                    vote: Some(val1_precommit),
+                })),
+                peer_id: val_1.peer_id,
+            })
+            .await;
+        _ = cs
+            .send(MessageInfo::IncomingMessage {
+                msg: Arc::new(ConsensusMessageType::VoteMessage(VoteMessage {
+                    vote: Some(val2_precommit),
+                })),
+                peer_id: val_2.peer_id,
+            })
+            .await;
+
+        sleep(timeout_precommit * 2).await;
+        _ = cs.clone().stop().await;
 
         // assertions
         let rs = cs.clone().get_rs().await;
