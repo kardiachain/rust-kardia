@@ -1,6 +1,7 @@
-use crate::bit_array::BitArray;
+use crate::{bit_array::BitArray, block::Block};
 use ethereum_types::H256;
 use kp_merkle::proof::{proof_from_byte_vectors, Proof};
+use prost::Message;
 use std::cmp;
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -86,6 +87,11 @@ pub struct PartSet {
 }
 
 impl PartSet {
+    pub fn new_from_block(block: &Block) -> Self {
+        let bz = Block::encode_to_vec(block);
+        Self::new(bz, BLOCK_PART_SIZE_BYTES)
+    }
+
     pub fn new(data: Vec<u8>, part_size: u32) -> Self {
         // divide data into 4kb parts.
         let total = (data.len() as u32 + part_size - 1) / part_size;
@@ -174,5 +180,24 @@ impl PartSet {
 
     pub fn is_completed(&self) -> bool {
         self.count == self.total
+    }
+
+    pub fn recover_block(&self) -> Result<Block, &str> {
+        if self.is_completed() {
+            let bz: Vec<u8> = self
+                .parts
+                .iter()
+                .map(|part| part.clone().unwrap().bytes)
+                .flatten()
+                .collect();
+
+            if let Ok(block) = Block::decode(bz.as_slice()) {
+                Ok(block)
+            } else {
+                Err("block decode error")
+            }
+        } else {
+            Err("cannot recover block on incompleted part set")
+        }
     }
 }

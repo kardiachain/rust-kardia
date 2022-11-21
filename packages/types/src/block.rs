@@ -4,6 +4,7 @@ use crate::{
     misc::Data,
     part_set::{PartSet, PartSetHeader},
 };
+use prost::Message;
 
 #[derive(Clone, ::prost::Message)]
 pub struct BlockId {
@@ -154,7 +155,6 @@ impl Block {
     }
 
     pub fn make_part_set(&self, part_size: u32) -> PartSet {
-        let bz = ::prost::Message::encode_to_vec(self);
-        PartSet::new(bz, part_size)
+        PartSet::new_from_block(self)
     }
 }

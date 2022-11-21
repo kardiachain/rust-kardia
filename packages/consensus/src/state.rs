@@ -295,232 +295,245 @@ impl ConsensusStateImpl {
                 let mut rs_guard = cs.rs.lock().await;
                 let rs = rs_guard.clone();
 
-                if rs
+                if rs.proposal.is_none() {
+                    log::trace!(
+                        "skip checking due to none proposal: block_part_message={:#?}",
+                        _msg
+                    );
+                    return;
+                }
+
+                if !rs
                     .proposal_block_parts
                     .is_some_and(|pbp| pbp.is_completed())
                 {
-                    let proposal = rs.proposal.clone().unwrap();
-                    let proposal_block_id = proposal.clone().block_id.clone().unwrap();
-                    let pbp = rs.proposal_block_parts.clone().unwrap();
+                    log::trace!(
+                        "skip checking incompleted proposal block: block_part_message={:#?}",
+                        _msg
+                    );
+                    return;
+                }
 
-                    // TODO: validate fully received proposal block
-
-                    // checking rule #2
-                    if proposal.pol_round == 0 && rs.step == RoundStep::Propose {
-                        if rs.locked_round == 0
-                            || rs
-                                .locked_block_parts
-                                .is_some_and(|lb| lb.has_header(pbp.header()))
-                        {
-                            match self.clone().create_signed_vote(
-                                rs_guard.clone(),
-                                SignedMsgType::Prevote,
-                                proposal_block_id.clone(),
-                            ) {
-                                Ok(signed_vote) => {
-                                    let msg = MessageInfo::IncomingMessage {
-                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                            VoteMessage {
-                                                vote: Some(signed_vote),
-                                            },
-                                        )),
-                                        peer_id: internal_peerid(),
-                                    };
-
-                                    _ = self.send(msg).await;
-
-                                    log::debug!("signed and sent vote")
-                                }
-                                Err(reason) => {
-                                    debug!("create signed vote failed, reason: {:?}", reason);
-                                }
-                            };
-                        } else {
-                            match self.clone().create_signed_vote(
-                                rs_guard.clone(),
-                                SignedMsgType::Prevote,
-                                BlockId::new_zero_block_id(), // nil block
-                            ) {
-                                Ok(signed_vote) => {
-                                    let msg = MessageInfo::IncomingMessage {
-                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                            VoteMessage {
-                                                vote: Some(signed_vote),
-                                            },
-                                        )),
-                                        peer_id: internal_peerid(),
-                                    };
-
-                                    _ = self.send(msg).await;
-
-                                    log::debug!("signed and sent vote")
-                                }
-                                Err(reason) => {
-                                    debug!("create signed vote failed, reason: {:?}", reason);
-                                }
-                            };
+                let proposal = rs.proposal.clone().unwrap();
+                let proposal_block_id = proposal.clone().block_id.clone().unwrap();
+                let pbp = rs.proposal_block_parts.clone().unwrap();
+                match pbp.recover_block() {
+                    Ok(block) => {
+                        // Validate proposal block
+                        // This checks the block contents without executing txs.
+                        if let Err(e) = cs.block_exec.validate_block(cs.state.clone(), block) {
+                            log::error!("block validation error: {:?}", e);
+                            return;
                         }
-                        rs_guard.step = RoundStep::Prevote;
-                        drop(rs_guard);
-                        return;
-                    }
 
-                    // checking rule #3
-                    if proposal.pol_round > 0
-                        && proposal.pol_round < rs.round
-                        && rs.step == RoundStep::Propose
-                        && rs
+                        // checking rule #2
+                        if proposal.pol_round == 0 && rs.step == RoundStep::Propose {
+                            if rs.locked_round == 0
+                                || rs
+                                    .locked_block_parts
+                                    .is_some_and(|lb| lb.has_header(pbp.header()))
+                            {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo::IncomingMessage {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+                                        _ = self.send(msg.clone()).await;
+                                        debug!("signed and sent vote: vote={:#?}", msg)
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            } else {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    BlockId::new_zero_block_id(), // nil block
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo::IncomingMessage {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+                                        _ = self.send(msg.clone()).await;
+                                        debug!("signed and sent vote: vote={:#?}", msg)
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            }
+                            rs_guard.step = RoundStep::Prevote;
+                            drop(rs_guard);
+                            return;
+                        }
+
+                        // checking rule #3
+                        if proposal.pol_round > 0
+                            && proposal.pol_round < rs.round
+                            && rs.step == RoundStep::Propose
+                            && rs
+                                .clone()
+                                .votes
+                                .expect("vote should not nil")
+                                .prevotes(proposal.pol_round)
+                                .expect("prevotes should not nil")
+                                .two_thirds_majority()
+                                .is_some_and(|bid| bid.eq(&proposal_block_id))
+                        {
+                            if rs.locked_round <= proposal.pol_round
+                                || rs
+                                    .locked_block_parts
+                                    .is_some_and(|lb| lb.has_header(pbp.header()))
+                            {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo::IncomingMessage {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+                                        _ = self.send(msg.clone()).await;
+                                        debug!("signed and sent vote: vote={:#?}", msg)
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            } else {
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Prevote,
+                                    BlockId::new_zero_block_id(), // nil block
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo::IncomingMessage {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+                                        _ = self.send(msg.clone()).await;
+                                        debug!("signed and sent vote: vote={:#?}", msg)
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                            }
+                            rs_guard.step = RoundStep::Prevote;
+                            drop(rs_guard);
+                            return;
+                        }
+
+                        // checking rule #5
+                        if rs.step >= RoundStep::Prevote
+                            && rs
+                                .clone()
+                                .votes
+                                .expect("vote should not nil")
+                                .prevotes(rs.round)
+                                .expect("prevotes should not nil")
+                                .two_thirds_majority()
+                                .is_some_and(|bid| bid.eq(&proposal_block_id))
+                            && !rs.triggered_rules.contains(&RULE_5)
+                        {
+                            if rs.step == RoundStep::Prevote {
+                                rs_guard.locked_round = proposal.round;
+                                rs_guard.locked_block = rs.proposal_block.clone();
+                                rs_guard.locked_block_parts = rs.proposal_block_parts.clone();
+
+                                match self.clone().create_signed_vote(
+                                    rs_guard.clone(),
+                                    SignedMsgType::Precommit,
+                                    proposal_block_id.clone(),
+                                ) {
+                                    Ok(signed_vote) => {
+                                        let msg = MessageInfo::IncomingMessage {
+                                            msg: Arc::new(ConsensusMessageType::VoteMessage(
+                                                VoteMessage {
+                                                    vote: Some(signed_vote),
+                                                },
+                                            )),
+                                            peer_id: internal_peerid(),
+                                        };
+                                        _ = self.send(msg.clone()).await;
+                                        debug!("signed and sent vote: vote={:#?}", msg)
+                                    }
+                                    Err(reason) => {
+                                        debug!("create signed vote failed, reason: {:?}", reason);
+                                    }
+                                };
+                                rs_guard.step = RoundStep::Precommit;
+                            }
+                            rs_guard.valid_round = proposal.round;
+                            rs_guard.valid_block = rs.proposal_block.clone();
+                            rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
+                            drop(rs_guard);
+                            return;
+                        }
+
+                        // checking rule #8
+                        if rs
                             .clone()
                             .votes
                             .expect("vote should not nil")
-                            .prevotes(proposal.pol_round)
-                            .expect("prevotes should not nil")
+                            .precommits(rs.round)
+                            .expect("precommits should not nil")
                             .two_thirds_majority()
                             .is_some_and(|bid| bid.eq(&proposal_block_id))
-                    {
-                        if rs.locked_round <= proposal.pol_round
-                            || rs
-                                .locked_block_parts
-                                .is_some_and(|lb| lb.has_header(pbp.header()))
+                            && self.clone().block_operations.height() < rs.height
                         {
-                            match self.clone().create_signed_vote(
-                                rs_guard.clone(),
-                                SignedMsgType::Prevote,
-                                proposal_block_id.clone(),
-                            ) {
-                                Ok(signed_vote) => {
-                                    let msg = MessageInfo::IncomingMessage {
-                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                            VoteMessage {
-                                                vote: Some(signed_vote),
-                                            },
-                                        )),
-                                        peer_id: internal_peerid(),
-                                    };
+                            let precommits = rs.votes.unwrap().precommits(rs.round).unwrap();
+                            let seen_commit = precommits
+                                .make_commit()
+                                .expect("error on creating commit from precommits");
 
-                                    _ = self.send(msg).await;
+                            self.clone().block_operations.save_block(
+                                rs.proposal_block.unwrap(),
+                                rs.proposal_block_parts.unwrap(),
+                                seen_commit,
+                            );
 
-                                    log::debug!("signed and sent vote")
-                                }
-                                Err(reason) => {
-                                    debug!("create signed vote failed, reason: {:?}", reason);
-                                }
-                            };
-                        } else {
-                            match self.clone().create_signed_vote(
-                                rs_guard.clone(),
-                                SignedMsgType::Prevote,
-                                BlockId::new_zero_block_id(), // nil block
-                            ) {
-                                Ok(signed_vote) => {
-                                    let msg = MessageInfo::IncomingMessage {
-                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                            VoteMessage {
-                                                vote: Some(signed_vote),
-                                            },
-                                        )),
-                                        peer_id: internal_peerid(),
-                                    };
+                            rs_guard.height += 1;
 
-                                    _ = self.send(msg).await;
+                            rs_guard.locked_round = 0;
+                            rs_guard.locked_block = None;
+                            rs_guard.locked_block_parts = None;
 
-                                    log::debug!("signed and sent vote")
-                                }
-                                Err(reason) => {
-                                    debug!("create signed vote failed, reason: {:?}", reason);
-                                }
-                            };
+                            rs_guard.valid_round = 0;
+                            rs_guard.valid_block = None;
+                            rs_guard.valid_block_parts = None;
+
+                            self.start_new_round(0).await;
+                            drop(rs_guard);
+                            return;
                         }
-                        rs_guard.step = RoundStep::Prevote;
-                        drop(rs_guard);
-                        return;
                     }
-
-                    // checking rule #5
-                    if rs.step >= RoundStep::Prevote
-                        && rs
-                            .clone()
-                            .votes
-                            .expect("vote should not nil")
-                            .prevotes(rs.round)
-                            .expect("prevotes should not nil")
-                            .two_thirds_majority()
-                            .is_some_and(|bid| bid.eq(&proposal_block_id))
-                        && !rs.triggered_rules.contains(&RULE_5)
-                    {
-                        if rs.step == RoundStep::Prevote {
-                            rs_guard.locked_round = proposal.round;
-                            rs_guard.locked_block = rs.proposal_block.clone();
-                            rs_guard.locked_block_parts = rs.proposal_block_parts.clone();
-
-                            match self.clone().create_signed_vote(
-                                rs_guard.clone(),
-                                SignedMsgType::Precommit,
-                                proposal_block_id.clone(),
-                            ) {
-                                Ok(signed_vote) => {
-                                    let msg = MessageInfo::IncomingMessage {
-                                        msg: Arc::new(ConsensusMessageType::VoteMessage(
-                                            VoteMessage {
-                                                vote: Some(signed_vote),
-                                            },
-                                        )),
-                                        peer_id: internal_peerid(),
-                                    };
-
-                                    _ = self.send(msg).await;
-
-                                    log::debug!("signed and sent vote")
-                                }
-                                Err(reason) => {
-                                    debug!("create signed vote failed, reason: {:?}", reason);
-                                }
-                            };
-                            rs_guard.step = RoundStep::Precommit;
-                        }
-                        rs_guard.valid_round = proposal.round;
-                        rs_guard.valid_block = rs.proposal_block.clone();
-                        rs_guard.valid_block_parts = rs.proposal_block_parts.clone();
-                        drop(rs_guard);
-                        return;
-                    }
-
-                    // checking rule #8
-                    if rs
-                        .clone()
-                        .votes
-                        .expect("vote should not nil")
-                        .precommits(rs.round)
-                        .expect("precommits should not nil")
-                        .two_thirds_majority()
-                        .is_some_and(|bid| bid.eq(&proposal_block_id))
-                        && self.clone().block_operations.height() < rs.height
-                    {
-                        let precommits = rs.votes.unwrap().precommits(rs.round).unwrap();
-                        let seen_commit = precommits
-                            .make_commit()
-                            .expect("error on creating commit from precommits");
-
-                        self.clone().block_operations.save_block(
-                            rs.proposal_block.unwrap(),
-                            rs.proposal_block_parts.unwrap(),
-                            seen_commit,
-                        );
-
-                        rs_guard.height += 1;
-
-                        rs_guard.locked_round = 0;
-                        rs_guard.locked_block = None;
-                        rs_guard.locked_block_parts = None;
-
-                        rs_guard.valid_round = 0;
-                        rs_guard.valid_block = None;
-                        rs_guard.valid_block_parts = None;
-
-                        self.start_new_round(0).await;
-                        drop(rs_guard);
-                        return;
-                    }
+                    Err(e) => log::error!("cannot recover block from partset, error={:?}", e),
                 }
             }
             ConsensusMessageType::VoteMessage(_msg) => {
@@ -678,8 +691,6 @@ impl ConsensusStateImpl {
                                 rs_guard.triggered_rules.insert(RULE_7);
                             }
 
-                            // check rule #8
-                            // TODO: validate proposal, only valid proposal can proceed
                             if rs
                                 .proposal
                                 .and_then(|p| p.block_id)
@@ -833,6 +844,17 @@ impl ConsensusStateImpl {
         match pbp.add_part(msg.clone().part.unwrap()) {
             Ok(_) => {
                 log::info!("set proposal block part: part={:?}", msg.clone());
+                // update proposal block when all parts are received
+                if pbp.is_completed() {
+                    if let Ok(block) = pbp.recover_block() {
+                        rs_guard.proposal_block = Some(block.clone());
+                        log::info!(
+                            "received completed proposal block: height={:?} hash={:?}",
+                            rs_guard.height,
+                            block.hash()
+                        );
+                    }
+                }
                 return Ok(());
             }
             Err(e) => return Err(AddBlockPartError(e)),
