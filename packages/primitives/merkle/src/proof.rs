@@ -11,41 +11,77 @@ pub enum Error {
     LeafMismatch(H256, H256),
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Proof {
-    total: usize,
-    index: usize,
-    left_hash: H256,
-    aunts: Vec<H256>,
+    #[prost(uint64, tag = "1")]
+    pub total: u64,
+    #[prost(uint64, tag = "2")]
+    pub index: u64,
+    #[prost(bytes = "vec", tag = "3")]
+    pub leaf_hash: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", repeated, tag = "4")]
+    pub aunts: ::prost::alloc::vec::Vec<::prost::alloc::vec::Vec<u8>>,
+}
+
+impl From<kai_proto::crypto::Proof> for Proof {
+    fn from(m: kai_proto::crypto::Proof) -> Self {
+        Self {
+            total: m.total,
+            index: m.index,
+            leaf_hash: m.leaf_hash,
+            aunts: m.aunts,
+        }
+    }
+}
+
+impl Into<kai_proto::crypto::Proof> for Proof {
+    fn into(self) -> kai_proto::crypto::Proof {
+        kai_proto::crypto::Proof {
+            total: self.total,
+            index: self.index,
+            leaf_hash: self.leaf_hash,
+            aunts: self.aunts,
+        }
+    }
 }
 
 impl Proof {
-    fn new(total: usize, index: usize, left_hash: H256, aunts: Vec<H256>) -> Proof {
+    fn new(total: u64, index: u64, leaf_hash: H256, aunts: Vec<H256>) -> Proof {
         Proof {
             total: total,
             index: index,
-            left_hash: left_hash,
-            aunts: aunts,
+            leaf_hash: leaf_hash.as_bytes().to_vec(),
+            aunts: aunts.iter().map(|aunt| aunt.as_bytes().to_vec()).collect(),
         }
     }
 
     fn compute_hash(&self) -> H256 {
+        let leaf_hash = H256::from_slice(self.leaf_hash.as_slice());
+        let aunts = self
+            .aunts
+            .clone()
+            .iter()
+            .map(|aunt| H256::from_slice(aunt.as_slice()))
+            .collect();
+
         let res =
-            compute_hash_from_aunt(self.index, self.total, self.left_hash, self.aunts.clone());
+            compute_hash_from_aunt(self.index as usize, self.total as usize, leaf_hash, aunts);
         match res {
             Some(hash) => hash,
             None => H256::default(),
         }
     }
 
-    pub fn verify(&self, root_hash: H256, leaf: &[u8]) -> Result<bool, Error> {
+    pub fn verify(&self, root_hash: H256, leaf: &[u8]) -> Result<(), Error> {
         let leaf_hash = leaf_hash(leaf);
-        if !leaf_hash.eq(&self.left_hash) {
-            Err(Error::LeafMismatch(self.left_hash, leaf_hash))
+        let casted_leaf_hash = H256::from_slice(self.leaf_hash.as_slice());
+
+        if !leaf_hash.eq(&casted_leaf_hash) {
+            Err(Error::LeafMismatch(casted_leaf_hash, leaf_hash))
         } else if !self.compute_hash().eq(&root_hash) {
-            Err(Error::RootMismatch(self.left_hash, leaf_hash))
+            Err(Error::RootMismatch(casted_leaf_hash, leaf_hash))
         } else {
-            Ok(true)
+            Ok(())
         }
     }
 }
@@ -103,8 +139,8 @@ pub fn proof_from_byte_vectors(byte_vecs: Vec<Vec<u8>>) -> (H256, Vec<Proof>) {
     let mut proofs: Vec<Proof> = Vec::with_capacity(total_items);
     for (i, trail) in trails.iter().enumerate() {
         proofs.push(Proof::new(
-            total_items,
-            i,
+            total_items as u64,
+            i as u64,
             trail.hash,
             trail.clone().flatten_aunts(),
         ));
@@ -189,10 +225,10 @@ fn trails_from_byte_vectors(byte_vecs: Vec<Vec<u8>>) -> (Vec<ProofNode>, ProofNo
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use super::*;
     use kp_core::hexdisplay::AsBytesRef;
-    use subtle_encoding::hex;
-    use super::*; // TODO: use non-subtle ?
+    use std::vec;
+    use subtle_encoding::hex; // TODO: use non-subtle ?
 
     #[test]
     fn test_proof_from_byte_vectors() {
@@ -210,6 +246,6 @@ mod tests {
         let data = vec![vec![46]];
         let (root, proofs) = proof_from_byte_vectors(data.clone());
         let res = proofs[0].verify(root, data[0].as_bytes_ref());
-        assert!(res.unwrap());
+        assert!(res.is_ok());
     }
 }

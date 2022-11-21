@@ -1,0 +1,31 @@
+[package]
+name = "kai-types"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+"kai-proto" = { path = "../proto" }
+"kai-lib" = { path = "../lib" }
+"kp-merkle" = { path = "../primitives/merkle" }
+"prost" = "0.11.0"
+"prost-types" = "0.11.1"
+"thiserror" = "1.0.32"
+"bytes" = { version = "1", features = ["serde"] }
+"bitvec" = "1"
+"num" = "0.4"
+"num-derive" = "0.3"
+"num-traits" = "0.2"
+"primitive-types" = { version = "0.12.0", default-features = false, features = [
+    "rlp",
+    "rustc-hex",
+] }
+"sha3" = "0.10.4"
+"secp256k1" = { version = "0.24", features = [
+    "global-context",
+    "rand-std",
+    "recovery",
+] }
+"ethereum-types" = { version = "0.14", features = ["codec"] }
+"mockall" = { version = "0.11.2", features = ["nightly"] }

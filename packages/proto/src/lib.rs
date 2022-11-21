@@ -28,9 +28,21 @@ pub mod types {
 
 #[cfg(test)]
 mod tests {
+    use crate::consensus::{message::Sum, Message as ConsensusMessage};
     use crate::types;
     use prost::Message;
 
+    /**
+     Test bytes is constructed from
+     ```
+    commitSig := CommitSig{
+         BlockIdFlag:      BlockIDFlagUnknown,
+         ValidatorAddress: []byte("0x2a8Fd99c19271F4F04B1B7b9c4f7cF264b626eDB"),
+         Timestamp:        time.Unix(1405544146, 0),
+         Signature:        []byte("signature"),
+     }
+     ```
+      */
     #[test]
     fn decode_goproto_commit_sig() {
         let b_commit_sig: [u8; 63] = [
@@ -46,8 +58,46 @@ mod tests {
             decoded_commit_sig.validator_address,
             b"0x2a8Fd99c19271F4F04B1B7b9c4f7cF264b626eDB"
         );
-        assert_eq!(decoded_commit_sig.timestamp.clone().unwrap().seconds, 1405544146);
+        assert_eq!(
+            decoded_commit_sig.timestamp.clone().unwrap().seconds,
+            1405544146
+        );
         assert_eq!(decoded_commit_sig.timestamp.unwrap().nanos, 0);
         assert_eq!(decoded_commit_sig.signature, b"signature");
+    }
+
+    #[test]
+    /**
+    Test bytes is constructed from
+    ```
+    msg := Message_NewRoundStep{
+        &NewRoundStep{
+            Height: 1,
+            Round: 1,
+            Step: 1,
+            SecondsSinceStartTime: 1,
+            LastCommitRound: 1,
+        },
+    }
+    ```
+     */
+    fn decode_msg_new_round_step() {
+        let msg_new_round_step: [u8; 12] = [10, 10, 8, 1, 16, 1, 24, 1, 32, 1, 40, 1];
+        let rs = ConsensusMessage::decode(msg_new_round_step.as_slice());
+
+        assert!(rs.is_ok());
+        let decoded_msg = rs.unwrap();
+        assert!(decoded_msg.sum.is_some());
+
+        match decoded_msg.sum.unwrap() {
+            Sum::NewRoundStep(nrs) => {
+                assert_eq!(nrs.height, 1);
+                assert_eq!(nrs.round, 1);
+                assert_eq!(nrs.step, 1);
+                assert_eq!(nrs.seconds_since_start_time, 1);
+                assert_eq!(nrs.last_commit_round, 1);
+            },
+            _ => panic!("invalid message type")
+        };
     }
 }

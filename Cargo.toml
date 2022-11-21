@@ -9,6 +9,7 @@ authors = ["KardiaChain Contributors"]
 members = [
     "source/chainspec",
     "packages/core",
+    "packages/consensus",
     "packages/store",
     "packages/primitives/core",
     "packages/primitives/std",
@@ -29,6 +30,7 @@ members = [
     "packages/primitives/runtime-interface",
     "packages/primitives/merkle",
     "packages/txpool",
+    "packages/types",
     "packages/state",
 ]
 
@@ -45,7 +47,10 @@ kai-primitives-core = { path = "source/core"}
 kai-primitives = { path = "packages/primitives"}
 # kai-accounts = { path = "packages/accounts" }
 kai-consensus = { path = "packages/consensus" }
-kai_proto = { path = "packages/proto" }
+kai-proto = { path = "packages/proto" }
+kai-types = { path = "packages/types" }
+kai-lib = { path = "packages/lib" }
+# kai-db = { path = "packages/db" }
 # kai-rpc = { path = "packages/rpc" }
 # kai-txpool = { path = "packages/txpool" }
 # kai-utils = { path = "packages/utils" }
